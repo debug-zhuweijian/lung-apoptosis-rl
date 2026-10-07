@@ -9,6 +9,7 @@ import torch
 from lung.rl import PotentialNetwork, stream_seed
 from .checkpoint import atomic_save, load_checkpoint, restore_rng, save_training, seed_all
 from .config import StageUnavailable, config_hash
+from .modular_budget import StagePaused
 from .training_control import TrainingControl
 
 
@@ -30,7 +31,8 @@ def uniform_completion(adapter, prefix, generator):
     return result
 
 
-def reference_prefix_rows(world, role, count, continuations, seed, monitor):
+def reference_prefix_rows(world, role, count, continuations, seed, monitor, *,
+                          start_index=0, on_row=None):
     """Every target averages independent fixed-plan population outcomes at the same prefix."""
     if role not in {"T", "V"}:
         raise ValueError("Phi target generation may only use T and V")
@@ -38,7 +40,8 @@ def reference_prefix_rows(world, role, count, continuations, seed, monitor):
     if not roots or count < 1 or continuations < 1:
         raise StageUnavailable(f"POTENTIAL_SUPERVISION_UNAVAILABLE: {role}")
     rows = []
-    for index in monitor.progress(range(count), desc=f"Phi {role} reference prefixes"):
+    for index in monitor.progress(range(start_index, start_index + count),
+                                  desc=f"Phi {role} reference prefixes"):
         generator = torch.Generator().manual_seed(stream_seed(seed, role, index, "reference-policy"))
         root = roots[int(torch.randint(len(roots), (1,), generator=generator))]
         complete = uniform_completion(world.adapter, (), generator)
@@ -73,6 +76,69 @@ def reference_prefix_rows(world, role, count, continuations, seed, monitor):
                      "generation_index": index, "continuations": continuations,
                      "sampled_sequences": tuple(completion_ids),
                      "target_scope": "uniform_complete_action_model_reference_value"})
+        if on_row is not None:
+            on_row(rows[-1])
+    return rows
+
+
+def _validate_prefix_row(row, role, index, seed, continuations):
+    if (row.get("role") != role or getattr(row.get("state"), "role", None) != role
+            or row.get("generation_index") != index or row.get("generation_seed") != seed
+            or row.get("continuations") != continuations
+            or row.get("planning_seed") != stream_seed(seed, role, index, "prefix-planning")
+            or not np.isfinite(row.get("target", float("nan")))):
+        raise ValueError("POTENTIAL_CACHE_ROW_MISMATCH")
+
+
+def _incremental_cache_rows(world, role, count, config, monitor, identity, path):
+    seed = config.get("seed", 20260923)
+    continuations = config.get("potential_continuations", 64)
+    if role not in {"T", "V"} or count < 1 or continuations < 1:
+        raise StageUnavailable(f"POTENTIAL_SUPERVISION_UNAVAILABLE: {role}")
+    directory = path.with_suffix(".parts")
+    manifest = directory / "manifest.pt"
+    header = {"schema_version": 1, "identity": identity, "role": role, "count": count,
+              "versions": world.adapter.versions, "seed": seed, "continuations": continuations}
+    row_paths = sorted(directory.glob("row-*.pt"))
+    if manifest.exists():
+        saved = torch.load(manifest, map_location="cpu", weights_only=False)
+        if saved != header:
+            raise ValueError("POTENTIAL_CACHE_IDENTITY_OR_COUNT_MISMATCH")
+    elif row_paths:
+        raise ValueError("POTENTIAL_CACHE_MANIFEST_REQUIRED")
+    if (len(row_paths) > count or any(path.name != f"row-{index:08d}.pt"
+                                      for index, path in enumerate(row_paths))):
+        raise ValueError("POTENTIAL_CACHE_CURSOR_MISMATCH")
+    rows = []
+    for index, row_path in enumerate(row_paths):
+        saved = torch.load(row_path, map_location="cpu", weights_only=False)
+        if any(saved.get(key) != value for key, value in header.items()):
+            raise ValueError("POTENTIAL_CACHE_IDENTITY_OR_COUNT_MISMATCH")
+        row = saved["row"]
+        _validate_prefix_row(row, role, index, seed, continuations)
+        rows.append(row)
+
+    def check_budget():
+        reason = monitor.stop_check(len(rows), 0)
+        if reason:
+            reason = reason if isinstance(reason, str) else "budget_exhausted"
+            raise StagePaused(reason, manifest if rows else None, stage=f"potential/cache/{role}",
+                              cursor=len(rows))
+
+    check_budget()
+    if not manifest.exists():
+        atomic_save(manifest, header)
+
+    def commit_row(row):
+        index = len(rows)
+        _validate_prefix_row(row, role, index, seed, continuations)
+        atomic_save(directory / f"row-{index:08d}.pt", {**header, "row": row})
+        rows.append(row)
+        check_budget()
+
+    if len(rows) < count:
+        reference_prefix_rows(world, role, count - len(rows), continuations, seed, monitor,
+                              start_index=len(rows), on_row=commit_row)
     return rows
 
 
@@ -82,15 +148,24 @@ def _cache_rows(world, role, count, config, monitor, identity):
         saved = torch.load(path, map_location="cpu", weights_only=False)
         if saved.get("identity") != identity or saved.get("role") != role:
             raise ValueError("POTENTIAL_CACHE_IDENTITY_MISMATCH")
+        if callable(getattr(monitor, "stop_check", None)) and saved.get("versions") != world.adapter.versions:
+            raise ValueError("POTENTIAL_CACHE_IDENTITY_MISMATCH")
         rows = saved["rows"]
     else:
-        rows = reference_prefix_rows(world, role, count, config.get("potential_continuations", 64),
-                                     config.get("seed", 20260923), monitor)
+        if callable(getattr(monitor, "stop_check", None)):
+            rows = _incremental_cache_rows(world, role, count, config, monitor, identity, path)
+        else:
+            rows = reference_prefix_rows(world, role, count, config.get("potential_continuations", 64),
+                                         config.get("seed", 20260923), monitor)
         atomic_save(path, {"identity": identity, "role": role,
                            "versions": world.adapter.versions, "rows": rows,
                            "synthetic": config.get("synthetic", False)})
     if len(rows) != count or any(row["role"] != role or row["state"].role != role for row in rows):
         raise ValueError("POTENTIAL_CACHE_ROLE_OR_SIZE_MISMATCH")
+    if callable(getattr(monitor, "stop_check", None)):
+        for index, row in enumerate(rows):
+            _validate_prefix_row(row, role, index, config.get("seed", 20260923),
+                                 config.get("potential_continuations", 64))
     return rows
 
 
@@ -108,6 +183,10 @@ def evaluate_potential(model, rows, batch_size, device):
 
 
 def train_potential(data, config, monitor, pipeline, resume=False):
+    stop_check = getattr(monitor, "stop_check", None)
+    reason = stop_check(0, 0) if callable(stop_check) else None
+    if reason:
+        raise StagePaused(reason if isinstance(reason, str) else "budget_exhausted", stage="potential")
     # The new Phi must not include an older Phi file in its target/environment identity.
     dependencies = {key: value for key, value in pipeline.items() if key not in {"potential", "daac", "dlpa"}}
     world, prepared = _prepare_world(data, config, monitor, dependencies)
@@ -130,7 +209,6 @@ def train_potential(data, config, monitor, pipeline, resume=False):
     seed_all(settings["seed"])
     device = torch.device(config["device"])
     model = PotentialNetwork(world.registry.spec).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=settings["lr"])
     folder = monitor.weights / "potential"
     epoch0, step, best = 0, 0, float("inf")
     saved_control = None
@@ -140,6 +218,24 @@ def train_potential(data, config, monitor, pipeline, resume=False):
                 "train_role": "T", "selection_role": "V", "settings": settings,
                 "network_spec": asdict(world.registry.spec), "versions": world.adapter.versions,
                 "target_scope": "frozen_uniform_complete_action_model_reference_value"}
+    if callable(stop_check):
+        from .auxiliary import fit_epochs
+
+        def losses(network, batch):
+            targets = torch.tensor([row["target"] for row in batch], dtype=torch.float32, device=device)
+            return (network([row["state"] for row in batch]) - targets).square()
+
+        def validate(network):
+            value = evaluate_potential(network, selection, settings["batch_size"], device)
+            return {"val/loss": value, "val/mse": value}
+
+        final = fit_epochs("potential", model, train, lambda network, row: losses(network, [row])[0],
+                           data, {**config, "aux_lr": settings["lr"]}, monitor, identity, metadata,
+                           validation=validate, resume=resume, batch_size=settings["batch_size"],
+                           batch_loss=losses)
+        return {**prepared, "potential": final}
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=settings["lr"])
     if resume and (folder / "last.pt").exists():
         saved = load_checkpoint(folder / "last.pt", identity)
         model.load_state_dict(saved["model"])

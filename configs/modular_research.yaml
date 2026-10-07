@@ -1,0 +1,85 @@
+# PyCharm: run train_modular_research.py, no arguments. Real training is user-started.
+workflow: modular_research
+stage: all
+task: PROXY-A549-V1
+algorithm: daac
+seed: 20261007
+device: cuda:0
+num_workers: 0
+progress: true
+dashboard: true
+open_browser: true
+data: configs/dataset.yaml
+synthetic: false
+auto_prepare: false
+pipeline: null
+epochs: 1000
+save_period: 10
+early_stopping: {enabled: true, patience: 20, min_delta: 0.0001, min_updates: 1000}
+training_control:
+  validation_every_epochs: 1
+  checkpoint_every_updates: 1
+  checkpoint_every_seconds: 60
+data_loading:
+  row_cache: {use_disk_cache: true, max_cache_bytes: 0}
+state_fold: 1_to_8
+state_batch: 64
+aux_batch: 16
+aux_lr: 0.0001
+calibration_steps: 2000
+calibration_lr: 0.01
+state_loss: weighted_ce
+state_aggregate_lambda: 0.0
+population: 512
+scoring_repeats: 4
+decision_validation_repeats: 32
+policy_seeds: [0]
+history_support: single_exposure_only
+protocol: null
+reward: {gamma: 1.0, shaping: frozen_reference_potential_difference}
+potential_train_prefixes: 10000
+potential_val_prefixes: 2000
+potential_continuations: 64
+potential_batch: 128
+research:
+  precision: {mode: bf16}
+  timing: {enabled: true}
+  latent:
+    d_model: 256
+    latent_dim: 256
+    coupling_space: latent
+    refine: {enabled: false}
+    ae: {batch: 128, lr: 0.0001}
+response:
+  members: 1
+  member_workers: 1
+  conditions_per_update: 16
+  ot_samples: 128
+  cfm_samples: 128
+  microbatch: 128
+  train_ode_steps: 32
+  inference_ode_steps: 128
+daac:
+  warmup_transitions: 256
+  batch_size: 256
+  actor_schedule: {drug: 20, dose: 20, joint: 160}
+  max_seconds: 3600
+  init_from: null
+modular:
+  mode: modular_pipeline
+  auto_resume: true
+  run_ablations: false
+  # Existing immutable artifacts can be declared here, e.g. representation: .../selected-....pt
+  artifacts: {}
+  # All caps are cumulative across resumes; raise explicitly to grant more time.
+  response_budget_seconds: 10800
+  stages:
+    ae: {epochs: 1000, budget_seconds: 2700}
+    cache: {budget_seconds: 10800}
+    response: {epochs: 1000, budget_seconds: 10800}
+    pool: {epochs: 1000, budget_seconds: 1800}
+    state: {epochs: 1000, budget_seconds: 1800}
+    ode_audit: {budget_seconds: 1800}
+    assemble: {budget_seconds: 3600}
+    potential: {epochs: 1000, budget_seconds: 3600}
+    daac: {budget_seconds: 3600}

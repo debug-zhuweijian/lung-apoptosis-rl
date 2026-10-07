@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import math
+import json
 from pathlib import Path
+import time
 
 import numpy as np
 import torch
@@ -11,7 +14,7 @@ from lung.rl import (DAACConfig, DAACTrainer, DLPAConfig, DLPAPlanner, ModelRoll
                      ProposalDistiller, critic_mc_diagnostic, generate_fixed_sequences,
                      reevaluate_fixed_sequences, stream_seed)
 from .checkpoint import atomic_json, atomic_save, load_checkpoint, restore_rng, rng_state
-from .config import StageUnavailable, config_hash
+from .config import StageUnavailable, config_hash, file_hash, project_path
 from .world import BiologicalWorld
 from .training_control import TrainingControl
 
@@ -48,7 +51,7 @@ def has_policy_update(stage, counters):
 
 
 def _boundary_save(folder, stage, learner, planner, epoch, cursor, best, identity, metadata,
-                   filename="last.pt", control=None):
+                   filename="last.pt", control=None, runtime=None):
     model = learner.actor if stage == "daac" else learner.proposal
     learner_state = learner.state_dict()
     counters = learner_state.get("counters", {"distill_step": learner.distill_step} if stage == "dlpa" else {})
@@ -60,6 +63,7 @@ def _boundary_save(folder, stage, learner, planner, epoch, cursor, best, identit
         "learner": learner_state, "planner": planner.state_dict() if planner is not None else None,
         "epoch": epoch, "identity": identity, "metadata": metadata, "counters": counters,
         "rng": rng_state(), "extra": {"best": best, "cursor": cursor,
+            **({"decision_runtime": runtime.state_dict()} if runtime is not None else {}),
             **({"training_control": control.state_dict()} if control is not None else {})},
         "resume_boundary": "completed_episode" if stage == "daac" else "completed_root_or_distill_update"})
 
@@ -181,6 +185,10 @@ def validate_decision(stage, learner, world, config, monitor, seed, epoch):
 def train_decision(stage, data, config, monitor, pipeline, resume=False):
     if stage not in {"daac", "dlpa"}:
         raise ValueError("Expected a DA-AC or DLPA stage")
+    if resume and config[stage].get("init_from"):
+        raise ValueError("INIT_FROM_RESUME_MUTUALLY_EXCLUSIVE")
+    if config[stage].get("init_from") and (stage != "daac" or not config[stage].get("actor_schedule")):
+        raise ValueError("ACTOR_INITIALIZATION_REQUIRES_STAGED_DAAC")
     world = BiologicalWorld(data, config, pipeline)
     world.adapter.validate_ready(require_potential=stage == "daac")
     roots = world.roots("T")
@@ -194,10 +202,16 @@ def train_decision(stage, data, config, monitor, pipeline, resume=False):
         raise ValueError("Policy seeds must be nonempty and unique")
     for policy_seed in seeds:
         paths.append(_train_seed(stage, data, config, monitor, world, roots, policy_seed, resume))
-    return {**pipeline, stage: paths}
+    result = {**pipeline, stage: paths}
+    if stage == "daac" and config[stage].get("actor_schedule"):
+        result["daac_best"] = [str(Path(path).with_name("best.pt")) for path in paths
+                               if Path(path).with_name("best.pt").is_file()]
+    return result
 
 
 def _train_seed(stage, data, config, monitor, world, roots, seed, resume):
+    if stage == "daac" and config[stage].get("actor_schedule"):
+        return _train_scheduled_daac(data, config, monitor, world, roots, seed, resume)
     c, name = config[stage], f"{stage}/seed_{seed}"
     folder = monitor.weights / stage / f"seed_{seed}"
     count = c.get("episodes_per_epoch", 128) if stage == "daac" else c.get("roots_per_epoch", 64)
@@ -302,3 +316,192 @@ def _train_seed(stage, data, config, monitor, world, roots, seed, resume):
     if not has_policy_update(stage, load_checkpoint(final)["counters"]):
         raise StageUnavailable(f"TRAINED_POLICY_UPDATE_REQUIRED: {name}")
     return str(final)
+
+
+class _DecisionRuntime:
+    """Serializable wall time; exhaustion pauses an unfinished Actor schedule."""
+
+    def __init__(self, config, saved=None, resume=False):
+        from .response_research import ResearchBudget
+        total, extension = config.get("max_seconds"), config.get("resume_budget_seconds")
+        for value in (total, extension):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                      or not math.isfinite(value) or value <= 0):
+                raise ValueError("DECISION_BUDGET_REQUIRES_POSITIVE_FINITE_SECONDS")
+        if extension is not None and not resume:
+            raise ValueError("DECISION_BUDGET_EXTENSION_REQUIRES_RESUME")
+        self.values = {"schema_version": 1, "status": "running", "reason": None,
+            "elapsed_seconds": 0., "budget_seconds": total, "budget_extensions": [],
+            "stage_seconds": {stage: 0. for stage in ("warmup", "drug", "dose", "joint")},
+            "validation_seconds": 0., "checkpoint_seconds": 0., "environment_units": 0,
+            "training_feedback_calls": 0, "training_mc_draws": 0}
+        if saved is not None:
+            if saved.get("schema_version") != 1:
+                raise ValueError("DECISION_RUNTIME_SCHEMA_MISMATCH")
+            self.values = {**self.values, **saved}
+            total = saved["budget_seconds"]
+        if extension is not None:
+            if total is None:
+                raise ValueError("DECISION_UNLIMITED_BUDGET_CANNOT_BE_EXTENDED")
+            total += extension
+            self.values["budget_extensions"] = [*self.values["budget_extensions"], float(extension)]
+        self.budget = ResearchBudget(total)
+        self.budget.consumed = self.values["elapsed_seconds"]
+        if self.values["status"] != "complete":
+            self.values.update(status="running", reason=None)
+
+    def exhausted(self):
+        return self.budget.check(0, 0)
+
+    def stop(self, reason):
+        self.values.update(status="complete" if reason == "actor_schedule_complete" else "paused", reason=reason)
+
+    def state_dict(self):
+        summary = self.budget.summary()
+        return {**self.values, "elapsed_seconds": summary["consumed_seconds"],
+                "budget_seconds": summary["total_seconds"], "budget_exhausted": self.budget.exhausted}
+
+
+def _train_scheduled_daac(data, config, monitor, world, roots, seed, resume):
+    c, name = config["daac"], f"daac/seed_{seed}"
+    count = c.get("episodes_per_epoch", 128)
+    if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise ValueError("Each decision epoch must collect positive complete units")
+    folder = monitor.weights / "daac" / f"seed_{seed}"
+    checkpoint = folder / "last.pt"
+    if resume and not checkpoint.is_file():
+        raise ValueError("DECISION_RESUME_CHECKPOINT_MISSING")
+    if not resume and checkpoint.exists():
+        raise ValueError("DECISION_OUTPUT_EXISTS_USE_RESUME_OR_NEW_RUN")
+    saved = load_checkpoint(checkpoint) if resume else None
+    initialization = saved["metadata"].get("initialization") if saved else None
+    initial = None
+    if c.get("init_from"):
+        source = project_path(c["init_from"])
+        initial = load_checkpoint(source)
+        if (initial.get("metadata", {}).get("stage") != "daac"
+                or initial["metadata"].get("data_identity") != data.identity
+                or initial["metadata"].get("biological_identity") != world.biological_identity
+                or not has_policy_update("daac", initial.get("counters", {}))):
+            raise ValueError("ACTOR_INITIALIZATION_CHECKPOINT_INCOMPATIBLE")
+        initialization = {"source_sha256": file_hash(source), "source_path": str(source),
+                          "components": ["actor"]}
+    settings = {"learner": asdict(daac_settings(config)),
+        "stage_config": {key: value for key, value in c.items()
+                         if key not in {"init_from", "max_seconds", "resume_budget_seconds"}},
+        "base_seed": config.get("seed", 20260923), "policy_seed": seed,
+        "scoring_repeats": config.get("scoring_repeats", 32),
+        "validation_candidates": config.get("validation_candidates", 8 if config.get("synthetic") else 256),
+        "validation_repeats": config.get("decision_validation_repeats", config.get("scoring_repeats", 32)),
+        "diagnostic_repeats": config.get("diagnostic_repeats", 2 if config.get("synthetic") else 64),
+        "feature_layout": "frozen-summary-private-history-v1", "initialization": initialization}
+    identity = config_hash({"stage": "daac", "data": data.identity, "versions": world.adapter.versions,
+                            "network": asdict(world.registry.spec), "settings": settings})
+    if saved is not None and saved["identity"] != identity:
+        raise ValueError("CHECKPOINT_IDENTITY_MISMATCH: data/model/reward/protocol changed")
+    seed_base = stream_seed(config.get("seed", 20260923), "daac", seed)
+    learner = DAACTrainer(world.registry, world.adapter.versions, daac_settings(config),
+        config["device"], seed_base, actor_schedule=c["actor_schedule"],
+        legal_mask=world.adapter.protocol.legal_mask(world.registry, ()))
+    metadata = {"stage": "daac", "data_identity": data.identity,
+        "biological_identity": world.biological_identity, "synthetic": config.get("synthetic", False),
+        "config": config, "policy_seed": seed, "network_spec": asdict(world.registry.spec),
+        "settings": settings, "initialization": initialization, "train_role": "T", "selection_role": "V",
+        "task_id": world.adapter.task_id, "versions": world.adapter.versions, "evidence": world.adapter.evidence}
+    epoch, cursor, best = 0, _new_epoch(), -float("inf")
+    runtime_state = saved["extra"]["decision_runtime"] if saved else None
+    if saved is not None and not isinstance(runtime_state, dict):
+        raise ValueError("DECISION_RUNTIME_STATE_REQUIRED")
+    if runtime_state is not None and saved is not None and (folder / "runtime.json").is_file():
+        report = json.loads((folder / "runtime.json").read_text(encoding="utf-8"))
+        expected = {"identity": identity, "epoch": saved["epoch"],
+            "counters": saved["counters"], "cursor_phase": saved["extra"]["cursor"]["phase"],
+            "cursor_unit": saved["extra"]["cursor"]["unit"],
+            **{key: runtime_state[key] for key in ("status", "reason", "budget_seconds")}}
+        if (all(report.get(key) == value for key, value in expected.items())
+                and report.get("elapsed_seconds", -1) >= runtime_state["elapsed_seconds"]):
+            # The matching sidecar includes the I/O cost of writing this checkpoint itself.
+            runtime_state = {key: report[key] for key in runtime_state}
+    runtime = _DecisionRuntime(c, runtime_state, resume)
+    if saved is not None:
+        learner.load_state_dict(saved["learner"])
+        epoch, cursor, best = saved["epoch"], saved["extra"]["cursor"], saved["extra"]["best"]
+        restore_rng(saved["rng"])
+    elif initial is not None:
+        learner.initialize_actor(initial["learner"])
+    schedule = learner.actor_schedule
+    assert schedule is not None
+
+    def save(filename="last.pt"):
+        started = time.monotonic()
+        _boundary_save(folder, "daac", learner, None, epoch, cursor, best, identity, metadata,
+                       filename, runtime=runtime)
+        runtime.values["checkpoint_seconds"] += time.monotonic() - started
+        atomic_json(folder / "runtime.json", {"identity": identity,
+            "epoch": epoch, "counters": {key: getattr(learner, key) for key in
+                ("total_transitions", "critic_step", "actor_step", "episodes")},
+            "cursor_phase": cursor["phase"], "cursor_unit": cursor["unit"],
+            "actor_step": learner.actor_step, "actor_schedule": schedule.state_dict(),
+            "active_actor_parameters": learner.active_actor_parameters, **runtime.state_dict()})
+
+    def pause(reason):
+        runtime.stop(reason)
+        save()
+        monitor.say(f"{name}: {reason}; resume checkpoint={checkpoint}")
+        return str(checkpoint)
+
+    if runtime.values["status"] == "complete":
+        return str(checkpoint)
+    if saved is None:
+        save()
+    while epoch < config["epochs"]:
+        if runtime.exhausted():
+            return pause("budget_exhausted")
+        if cursor["phase"] == "collect":
+            indices = np.random.default_rng(stream_seed(seed_base, epoch, "roots")).integers(len(roots), size=count)
+            bar = monitor.progress(total=count, initial=cursor["unit"], desc=f"{name} epoch {epoch+1}")
+            try:
+                for unit in range(cursor["unit"], count):
+                    if schedule.complete:
+                        break
+                    if runtime.exhausted():
+                        return pause("budget_exhausted")
+                    phase = "warmup" if learner.total_transitions < learner.config.warmup_transitions else learner.actor_stage
+                    started = time.monotonic()
+                    _collect_daac(learner, world, roots[int(indices[unit])],
+                        stream_seed(seed_base, epoch, unit, "training-unit"), cursor, monitor, name,
+                        config.get("scoring_repeats", 32))
+                    runtime.values["stage_seconds"][phase] += time.monotonic() - started
+                    runtime.values["environment_units"] += 1
+                    runtime.values["training_feedback_calls"] += 1
+                    runtime.values["training_mc_draws"] += config.get("scoring_repeats", 32)
+                    cursor["unit"] = unit + 1
+                    bar.update()
+                    save()  # Every completed episode, including a stage boundary, is durable.
+            finally:
+                bar.close()
+            cursor["phase"] = "validate"
+            save()
+        if runtime.exhausted():
+            return pause("budget_exhausted")
+        started = time.monotonic()
+        validation = validate_decision("daac", learner, world, config, monitor, seed, epoch)
+        runtime.values["validation_seconds"] += time.monotonic() - started
+        trained = learner.actor_step > 0 and learner.critic_step > 0
+        improved = trained and validation["val/score"] > best
+        if improved:
+            best = validation["val/score"]
+        metrics = {**_epoch_metrics("daac", cursor, learner, world.registry), **validation}
+        epoch += 1
+        cursor = _new_epoch()
+        if schedule.complete:
+            runtime.stop("actor_schedule_complete")
+        elif epoch >= config["epochs"]:
+            runtime.stop("epoch_limit")
+        save()
+        if improved:
+            save("best.pt")
+        monitor.record(name, epoch, metrics)
+        if schedule.complete:
+            return str(checkpoint)
+    return pause("epoch_limit")

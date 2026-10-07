@@ -114,7 +114,7 @@ def test_pilot_config_contract(name, objective, weight):
     assert config["response"]["model"]["n_genes"] == 32461
     assert config["pipeline"] is None
     assert state_objective(config) == {"state_loss": objective, "state_aggregate_lambda": weight}
-    with pytest.raises(StageUnavailable, match="TRAINED_RESPONSE_REQUIRED"):
+    with pytest.raises(StageUnavailable, match="TRAINED_REPRESENTATION_OR_RESPONSE_REQUIRED"):
         auxiliary.train_auxiliary("state", None, config, None, {})
 
 

@@ -140,7 +140,7 @@ def train_latent_members(config, monitor, data, budget):
     shared = _load_shared(config, data, device,
                           ae_path=str(_resolve_ae_checkpoint(config, monitor)))
     directory, _ = ensure_representation_cache(
-        data, shared, _resolve_cache_dir(config, monitor), device)
+        data, shared, _resolve_cache_dir(config, monitor), device, stop_check=budget.check)
     cache = load_representation_cache(directory, device,
                                       expected_data_identity=data.identity,
                                       expected_encoder=encoder_identity(shared, shared.config))
@@ -172,6 +172,8 @@ def train_latent_members(config, monitor, data, budget):
         member._identity = config_hash({**base_identity, "member": index})
         member._metadata = {"stage": "latent_members", "member": index,
                             "model_config": asdict(shape), "data_identity": data.identity,
+                            "representation_hash": shared.representation_hash,
+                            "representation_identity": shared.representation_identity,
                             "coupling_space": settings["coupling_space"],
                             "rng_policy": MEMBER_RNG_POLICY}
         trainable = [parameter for name, parameter in member.named_parameters()

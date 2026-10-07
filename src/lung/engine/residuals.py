@@ -14,13 +14,16 @@ from .auxiliary import (fit_epochs, feature_cache, encode_vectors, load_auxiliar
                         calibration_audit_binding, verify_auxiliary_dependencies)
 from .checkpoint import atomic_save, atomic_json, load_checkpoint, seed_all
 from .config import config_hash, file_hash, StageUnavailable
-from .response import load_response, tensor, condition_kwargs, projected
+from .response import tensor, condition_kwargs, projected
+from .response_loader import load_response
+from .representation import load_representation, verify_response_representation
 
 
 def residual_dependencies(pipeline):
     if not pipeline.get("pool"):
         raise StageUnavailable("TRAINED_POOL_REQUIRED")
-    return {key: pipeline[key] for key in ("response", "pool")}
+    keys = ("representation", "response", "pool") if pipeline.get("representation") else ("response", "pool")
+    return {key: pipeline[key] for key in keys}
 
 
 def gate_for(table, batch):
@@ -37,6 +40,13 @@ def prediction_rows(role, data, config, monitor, pipeline):
     identity = pipeline_identity("residual_predictions", data, effective_config, deps)
     device = torch.device(config["device"])
     reference = load_response(pipeline["response"][0], data, device)
+    representation = (load_representation(pipeline["representation"], data, device)
+                      if pipeline.get("representation") else reference)
+    if hasattr(reference, "representation_identity") and not pipeline.get("representation"):
+        raise StageUnavailable("LATENT_REPRESENTATION_REQUIRED")
+    if pipeline.get("representation"):
+        verify_response_representation(reference, representation)
+    verify_auxiliary_dependencies(pipeline["pool"], pipeline)
     pool = load_auxiliary(pipeline["pool"], data, device)
     rows = []
     for key in monitor.progress(data.condition_ids(role), desc=f"cache residual {role}"):
@@ -53,6 +63,8 @@ def prediction_rows(role, data, config, monitor, pipeline):
                 with torch.no_grad():
                     for member_index, checkpoint in enumerate(pipeline["response"]):
                         member = reference if member_index == 0 else load_response(checkpoint, data, device)
+                        if pipeline.get("representation"):
+                            verify_response_representation(member, representation)
                         generated = []
                         condition = member.encode_condition(**condition_kwargs(batch, 1, device))
                         for cell in range(len(batch["control"])):
@@ -66,9 +78,9 @@ def prediction_rows(role, data, config, monitor, pipeline):
                             del member
                     raw = torch.cat(raw_members)
                     valid = projected(raw.to(device), data)
-                    vectors = encode_vectors(reference, valid, device, output_device=device)
+                    vectors = encode_vectors(representation, valid, device, output_device=device)
                     observed = tensor(batch["target"], device)
-                    observed_vectors = encode_vectors(reference, observed, device, output_device=device)
+                    observed_vectors = encode_vectors(representation, observed, device, output_device=device)
                     record = {"raw": raw, "observed": observed.cpu(),
                               "population": pool(vectors).cpu(), "observed_population": pool(observed_vectors).cpu(),
                               "condition": reference.encode_condition(**condition_kwargs(batch, 1, device))[0].cpu(),
@@ -84,7 +96,7 @@ def prediction_rows(role, data, config, monitor, pipeline):
         compact_path = compact_prediction(path, record)
         rows.append({"path": str(path), "compact_path": str(compact_path),
                      "group_id": record["group_id"], "domain": record["domain"], "condition_id": key})
-    del reference, pool
+    del reference, representation, pool
     return rows
 
 
@@ -158,7 +170,7 @@ def fit_backward(rows, data, config, monitor, pipeline, stage="backward", resume
     path = fit_epochs(stage, model, rows, loss, data, config, monitor, identity,
                       {"width": shape["d_model"], "n_genes": shape["n_genes"], "train_role": "R",
                        "reference_response_hash": file_hash(pipeline["response"][0]), "pool_hash": file_hash(pipeline["pool"]),
-                       "dependencies": dependency_record(pipeline, ("response", "pool")),
+                       "dependencies": dependency_record(pipeline, tuple(residual_dependencies(pipeline))),
                        "fit_groups": sorted({row["group_id"] for row in rows})}, resume=resume)
     return model.eval().requires_grad_(False), path
 
@@ -183,7 +195,8 @@ def fit_correction(rows, backward, backward_path, data, config, monitor, pipelin
     path = fit_epochs(stage, model, rows, loss, data, config, monitor, identity,
                       {"width": shape["d_model"], "n_genes": shape["n_genes"], "train_role": "R",
                        "reference_response_hash": file_hash(pipeline["response"][0]), "pool_hash": file_hash(pipeline["pool"]),
-                       "dependencies": dependency_record({**pipeline, "backward": backward_path}, ("response", "pool", "backward")),
+                       "dependencies": dependency_record({**pipeline, "backward": backward_path},
+                                                         (*residual_dependencies(pipeline), "backward")),
                        "fit_groups": sorted({row["group_id"] for row in rows}), "gate_during_fit": 1}, resume=resume)
     return model.eval().requires_grad_(False), path
 
@@ -261,7 +274,7 @@ def train_uncertainty(rows, data, config, monitor, pipeline, resume=False):
     path = fit_epochs("uncertainty", model, oof, loss, data, config, monitor, identity,
                       {"width": width, "train_role": "R_OOF", "folds": fold_by_group,
                        "reference_response_hash": file_hash(pipeline["response"][0]), "pool_hash": file_hash(pipeline["pool"]),
-                       "dependencies": dependency_record(pipeline, ("response", "pool", "backward", "correction")),
+                       "dependencies": dependency_record(pipeline, (*residual_dependencies(pipeline), "backward", "correction")),
                        "calibration_status": "AWAITING_NUMERICAL_AUDIT", "oof_groups": groups}, resume=resume)
     return {**pipeline, "uncertainty": path}
 

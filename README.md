@@ -1,5 +1,9 @@
 # 肺癌细胞凋亡—强化学习
 
+2026-10-07 模块化入口：PyCharm 使用 `F:/anaconda/envs/study/python.exe`，运行根目录 [train_modular_research.py](train_modular_research.py)，参数留空，读取 [configs/modular_research.yaml](configs/modular_research.yaml)。按独立 AE、h 缓存、潜空间响应、pool/state、必要审计、固定环境、势函数和同一个 Actor 的 drug→dose→joint 日程运行；默认单成员、单 seed、`run_ablations: false`。完整说明、预算续训及实际验收范围见[模块化实施回执](docs/modular_research_implementation.md)。旧的一次性训练路线已停止作为当前主线；下文旧入口说明保留作历史记录。
+
+当前已通过合成全链和有界真实全基因组件验证；**完整真实数值审计与受审计 World 中的 Actor/Critic 更新尚未完成，六项工程开训标准未全部通过**。新入口保留审计门禁，正式长时间训练由用户启动。代码仓库为 [GitHub 私有仓库](https://github.com/debug-zhuweijian/lung-apoptosis-rl)，数据、权重、缓存和实验运行产物留在本地。
+
 2026-09-28 本轮并行调整：响应阶段默认使用两个独立进程同时训练成员，每成员四条件合批、每十六条件更新一次；同组表达请求合并读取。`member_workers` 可设为 5，计算合批数量也已取消固定八条件上限。按用户要求，本轮没有运行测试、性能基准或正式训练，速度和峰值内存尚未验证。源码与配置变化后，原入口会按版本规则新建套件，旧检查点保留。配置、日志和启动说明见 [响应成员并行训练](docs/response_parallel_2026-09-28.md)。
 
 2026-09-28 数据读取修复：合并同一次读取中的重复路径解析和源检查，保留完整性校验。真实四条件重复读取由 13.23 s 降至 9.53 s，属于数据准备的小样本计时，尚非整轮训练提速结论；配置保持 16 条件更新、8 条件合批和预取开启。验证与检查点续训说明见 [GPU 等待与数据读取优化](docs/GPU等待与数据读取优化_2026-09-28.md)。

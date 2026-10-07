@@ -165,15 +165,15 @@ def _couple(condition, data, cache, shared, n, rng, device, coupling_space):
 
 
 def _load_shared(config, data, device, ae_path=None):
+    from .representation import load_representation
     settings = latent_settings(config)
-    shared = SharedAutoencoder(_model_config(config, settings, data.n_genes),
-                               tensor(data.neighbors, device, torch.long)).to(device)
-    if ae_path is not None:
-        saved = load_checkpoint(ae_path)
-        shared.load_state_dict(saved["model"])
-    shared.eval()
-    shared.requires_grad_(False)
-    return shared
+    if ae_path is None:
+        raise ValueError("LATENT_AE_REQUIRED: load a trained AE checkpoint")
+    reference = load_representation(ae_path, data, device)
+    if (reference.config.d_model != settings["d_model"]
+            or reference.config.latent_dim != settings["latent_dim"]):
+        raise ValueError("REPRESENTATION_MODEL_CONFIG_MISMATCH")
+    return reference.shared
 
 
 class _EarlyStop:
@@ -270,7 +270,7 @@ def run_latent_ae(config, monitor, data, budget):
     shared_state = {key: value.detach().to("cpu", copy=True)
                     for key, value in shared.state_dict().items()}
     for epoch in range(epoch0, config["epochs"]):
-        if budget.exhausted:
+        if budget.exhausted or (config.get("workflow") == "modular_stage" and budget.check(stop.steps, epoch)):
             break
         shared.train()
         rng = np.random.default_rng(config["seed"] + 100000 + epoch)
@@ -283,7 +283,7 @@ def run_latent_ae(config, monitor, data, budget):
         group_size = cfg["conditions_per_update"]
         if cursor > len(keys) or not (cursor == len(keys) or cursor % group_size == 0):
             raise ValueError("AE_RESUME_CURSOR_MISMATCH")
-        aggregate = 0.
+        aggregate = float(saved["extra"].get("resume", {}).get("aggregate", 0.)) if cursor and saved else 0.
         exhausted = False
         for start in range(cursor, len(keys), group_size):
             group = keys[start:start + group_size]
@@ -301,14 +301,11 @@ def run_latent_ae(config, monitor, data, budget):
                                            error_if_nonfinite=True)
             optimizer.step()
             stop.step_done()
-            exhausted = budget.check(0, epoch)
-            if exhausted:
-                # Mid-epoch snapshot: current epoch, next group cursor, condition
-                # order and the NumPy stream state — the epoch is NOT +1'd and
-                # no validation runs, so a partial epoch is never labelled done
-                # (rework S06).
+            exhausted = budget.check(stop.steps, epoch)
+            if exhausted or config.get("workflow") == "modular_stage":
+                # Persist every modular update so a manual stop preserves progress.
                 position = {"epoch": epoch, "next_group_start": start + len(group),
-                            "keys": keys, "numpy_rng": rng.bit_generator.state}
+                            "keys": keys, "numpy_rng": rng.bit_generator.state, "aggregate": aggregate}
                 payload = _payload(shared.state_dict(), shared_state,
                                    optimizer.state_dict(), epoch=epoch, identity=identity,
                                    metadata={"stage": "latent_ae", "model_config": asdict(shape),
@@ -316,12 +313,13 @@ def run_latent_ae(config, monitor, data, budget):
                                              "precision": policy.identity()},
                                    counters={"epoch": epoch, "optimizer_step": stop.steps},
                                    extra={"best": best, "resume": position,
-                                          "budget_exhausted": True,
+                                           "budget_exhausted": bool(exhausted),
                                           "early_stop": stop.state_dict()})
                 atomic_save(folder / "last.pt", payload)
+            if exhausted:
                 break
         cursor = 0
-        if exhausted:
+        if exhausted or (config.get("workflow") == "modular_stage" and budget.check(stop.steps, epoch)):
             monitor.say("AE 预算在本轮中途耗尽：已保存组游标快照（不标记 epoch 完成）。")
             break
         validation = _ae_validation(shared, data, batch, device, policy)
@@ -329,7 +327,10 @@ def run_latent_ae(config, monitor, data, budget):
         if improved:
             best = validation["loss"]
         extra = {"best": best, "validation": validation, "early_stop": stop.state_dict(),
-                 "budget_exhausted": False}
+                  "budget_exhausted": False,
+                  "training_completion": {"status": "complete" if stop.stopped or epoch + 1 >= config["epochs"] else "running",
+                      "reason": "validation_plateau" if stop.stopped else "max_epochs",
+                      "target_epochs": config["epochs"], "actual_epochs": epoch + 1, "actual_updates": stop.steps}}
         payload = _payload(shared.state_dict(), shared_state, optimizer.state_dict(),
                            epoch=epoch + 1, identity=identity,
                            metadata={"stage": "latent_ae", "model_config": asdict(shape),
@@ -373,8 +374,9 @@ def run_latent_cache(config, monitor, data, budget):
             monitor.say(f"表征缓存完成：{role} 共 {total} 个条件。")
 
     directory, status = ensure_representation_cache(
-        data, shared, _resolve_cache_dir(config, monitor), device, progress=progress)
-    cache = load_representation_cache(directory, device,
+        data, shared, _resolve_cache_dir(config, monitor), device, progress=progress,
+        stop_check=budget.check)
+    cache = load_representation_cache(directory, "cpu",
                                       expected_data_identity=data.identity,
                                       expected_encoder=encoder_identity(shared, shared.config))
     manifest = cache.manifest  # the loader returns a RepresentationCache, not a dict (S04)
@@ -395,7 +397,7 @@ def run_latent_cfm(config, monitor, data, budget):
     shared = _load_shared(config, data, device,
                           ae_path=str(_resolve_ae_checkpoint(config, monitor)))
     directory, _ = ensure_representation_cache(
-        data, shared, _resolve_cache_dir(config, monitor), device)
+        data, shared, _resolve_cache_dir(config, monitor), device, stop_check=budget.check)
     cache = load_representation_cache(directory, device,
                                       expected_data_identity=data.identity,
                                       expected_encoder=encoder_identity(shared, shared.config))
@@ -424,6 +426,8 @@ def run_latent_cfm(config, monitor, data, budget):
     member.precision_policy = policy
     metadata = {"stage": "latent_cfm", "model_config": asdict(shape),
                 "data_identity": data.identity,
+                "representation_hash": shared.representation_hash,
+                "representation_identity": shared.representation_identity,
                 "coupling_space": settings["coupling_space"],
                 "rng_policy": LATENT_RNG_POLICY, "cache": cache.manifest.get("encoder"),
                 "precision": policy.identity()}
@@ -466,7 +470,7 @@ def run_latent_cfm(config, monitor, data, budget):
     saver = BackgroundSaver()
     try:
         for epoch in range(epoch0, config["epochs"]):
-            if budget.exhausted:
+            if budget.exhausted or (config.get("workflow") == "modular_stage" and budget.check(step, epoch)):
                 break
             refine_active = refine_enabled and epoch + 1 > refine_epoch
             if refine_active and not member.decoder[0].weight.requires_grad:
@@ -497,14 +501,16 @@ def run_latent_cfm(config, monitor, data, budget):
                     h_reference, z_target, features = _couple(
                         condition, data, cache, shared, cfg["ot_samples"], rng,
                         device, settings["coupling_space"])
-                    ca = member.condition_encoder(**condition_kwargs(features, len(z_target), device))
                     micro = cfg["microbatch"]
                     for low in range(0, len(z_target), micro):
                         piece = slice(low, min(low + micro, len(z_target)))
                         rows = piece.stop - piece.start
                         with policy_autocast(member, device):
+                            # One condition graph per microbatch; do not backward
+                            # through an already freed shared ca graph a second time.
+                            ca = member.condition_encoder(**condition_kwargs(features, rows, device))
                             loss = member.cfm_loss(z_target[piece], h_reference[piece],
-                                                   ca[piece]).float()
+                                                   ca).float()
                         (loss * rows / len(z_target) / len(group)).backward()
                         aggregate["cfm_loss"] += float(loss.detach()) * rows / len(z_target) / len(keys)
                     if refine_active:
@@ -537,19 +543,24 @@ def run_latent_cfm(config, monitor, data, budget):
                     saver.flush()
                     break
             cursor = 0
-            if budget.exhausted:
+            if budget.exhausted or (config.get("workflow") == "modular_stage" and budget.check(step, epoch)):
                 break
             saver.flush()
             validation = _cfm_validation(member, data, cache, cfg, device, policy)
             improved = stop.observe(validation["loss"])
             if improved:
                 best = validation["loss"]
-                payload = _payload(member.state_dict(), shared_state, optimizer.state_dict(),
-                                   epoch=epoch + 1, identity=identity, metadata=metadata,
-                                   counters={"optimizer_step": step},
-                                   extra={"best": best, "validation": validation,
-                                          "budget_exhausted": False,
-                                          "early_stop": stop.state_dict()})
+            payload = _payload(member.state_dict(), shared_state, optimizer.state_dict(),
+                               epoch=epoch + 1, identity=identity, metadata=metadata,
+                               counters={"optimizer_step": step},
+                               extra={"best": best, "validation": validation,
+                                      "budget_exhausted": False,
+                                      "early_stop": stop.state_dict(),
+                                      "training_completion": {"status": "complete" if stop.stopped or epoch + 1 >= config["epochs"] else "running",
+                                          "reason": "validation_plateau" if stop.stopped else "max_epochs",
+                                          "target_epochs": config["epochs"], "actual_epochs": epoch + 1, "actual_updates": step}})
+            atomic_save(folder / "last.pt", payload)
+            if improved:
                 atomic_save(folder / "best.pt", payload)
             monitor.record("latent_cfm", epoch + 1,
                            {**{f"train/{key}": value for key, value in aggregate.items()},
@@ -615,6 +626,13 @@ class LatentMemberAdapter:
     def __init__(self, shared, member, config):
         self.shared, self.member, self.config = shared, member, config
 
+    def encode_cells(self, expression):
+        return self.shared.encode_h(expression)
+
+    @property
+    def condition_encoder(self):
+        return self.member.condition_encoder
+
     def condition_reference(self, reference):
         return reference  # observed mode
 
@@ -635,20 +653,34 @@ class LatentMemberAdapter:
 
 def load_latent_adapter(path, data, device):
     """Load a latent_cfm/latent_members checkpoint with identity checks (R5.2)."""
+    from .representation import latent_shape, require_finite_state, require_trained
     saved = load_checkpoint(path)
     metadata = saved.get("metadata", {})
     if metadata.get("stage") not in ("latent_cfm", "latent_members"):
         raise ValueError(f"LATENT_ADAPTER_STAGE_MISMATCH: {metadata.get('stage')}")
-    if metadata.get("data_identity") != data.identity:
-        raise ValueError("MODEL_DATA_IDENTITY_MISMATCH")
-    shape = ModelConfig(**metadata["model_config"])
+    require_trained(saved, "TRAINED_RESPONSE_REQUIRED")
+    shape = latent_shape(metadata, data)
+    require_finite_state(saved["shared"])
+    require_finite_state(saved["model"])
     shared = SharedAutoencoder(shape, tensor(data.neighbors, "cpu", torch.long))
     shared.load_state_dict(saved["shared"])
     member = LatentMember(shape, shared.to(device))
     member.load_state_dict(saved["model"])
     shared.to(device).eval().requires_grad_(False)
     member.to(device).eval().requires_grad_(False)
-    return LatentMemberAdapter(shared, member, shape)
+    if metadata.get("representation_hash") is not None:
+        shared.representation_hash = metadata["representation_hash"]
+    adapter = LatentMemberAdapter(shared, member, shape)
+    adapter.representation_identity = encoder_identity(shared, shape)
+    adapter.representation_hash = metadata.get("representation_hash")
+    for key in ("representation_identity", "cache"):
+        expected = metadata.get(key)
+        actual = adapter.representation_identity
+        if expected is not None and "checkpoint_sha256" not in expected:
+            actual = {name: value for name, value in actual.items() if name != "checkpoint_sha256"}
+        if expected is not None and expected != actual:
+            raise ValueError("LATENT_REPRESENTATION_IDENTITY_MISMATCH")
+    return adapter
 
 
 def run_latent_members(config, monitor, data, budget):

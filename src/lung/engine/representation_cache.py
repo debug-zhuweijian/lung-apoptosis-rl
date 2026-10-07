@@ -15,6 +15,7 @@ normalization, encoder or latent scale ever enters this path.
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -59,68 +60,138 @@ def _file_digest(path):
 
 def encoder_identity(shared, config):
     """Identity of the frozen shared module and its shape contract."""
-    return {"weights": _tensor_digest(shared.state_dict()),
-            "n_genes": int(config.n_genes), "d_model": int(config.d_model),
-            "latent_dim": int(config.latent_dim)}
+    identity = {"weights": _tensor_digest(shared.state_dict()),
+                "n_genes": int(config.n_genes), "d_model": int(config.d_model),
+                "latent_dim": int(config.latent_dim)}
+    checkpoint_hash = getattr(shared, "representation_hash", None)
+    if checkpoint_hash is not None:
+        identity["checkpoint_sha256"] = checkpoint_hash
+    return identity
 
 
-def _encode_role(data, shared, role, device, batch_size, progress=None):
-    """Return (h ndarray, cell_ids, condition_ids) for one reader role.
+def _cache_roles(roles):
+    roles = tuple(roles)
+    if not roles or len(set(roles)) != len(roles) or not set(roles) <= {"fit", "selection"}:
+        raise ValueError("CACHE_ROLE_FORBIDDEN: only distinct fit/selection roles are allowed")
+    return roles
 
-    Control conditions are included: the CFM/OT reference side draws same-plate
-    control cells, so their representations must live in the cache too.
-    """
-    reader = data.reader
-    conditions = reader.condition_ids(role, include_controls=True)
-    hs, cell_ids, condition_ids = [], [], []
-    for position, condition in enumerate(conditions):
-        rows = reader.role_cells(condition, role)
-        for start in range(0, len(rows), batch_size):
-            chunk = rows.iloc[start:start + batch_size]
-            counts = reader.rows.read(chunk)
-            expression = reader.normalize(counts)
-            with torch.no_grad():
-                x = torch.as_tensor(expression, dtype=torch.float32, device=device)
-                _, h = shared.encode_h(x)
-            hs.append(h.detach().to("cpu", torch.float32).numpy())
-            cell_ids.extend(chunk["cell_id"].astype(str).tolist())
-            condition_ids.extend([condition] * len(chunk))
-        if progress is not None:
-            progress(role, position + 1, len(conditions), condition)
-    if not hs:
-        raise ValueError(f"CACHE_ROLE_EMPTY: {role}")
-    return np.concatenate(hs), np.asarray(cell_ids, dtype=str), np.asarray(condition_ids, dtype=str)
+
+def _json_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _registration(data, identity, roles, batch_size):
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size < 1:
+        raise ValueError("CACHE_BATCH_SIZE_INVALID")
+    conditions = {role: list(data.reader.condition_ids(role, include_controls=True)) for role in roles}
+    if any(not keys or len(set(keys)) != len(keys) for keys in conditions.values()):
+        raise ValueError("CACHE_ROLE_EMPTY_OR_DUPLICATE_CONDITIONS")
+    return {"data_identity": data.identity, "encoder": identity,
+            "normalization_signature": data.manifest.get("signature"),
+            "batch_size": min(batch_size, SHARD_CELLS), "conditions": conditions}
+
+
+def _shard_path(directory, name):
+    if Path(name).name != name or not name.endswith(".npz"):
+        raise ValueError("CACHE_SHARD_PATH_INVALID")
+    return Path(directory) / name
+
+
+def _verify_shard(directory, shard):
+    path = _shard_path(directory, shard["file"])
+    if not path.is_file() or _file_digest(path) != shard["sha256"]:
+        raise ValueError(f"CACHE_SHARD_MISMATCH: {shard['file']}")
+    return path
+
+
+def _pause_if_requested(stop_check, state, state_path):
+    if stop_check is not None and stop_check(state["step"], 0):
+        from .modular_budget import StagePaused
+        raise StagePaused("representation cache budget exhausted", state_path,
+                          stage="latent_cache", step=state["step"], cursor=state["step"])
 
 
 def build_representation_cache(data, shared, target, device, *, batch_size=512,
-                               roles=("fit", "selection"), progress=None, identity=None):
-    """Write shards, then publish the manifest as the completion marker.
-
-    The encoder identity is computed (or accepted) BEFORE the expensive encode
-    loop so dependency mismatches fail fast (rework R2).
-    """
+                               roles=("fit", "selection"), progress=None, identity=None,
+                               stop_check=None):
+    """Resume committed chunks; publish a manifest only after every role is complete."""
+    roles = _cache_roles(roles)
+    actual_identity = encoder_identity(shared, shared.config)
+    if identity is not None and identity != actual_identity:
+        raise ValueError("CACHE_ENCODER_IDENTITY_MISMATCH")
+    identity = actual_identity
+    registration = _registration(data, identity, roles, batch_size)
     target = Path(target)
+    if (target / "manifest.json").exists():
+        if not _manifest_matches(target, data.identity, identity, roles,
+                                 data.manifest.get("signature")):
+            raise ValueError("CACHE_TARGET_IDENTITY_MISMATCH: preserve the existing cache")
+        return json.loads((target / "manifest.json").read_text(encoding="utf-8"))
     target.mkdir(parents=True, exist_ok=True)
     shared.eval()
     shared.requires_grad_(False)
-    identity = identity or encoder_identity(shared, shared.config)
-    role_blocks = {}
+    state_path = target / "build_state.json"
+    if state_path.exists():
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if (state.get("protocol") != PROTOCOL or state.get("registration") != registration
+                or state.get("step") != sum(len(value) for value in state.get("roles", {}).values())
+                or not set(state.get("roles", {})) <= set(roles)):
+            raise ValueError("CACHE_RESUME_IDENTITY_MISMATCH")
+    else:
+        state = {"schema_version": 1, "protocol": PROTOCOL, "registration": registration,
+                 "step": 0, "roles": {role: [] for role in roles}}
+        atomic_json(state_path, state)
+    _pause_if_requested(stop_check, state, state_path)
+    reader = data.reader
     for role in roles:
-        h, cell_ids, condition_ids = _encode_role(data, shared, role, device, batch_size, progress)
-        shards = []
-        for start in range(0, len(cell_ids), SHARD_CELLS):
-            stop = min(start + SHARD_CELLS, len(cell_ids))
-            name = f"{role}_shard_{len(shards):04d}.npz"
-            path = target / name
-            temporary = path.with_suffix(".tmp.npz")
-            np.savez(temporary, h=h[start:stop], cell_id=cell_ids[start:stop],
-                     condition_id=condition_ids[start:stop])
-            temporary.replace(path)
-            shards.append({"file": name, "rows": int(stop - start),
-                           "sha256": _file_digest(path)})
-        role_blocks[role] = {"cells": int(len(cell_ids)),
-                             "conditions": int(len(np.unique(condition_ids))),
-                             "shards": shards}
+        index = 0
+        conditions = registration["conditions"][role]
+        for position, condition in enumerate(conditions):
+            rows = reader.role_cells(condition, role)
+            if rows.empty:
+                raise ValueError(f"CACHE_CONDITION_EMPTY: {role}/{condition}")
+            for start in range(0, len(rows), registration["batch_size"]):
+                chunk = rows.iloc[start:start + registration["batch_size"]]
+                cell_ids = np.asarray(chunk["cell_id"].astype(str).tolist(), dtype=str)
+                location = {"file": f"{role}_shard_{index:04d}.npz", "rows": len(chunk),
+                            "condition": condition, "start": start,
+                            "cell_ids_sha256": _json_digest(cell_ids.tolist())}
+                committed = state["roles"].get(role, [])
+                if index < len(committed):
+                    shard = committed[index]
+                    if any(shard.get(key) != value for key, value in location.items()):
+                        raise ValueError("CACHE_RESUME_ROWS_MISMATCH")
+                    _verify_shard(target, shard)
+                else:
+                    expression = reader.normalize(reader.rows.read(chunk))
+                    with torch.no_grad():
+                        x = torch.as_tensor(expression, dtype=torch.float32, device=device)
+                        _, encoded = shared.encode_h(x)
+                        h = encoded.detach().to("cpu", torch.float32).numpy()
+                    if h.shape != (len(chunk), int(shared.config.d_model)) or not np.isfinite(h).all():
+                        raise ValueError("CACHE_ENCODED_CHUNK_INVALID")
+                    path = _shard_path(target, location["file"])
+                    temporary = path.with_suffix(".tmp.npz")
+                    with temporary.open("wb") as stream:
+                        np.savez(stream, h=h, cell_id=cell_ids,
+                                 condition_id=np.asarray([condition] * len(chunk), dtype=str))
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    temporary.replace(path)
+                    shard = {**location, "sha256": _file_digest(path)}
+                    state = {**state, "step": state["step"] + 1,
+                             "roles": {**state["roles"], role: [*committed, shard]}}
+                    atomic_json(state_path, state)
+                index += 1
+                _pause_if_requested(stop_check, state, state_path)
+            if progress is not None:
+                progress(role, position + 1, len(conditions), condition)
+        if index != len(state["roles"][role]):
+            raise ValueError("CACHE_RESUME_ROWS_MISMATCH")
+    role_blocks = {role: {"cells": sum(shard["rows"] for shard in state["roles"][role]),
+                          "conditions": len(registration["conditions"][role]),
+                          "shards": state["roles"][role]} for role in roles}
     manifest = {"schema_version": 1, "protocol": PROTOCOL, "status": "complete",
                 "data_identity": data.identity,
                 "normalization_signature": data.manifest.get("signature"),
@@ -133,7 +204,7 @@ def build_representation_cache(data, shared, target, device, *, batch_size=512,
     return manifest
 
 
-def _manifest_matches(directory, data_identity, encoder):
+def _manifest_matches(directory, data_identity, encoder, roles=None, normalization_signature=None):
     path = Path(directory) / "manifest.json"
     if not path.is_file():
         return False
@@ -142,26 +213,43 @@ def _manifest_matches(directory, data_identity, encoder):
     except (OSError, ValueError):
         return False
     return (manifest.get("status") == "complete"
+            and manifest.get("protocol") == PROTOCOL
             and manifest.get("data_identity") == data_identity
-            and manifest.get("encoder", {}).get("weights") == encoder.get("weights"))
+            and manifest.get("encoder") == encoder
+            and (roles is None or set(manifest.get("roles", {})) == set(roles))
+            and (normalization_signature is None
+                 or manifest.get("normalization_signature") == normalization_signature))
 
 
 def ensure_representation_cache(data, shared, requested_dir, device, *, batch_size=512,
-                                roles=("fit", "selection"), progress=None):
+                                roles=("fit", "selection"), progress=None, stop_check=None):
     """Reuse a matching cache, else build into a versioned directory (rework R2).
 
     A rebuild never reuses the requested directory: it lands in
-    ``<requested>-<encoder hash prefix>`` so an old completion marker can never
+    ``<requested>-<registration hash prefix>`` so an old completion marker can never
     be mistaken for evidence about the new cache. Returns (directory, status).
     """
     requested = Path(requested_dir)
+    roles = _cache_roles(roles)
     identity = encoder_identity(shared, shared.config)
-    if _manifest_matches(requested, data.identity, identity):
+    registration = _registration(data, identity, roles, batch_size)
+    signature = data.manifest.get("signature")
+    if _manifest_matches(requested, data.identity, identity, roles, signature):
         return requested, "reused"
-    versioned = requested.parent / f"{requested.name}-{identity['weights'][:12]}"
-    if not _manifest_matches(versioned, data.identity, identity):
-        build_representation_cache(data, shared, versioned, device, batch_size=batch_size,
-                                   roles=roles, progress=progress, identity=identity)
+    state_path = requested / "build_state.json"
+    if state_path.exists():
+        previous = json.loads(state_path.read_text(encoding="utf-8"))
+        if previous.get("registration") == registration:
+            build_representation_cache(data, shared, requested, device, batch_size=batch_size,
+                                       roles=roles, progress=progress, identity=identity,
+                                       stop_check=stop_check)
+            return requested, "built"
+    versioned = requested.parent / f"{requested.name}-{_json_digest(registration)[:12]}"
+    if _manifest_matches(versioned, data.identity, identity, roles, signature):
+        return versioned, "reused"
+    build_representation_cache(data, shared, versioned, device, batch_size=batch_size,
+                               roles=roles, progress=progress, identity=identity,
+                               stop_check=stop_check)
     return versioned, "built"
 
 
@@ -174,14 +262,13 @@ class RepresentationCache:
         self.device = torch.device(device)
         if manifest.get("protocol") != PROTOCOL or manifest.get("status") != "complete":
             raise ValueError("CACHE_INCOMPLETE: manifest is not a published completion marker")
+        _cache_roles(manifest["roles"])
         self.h, self.cell_index, self.condition_ids = {}, {}, {}
         self.condition_pools = {}
         for role, block in manifest["roles"].items():
             parts, ids, conditions = [], [], []
             for shard in block["shards"]:
-                path = self.directory / shard["file"]
-                if not path.is_file() or _file_digest(path) != shard["sha256"]:
-                    raise ValueError(f"CACHE_SHARD_MISMATCH: {shard['file']}")
+                path = _verify_shard(self.directory, shard)
                 with np.load(path, allow_pickle=False) as saved:
                     parts.append(saved["h"])
                     ids.append(saved["cell_id"])
@@ -228,6 +315,6 @@ def load_representation_cache(directory, device, *, expected_data_identity=None,
             and manifest.get("data_identity") != expected_data_identity):
         raise ValueError("CACHE_DATA_IDENTITY_MISMATCH: identity mismatch is never silently reused")
     if (expected_encoder is not None
-            and manifest.get("encoder", {}).get("weights") != expected_encoder.get("weights")):
+            and manifest.get("encoder") != expected_encoder):
         raise ValueError("CACHE_ENCODER_IDENTITY_MISMATCH: rebuild the cache for this encoder")
     return RepresentationCache(manifest, directory, device)

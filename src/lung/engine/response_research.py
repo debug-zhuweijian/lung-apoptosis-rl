@@ -245,21 +245,9 @@ def _arm_weights(weights_root, arm):
 
 
 def _load_for_comparison(path, data, device):
-    """Load response or staged-latent weights behind one comparison interface.
-
-    Staged-latent checkpoints record stage latent_cfm/latent_members and hold
-    {shared, member} state; the adapter exposes the evaluator's model contract
-    (rework R5.2). Identity checks stay inside the loaders.
-    """
-    from .response import load_response
-    saved = load_checkpoint(path)
-    stage = saved.get("metadata", {}).get("stage")
-    if stage == "response":
-        return load_response(path, data, device)
-    if stage in ("latent_cfm", "latent_members"):
-        from .latent_pipeline import load_latent_adapter
-        return load_latent_adapter(path, data, device)
-    raise ValueError(f"V_COMPARE_UNSUPPORTED_STAGE: {stage} ({path})")
+    """Reuse the frozen World/audit loader and its stage-specific validation."""
+    from .response_loader import load_response
+    return load_response(path, data, device)
 
 
 def _arm_completion(weights_path, target_epochs=None):

@@ -16,7 +16,9 @@ from .auxiliary import load_auxiliary, encode_vectors, verify_auxiliary_dependen
 from .scoring import ScalarScoreCache
 from .checkpoint import load_checkpoint
 from .config import StageUnavailable, config_hash, file_hash, project_path, implementation_identity
-from .response import condition_kwargs, load_response, tensor, projected
+from .response import condition_kwargs, tensor, projected
+from .response_loader import load_response
+from .representation import load_representation, verify_response_representation
 
 
 INITIAL_STATE_VERSION = "fixed-observation-v2"
@@ -69,6 +71,22 @@ class BiologicalWorld:
         self.members = [load_response(path, data, self.device) for path in pipeline["response"]]
         self.reference = self.members[0]
         self.shape = self.reference.config
+        self.representation = (load_representation(pipeline["representation"], data, self.device)
+                               if pipeline.get("representation") else self.reference)
+        for member in self.members:
+            if (member.config.n_genes != self.shape.n_genes
+                    or member.config.d_model != self.shape.d_model
+                    or member.config.context_dim != self.shape.context_dim):
+                raise StageUnavailable("RESPONSE_MEMBER_SHAPE_MISMATCH")
+            if hasattr(member, "representation_identity"):
+                if not pipeline.get("representation"):
+                    raise StageUnavailable("LATENT_REPRESENTATION_REQUIRED")
+                verify_response_representation(member, self.representation)
+                # A single frozen AE is shared after every member has been verified.
+                member.shared = self.representation.shared
+                object.__setattr__(member.member, "_shared_ref", self.representation.shared)
+        if self.representation.config.d_model != self.shape.d_model:
+            raise StageUnavailable("REPRESENTATION_WIDTH_MISMATCH")
         self.pool = load_auxiliary(pipeline["pool"], data, self.device)
         self.classifier = load_auxiliary(pipeline["state"], data, self.device)
         self.backward = load_auxiliary(pipeline["backward"], data, self.device) if pipeline.get("backward") else None
@@ -85,7 +103,7 @@ class BiologicalWorld:
         self.steps = pipeline.get("inference_ode_steps", config["response"]["inference_ode_steps"])
         self.actions = self._action_metadata()
         self.registry, self.protocol = self._registry()
-        biological_keys = ("response", "pool", "state", "backward", "correction", "correction_gate", "endpoint")
+        biological_keys = ("representation", "response", "pool", "state", "backward", "correction", "correction_gate", "endpoint")
         weights = {key: [file_hash(path) for path in (pipeline[key] if isinstance(pipeline[key], list) else [pipeline[key]])]
                    for key in biological_keys if pipeline.get(key)}
         self.biological_identity = config_hash({"weights": weights, "data": data.identity,
@@ -320,7 +338,7 @@ class BiologicalWorld:
             temporary = [projected(value, self.data) for value in raw]
             variance = torch.stack([value.mean(0) for value in temporary]).var(0, correction=0).mean()
             if self.backward is not None and self.correction is not None:
-                vectors = encode_vectors(self.reference, torch.cat(temporary), self.device,
+                vectors = encode_vectors(self.representation, torch.cat(temporary), self.device,
                                          batch_size=self.inference_microbatch, output_device=self.device)
                 zb = self.pool(vectors)
                 ca = self.reference.encode_condition(**condition_kwargs(batch, 1, self.device, elapsed,
@@ -343,7 +361,7 @@ class BiologicalWorld:
 
     @torch.no_grad()
     def _features(self, expression, context, prefix):
-        vectors = encode_vectors(self.reference, expression, self.device,
+        vectors = encode_vectors(self.representation, expression, self.device,
                                  batch_size=self.inference_microbatch, output_device=self.device)
         pooled = self.pool(vectors)
         log_expression = physical_projection(expression, tensor(self.data.mu, self.device), tensor(self.data.scale, self.device)).y
@@ -375,7 +393,7 @@ class BiologicalWorld:
     def score_one(self, root, sequence, seed, *, n=None, ode_steps=None):
         member = int(np.random.default_rng(stream_seed(seed, "member")).integers(len(self.members)))
         x, context = self.propagate(root, sequence, seed, n=n, scoring_member=member, ode_steps=ode_steps)
-        z = encode_vectors(self.reference, x, self.device,
+        z = encode_vectors(self.representation, x, self.device,
                            batch_size=self.inference_microbatch, output_device=self.device)
         if self.endpoint is None:
             return float(self.classifier.population_proxy(z))
@@ -430,7 +448,7 @@ class BiologicalWorld:
                 temporary = [projected(value, self.data) for value in raw]
                 variance = torch.stack([value.mean(0) for value in temporary]).var(0, correction=0).mean()
                 if self.backward is not None and self.correction is not None:
-                    vectors = encode_vectors(self.reference, torch.cat(temporary), self.device,
+                    vectors = encode_vectors(self.representation, torch.cat(temporary), self.device,
                         batch_size=self.inference_microbatch, output_device=self.device)
                     zb = self.pool(vectors)
                     ca = self.reference.encode_condition(**condition_kwargs(batch, 1, self.device,
@@ -445,7 +463,7 @@ class BiologicalWorld:
         for values, chosen in zip(populations, selected):
             x = values[chosen]
             if self.endpoint is None:
-                z = encode_vectors(self.reference, x, self.device,
+                z = encode_vectors(self.representation, x, self.device,
                     batch_size=self.inference_microbatch, output_device=self.device)
                 scores.append(float(self.classifier.population_proxy(z)))
             else:

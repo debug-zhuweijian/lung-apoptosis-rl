@@ -9,10 +9,18 @@ import torch
 
 from lung.models import physical_projection
 from lung.rl import stream_seed
-from .checkpoint import atomic_json
+from .checkpoint import atomic_json, atomic_save
 from .config import config_hash, file_hash, StageUnavailable
-from .response import tensor, condition_kwargs, load_response
+from .response import tensor, condition_kwargs
+from .response_loader import load_response
 from .inference_noise import response_noise
+
+
+def _audit_stop(monitor, stage, step, path):
+    check = getattr(monitor, "stop_check", None)
+    if callable(check) and check(step, 0):
+        from .modular_budget import StagePaused
+        raise StagePaused("budget_exhausted", str(path), stage=stage, step=step, cursor=step)
 
 
 def resolve_ode_steps(data, config, monitor, pipeline):
@@ -31,6 +39,7 @@ def resolve_ode_steps(data, config, monitor, pipeline):
     if not ids:
         raise StageUnavailable("NUMERICAL_PRECISION_UNRESOLVED: no V conditions")
     rows, selected = [], 128
+    cache_root = monitor.experiment / f"ode_progress-{identity[:20]}"
     for member, path in enumerate(pipeline["response"]):
         model = load_response(path, data, config["device"])
         samples = []
@@ -42,18 +51,31 @@ def resolve_ode_steps(data, config, monitor, pipeline):
         for steps in (128, 256, 512, 1024):
             differences, current = [], []
             for index, batch in enumerate(monitor.progress(samples, desc=f"ODE V member {member+1}, steps {steps}")):
+                _audit_stop(monitor, "ode_audit", index, cache_root)
                 device = config["device"]
-                gen = torch.Generator(device=device).manual_seed(stream_seed(20260923, "ODE", member, index))
-                noise = response_noise(model, tensor(batch["control"], device), gen)
-                with torch.no_grad():
-                    raw = model.sample(tensor(batch["control"], device), model.encode_condition(
-                         **condition_kwargs(batch, 1, device)), noise=noise, steps=steps, checkpoint=False)
-                    result = physical_projection(raw, tensor(data.mu, device), tensor(data.scale, device))
-                    if not result.valid.all():
-                        raise StageUnavailable("INVALID_GENERATED_MASS in V ODE diagnostic")
-                    current.append(result.y.cpu())
-                    if previous is not None:
-                        differences.append(float((result.y.cpu() - previous[index]).abs().mean()))
+                cache_path = cache_root / f"member-{member}" / f"steps-{steps}" / f"sample-{index}.pt"
+                if cache_path.is_file():
+                    cached = torch.load(cache_path, map_location="cpu", weights_only=False)
+                    if cached.get("identity") != identity or cached.get("index") != index or cached.get("steps") != steps:
+                        raise StageUnavailable("ODE_AUDIT_CACHE_IDENTITY_MISMATCH")
+                    output = cached["expression"]
+                    if output.shape != (1, data.n_genes) or not torch.isfinite(output).all():
+                        raise StageUnavailable("ODE_AUDIT_CACHE_INVALID")
+                else:
+                    gen = torch.Generator(device=device).manual_seed(stream_seed(20260923, "ODE", member, index))
+                    noise = response_noise(model, tensor(batch["control"], device), gen)
+                    with torch.no_grad():
+                        raw = model.sample(tensor(batch["control"], device), model.encode_condition(
+                             **condition_kwargs(batch, 1, device)), noise=noise, steps=steps, checkpoint=False)
+                        result = physical_projection(raw, tensor(data.mu, device), tensor(data.scale, device))
+                        if not result.valid.all():
+                            raise StageUnavailable("INVALID_GENERATED_MASS in V ODE diagnostic")
+                        output = result.y.cpu()
+                    atomic_save(cache_path, {"identity": identity, "index": index, "steps": steps,
+                                             "member": member, "expression": output})
+                current.append(output)
+                if previous is not None:
+                    differences.append(float((output - previous[index]).abs().mean()))
             if previous is not None:
                 difference = float(np.mean(differences))
                 rows.append({"member": member+1, "lower": steps//2, "upper": steps, "log_expression_mae": difference})
@@ -114,6 +136,7 @@ def population_diagnostic(world, monitor, pipeline):
         cache = monitor.experiment / f"population-{config_hash(root.root_id)[:16]}.json"
         values = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else []
         for repeat in monitor.progress(range(len(values), 1024), desc=f"V population {root.root_id}"):
+            _audit_stop(monitor, "assemble", repeat, cache)
             seed = stream_seed(20260923, "population-size", root.root_id, repeat)
             values.append([world.score_one(root, sequence, seed, n=n) for n in registration["sizes"]])
             atomic_json(cache, values)
