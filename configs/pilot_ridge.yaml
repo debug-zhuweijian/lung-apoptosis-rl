@@ -1,0 +1,14 @@
+# User starts this independently; the ordinary train.yaml is not changed.
+fit_role: T
+selection_role: V
+evaluation_role: V
+data: configs/dataset.yaml
+protocol: G:/研究生科研文件/毕业论文/真实数据先导实验协议_V1_2026-09-24.md
+gene_count: 32461
+synthetic: false
+auto_prepare: false
+device: cuda:0
+dtype: float64
+stream_batch_size: 512
+progress: true
+lambdas: [0.0001, 0.01, 1.0, 100.0, 10000.0]

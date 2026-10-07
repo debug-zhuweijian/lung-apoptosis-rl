@@ -1,0 +1,19 @@
+# Same response model, member seeds, shared sampling and checkpoint selection.
+stage: response
+task: RESPONSE-A549-V1
+algorithm: both
+epochs: 1000
+early_stopping: false
+seed: 20260923
+device: cuda:0
+num_workers: 0
+progress: true
+dashboard: true
+open_browser: true
+data: configs/dataset.yaml
+save_period: 10
+synthetic: false
+auto_prepare: false
+pipeline: null
+response:
+  mmd_weight: 1.0

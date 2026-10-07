@@ -1,0 +1,12 @@
+roots_per_epoch: 64
+distill_updates: 200
+batch_size: 256
+lr: 0.0001
+grad_clip: 1.0
+iterations: 6
+candidates: 256
+elites: 64
+temperature: 0.1
+old_weight: 0.2
+exploration: 0.02
+validation_roots: 32

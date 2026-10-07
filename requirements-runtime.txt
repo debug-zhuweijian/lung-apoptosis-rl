@@ -1,0 +1,13 @@
+# Verified installed study runtime, 2026-09-24. CUDA torch uses the official CUDA wheel index.
+torch==2.13.0+cu130
+numpy==2.5.1
+scipy==1.18.0
+pandas==3.0.3
+pyarrow==25.0.0
+rdkit==2026.3.6
+tensorboard==2.21.0
+tqdm==4.69.0
+matplotlib==3.11.1
+rich==13.9.4
+PyYAML==6.0.3
+pytest==9.1.1

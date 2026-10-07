@@ -1,0 +1,28 @@
+# Frozen response first: supply --pipeline experiments/<response-run>/pipeline.json.
+# Original sorting labels; scores are not biological apoptosis rates.
+stage: state
+task: PROXY-A549-V1
+algorithm: both
+epochs: 1000
+early_stopping: false
+seed: 20260923
+device: cuda:0
+num_workers: 0
+progress: true
+dashboard: true
+open_browser: true
+data: configs/dataset.yaml
+save_period: 10
+synthetic: false
+auto_prepare: false
+pipeline: null
+state_fold: 1_to_8
+state_batch: 64
+aux_lr: 0.0001
+calibration_steps: 2000
+calibration_lr: 0.01
+state_loss: weighted_ce
+state_aggregate_lambda: 0.0
+response:
+  model:
+    n_genes: 32461

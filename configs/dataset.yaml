@@ -1,0 +1,14 @@
+# Paths are resolved from the project root, not PyCharm's working directory.
+bundle: 08-datasets/LungCancer_A549_Integration/prepared/v1
+assets: 08-datasets/LungCancer_A549_Integration/training-v1
+split_manifest: 08-datasets/LungCancer_A549_Integration/training-v1/manifest.json
+train: 08-datasets/LungCancer_A549_Integration/training-v1/train.parquet
+val: 08-datasets/LungCancer_A549_Integration/training-v1/val.parquet
+test: 08-datasets/LungCancer_A549_Integration/training-v1/test.parquet
+role_column: role
+group_column: chemical_or_experiment_group_id
+gene_count: 32461
+graph_neighbors: 32
+graph_block_size: 128
+stream_batch_size: 512
+state_fold: 1_to_8

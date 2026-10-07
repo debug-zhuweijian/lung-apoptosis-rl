@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "purpose": "Verified study interpreter for the implemented V1 training entrypoints",
+  "conda_environment": "study",
+  "python_executable": "F:/anaconda/envs/study/python.exe",
+  "default_device": "cuda:0",
+  "verified_on": "2026-09-24",
+  "verified_python": "3.13.14",
+  "verified_torch": "2.13.0+cu130",
+  "verified_torch_cuda": "13.0",
+  "verification_report": "logs/environment_checks/2026-09-23-study/verification.json",
+  "core_runtime_smoke_passed": true,
+  "full_model_training_verified": false,
+  "verified_rdkit": "2026.03.6",
+  "verified_pytest": "9.1.1",
+  "missing_required_for_next_stages": [],
+  "implementation_checks": "logs/environment_checks/implementation",
+  "optional_not_installed": ["anndata", "scanpy"]
+}

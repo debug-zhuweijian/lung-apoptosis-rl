@@ -1,0 +1,9 @@
+time_auxiliary:
+  epochs: 1000
+  hidden: 64
+  lr: 0.001
+  batch_size: 32
+  population: 64
+  outer_folds: 4
+  inner_folds: 3
+  alpha: 0.1

@@ -1,0 +1,50 @@
+# Strict FP32 comparison control for the research entry (task 3.3).
+# Identical to response_research.yaml except: no BF16 autocast, TF32 off.
+# Each main route gets a paired FP32 run from this file; the pair, not a single
+# arm, is the unit compared on V.
+workflow: response_research
+stage: response
+task: RESPONSE-A549-V1
+algorithm: both
+seed: 20260923
+device: cuda:0
+num_workers: 0
+progress: true
+dashboard: true
+open_browser: true
+data: configs/dataset.yaml
+save_period: 10
+synthetic: false
+auto_prepare: false
+pipeline: null
+epochs: 1000
+early_stopping:
+  enabled: true
+  patience: 20
+  min_delta: 0.0001
+  min_updates: 1000
+training_control:
+  validation_every_epochs: 1
+  checkpoint_every_updates: 0
+  checkpoint_every_seconds: 60
+data_loading:
+  row_cache:
+    use_disk_cache: true
+    max_cache_bytes: 0
+population: 512
+research:
+  mode: route_compare
+  arms: [full, cfm_only, cfm_then_full]
+  budget_seconds: null
+  precision:
+    mode: fp32
+  timing:
+    enabled: true
+  latent:
+    latent_dim: 256
+    d_model: 256
+  v_compare:
+    weights: []
+response:
+  members: 1
+  member_workers: 1

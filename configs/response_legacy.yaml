@@ -1,0 +1,11 @@
+# Historical gene-token backbone; opt-in only, not the default long training path.
+# Use as a nested response override in a separate experiment configuration.
+response:
+  members: 5
+  microbatch: 2
+  mmd_microbatch: 2
+  inference_microbatch: 2
+  model:
+    backbone: gene_token
+    checkpoint_blocks: true
+    checkpoint_attention: true

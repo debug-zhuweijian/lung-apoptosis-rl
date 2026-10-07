@@ -1,0 +1,44 @@
+members: 5
+# Two independent response members train concurrently on the selected device.
+member_workers: 2
+member_cpu_threads: 4
+seed: 20260923
+lr: 0.0001
+min_lr: 0.00001
+weight_decay: 0.0001
+grad_clip: 1.0
+conditions_per_update: 16
+# Each member batches four conditions; two members can compute concurrently.
+condition_microbatch: 4
+# One CPU producer prepares at most one following update group.
+prefetch_group: true
+pin_memory: true
+coupling: entropic_ot_prior
+ot_samples: 128
+cfm_samples: 128
+mmd_samples: 32
+# Logical samples remain CFM=128, MMD=32. Compact execution fits larger microbatches.
+microbatch: 128
+mmd_microbatch: 32
+inference_microbatch: 128
+train_ode_steps: 32
+inference_ode_steps: 128
+mmd_backward: auto
+training_schedule:
+  mode: full
+warmup_epochs: 10
+model:
+  backbone: compact_full_gene
+  n_genes: 32461
+  d_model: 256
+  n_heads: 4
+  encoder_layers: 2
+  pad_layers: 6
+  query_chunk: 4096
+  checkpoint_blocks: false
+  checkpoint_attention: false
+  n_backgrounds: 1
+  n_sources: 2
+  n_protocols: 1
+  context_dim: 32
+  sigma_min: 0.001
