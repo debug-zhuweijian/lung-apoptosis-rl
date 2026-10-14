@@ -4979,5 +4979,39 @@
     "related_tests_passed": 42,
     "actual_canonical_dose_readback": true,
     "Dot_self_review_no_independent_agent": true
+  },
+  "vielhauer_joint_baseline_execution": {
+    "source": "Vielhauer2013 cloud raster v2",
+    "new_experiment_not_overwriting_frozen_roles": true,
+    "fit_conditions": 8,
+    "selection_conditions": 4,
+    "final_conditions": 8,
+    "policy_count_per_predictor": 5,
+    "prediction_baselines": 3,
+    "source_label_level": "published_group_mean",
+    "source_RNA_used": false,
+    "predictions_use_fit_labels_only": true,
+    "selection_or_final_used_for_tuning": false,
+    "originally_prospectively_blinded": false,
+    "independent_biological_replication": false,
+    "historical_source_authentication_reads_all_labels": true,
+    "output_scores_frozen_before_metric_execution": true,
+    "reading_intervals_are_biological_CI": false,
+    "formal_P_G_Q_or_RL_evaluated": false,
+    "initial_state_increment_or_unseen_drug_evaluated": false,
+    "full_research_qualification": false,
+    "frozen_predictions_sha256": "ff277303b3ab5df3011a043f0dfa74b33e8fa9edd8675bf4978dc6675c19c094",
+    "source_manifest_sha256": "392a85a2e0155d789aca613c66e3ac3b176d62dd17347d19f998192670223e53",
+    "actual_metric_code_sha256": "2ac62bd1f450197c9dc5e6e15704adf9e8ea2c671778cd326fe903093a0524fc",
+    "script_sha256": "05c9fb28fb462b496157f95a6a05e19c7408e7dd2375875295605fdb63ec07d1",
+    "outputs": {
+      "evaluation.json": "2bcc433f21e9cd814c0002e17719d9ff808e70b35bb22f2c7883abd9a5cb90d6",
+      "frozen_predictions.json": "ff277303b3ab5df3011a043f0dfa74b33e8fa9edd8675bf4978dc6675c19c094"
+    },
+    "targeted_tests_passed": 16,
+    "expanded_integration_passed": 17,
+    "expanded_integration_failed": 10,
+    "expanded_integration_errors": 23,
+    "integration_blocker": "unuploaded endpoint-protocol-inputs-v1/manifest.json"
   }
 }
