@@ -13,7 +13,9 @@ def build_chemical_catalog(catalog: pd.DataFrame):
 
     No largest-fragment, charge, tautomer or salt standardization is applied.
     A successful parse establishes a supplied full-structure grouping, not an
-    independent verification of the vendor's material identity.
+    independent verification of the vendor's material identity. The legacy
+    zero-vector vehicle contract is DMSO-specific; unknown or other vehicles
+    must be represented by a separately reviewed source contract.
     """
     from rdkit import Chem, DataStructs, rdBase
     from rdkit.Chem import rdFingerprintGenerator
@@ -33,6 +35,12 @@ def build_chemical_catalog(catalog: pd.DataFrame):
         canonical = None
         vector = np.zeros(2048, dtype=np.uint8)
         if vehicle:
+            # A role flag alone does not identify an experimental solvent.
+            if mol is None or Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True) != "CS(C)=O":
+                raise ValueError(
+                    "The legacy vehicle contract requires an explicit DMSO structure; "
+                    "other or unknown vehicles need a source-specific contract"
+                )
             identity, status = "vehicle:DMSO", "vehicle"
         elif mol is None or mol.GetNumAtoms() == 0:
             status = "DRUG_IDENTITY_UNRESOLVED"
