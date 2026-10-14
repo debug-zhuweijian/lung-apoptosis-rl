@@ -5,9 +5,22 @@ import pandas as pd
 
 
 def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
-    if scale not in {"bulk_raw_counts", "bulk_log2CPM"}:
+    # These are distinct measurement domains, not conversion aliases.  Mapping
+    # copies values only; a shared gene axis does not establish a shared model.
+    if scale not in {"bulk_raw_counts", "bulk_log2CPM", "bulk_TPM",
+                     "bulk_estimated_counts", "bulk_microarray_processed", "single_cell_raw_counts"}:
         raise ValueError("External expression scale must be explicit")
+    samples = list(samples)
+    if (not samples or len(set(samples)) != len(samples)
+            or any(not isinstance(s, str) or not s.strip() for s in samples)
+            or identifier in samples):
+        raise ValueError("Expression sample selection must be nonempty and unique")
+    if frame.columns.duplicated().any():
+        raise ValueError("Duplicate source columns cannot define samples")
     axis = gene_axis.sort_values("common_gene_index")
+    identity = axis.ensembl_id.astype("string")
+    if identity.isna().any() or identity.str.strip().eq("").any():
+        raise ValueError("Missing Ensembl identity in common axis")
     if not np.array_equal(axis.common_gene_index, np.arange(len(axis))):
         raise ValueError("Common gene axis is not contiguous")
     if axis.ensembl_id.duplicated().any():
@@ -17,7 +30,7 @@ def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
         raise ValueError("Unrecognized gene identifier type")
     ids = frame[identifier].astype("string")
     if identifier == "ensembl_id":
-        ids = ids.str.replace(r"\.\d+$", "", regex=True)
+        ids = ids.str.replace(r"\.\d+(?=_PAR_Y$|$)", "", regex=True)
     # Ambiguous symbols or multiple source rows cannot silently choose one gene.
     target = axis[target_key].astype("string")
     ambiguous = set(target[target.duplicated(keep=False)].dropna())
@@ -27,8 +40,10 @@ def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
     values = frame[samples].apply(pd.to_numeric, errors="raise").to_numpy(dtype=np.float64)
     if not np.isfinite(values).all():
         raise ValueError("Nonfinite measured expression value")
-    if scale == "bulk_raw_counts" and (np.any(values < 0) or np.any(values != np.floor(values))):
+    if scale in {"bulk_raw_counts", "single_cell_raw_counts"} and (np.any(values < 0) or np.any(values != np.floor(values))):
         raise ValueError("Raw count source contains negative or noninteger values")
+    if scale in {"bulk_TPM", "bulk_estimated_counts"} and np.any(values < 0):
+        raise ValueError(f"{scale} source contains negative values")
     aligned = np.full((len(samples), len(axis)), np.nan, dtype=np.float64)
     ledger = []
     for i, key in enumerate(ids):
