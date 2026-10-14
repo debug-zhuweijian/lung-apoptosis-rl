@@ -1206,5 +1206,184 @@
         "PI-APC-": 1
       }
     }
+  },
+  "mln_crossed_dose_time": {
+    "accession": "GSE134190",
+    "doi": "10.1073/pnas.1905973116",
+    "genes": 58243,
+    "samples": 12,
+    "numeric_values": 698916,
+    "common_axis_observed": 32461,
+    "common_axis_missing": 0,
+    "background": "A549",
+    "doses_uM": [
+      0,
+      0.25,
+      0.5
+    ],
+    "exposure_hours": [
+      8,
+      24
+    ],
+    "source_repeats_per_condition": 2,
+    "contemporaneous_vehicle_present": true,
+    "vehicle_percent": 0.1,
+    "scale": "bulk_estimated_counts",
+    "processing": "source integer counts from StringTie assembly; not assumed direct molecule counting",
+    "independent_drug_axis": false,
+    "true_sequential_actions": false,
+    "Annexin_supervision": false,
+    "source_initial_state_variation_identified": false,
+    "full_research_qualified": false,
+    "source_urls": {
+      "counts": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE134nnn/GSE134190/suppl/GSE134190_gene_sample_count_with_symbol.txt.gz",
+      "metadata": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE134nnn/GSE134190/soft/GSE134190_family.soft.gz",
+      "paper": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6789910/"
+    },
+    "source_hashes": {
+      "counts.txt.gz": "21449893e9bca1c2ba7dc61da137823d82e304abbb908d97220578af000ab5ef",
+      "GSE134190.soft.gz": "464f355ca17c31061ea5890d7551529134f958565b65ebc2f5ca6242c6b8b8ec",
+      "paper.html": "8fc3b4358935df60e6a1e8d3ac690a012d71ac532443da501280ba575d0052ba"
+    },
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "9d93063ac0abd6372de951e6d2731b2ccf7309ffd7b8f4ba52d726d7bdfb280e",
+    "outputs": {
+      "axis_holdout_diagnostics.json": "e854b4ddd0b20056a947a5cc82341beac5c4e070799550f77023e58d4553435d",
+      "source_gene_annotation.csv": "be0eed25fe063298cbef607ae8d471d5ec9e19ded18887a47168a52e7a5a109f",
+      "common_axis_expression.npz": "5632a4fc97460097158f75cf1f902eeae82f7c61c262f1906054a32472b5bc62",
+      "gene_mapping.csv": "f897396762717accfa2788cd3e4d24089560aeeaeb0aceb28e5575b30f5b0249",
+      "samples.csv": "008075226c4e18d202892ef8e42a04f614aaba2b15822f6996770f72fb14960b",
+      "source_expression.npz": "b1e0d5df073cb0eac53e3fd3f37d7a330928ee1c52f3a44ef161cbad2c8e9ae6"
+    },
+    "actual_diagnostics": [
+      {
+        "fold": "dose",
+        "dose_uM": 0.5,
+        "exposure_h": 8,
+        "baseline": "no_drug_effect",
+        "delta_log1pCPM_MSE": 0.6778008020995494,
+        "genes": 500
+      },
+      {
+        "fold": "dose",
+        "dose_uM": 0.5,
+        "exposure_h": 8,
+        "baseline": "copy_lower_dose",
+        "delta_log1pCPM_MSE": 0.7137774231850932,
+        "genes": 500
+      },
+      {
+        "fold": "dose",
+        "dose_uM": 0.5,
+        "exposure_h": 8,
+        "baseline": "linear_dose",
+        "delta_log1pCPM_MSE": 2.0253624777148134,
+        "genes": 500
+      },
+      {
+        "fold": "dose",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "no_drug_effect",
+        "delta_log1pCPM_MSE": 0.6589113835440967,
+        "genes": 500
+      },
+      {
+        "fold": "dose",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "copy_lower_dose",
+        "delta_log1pCPM_MSE": 0.5067159704307085,
+        "genes": 500
+      },
+      {
+        "fold": "dose",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "linear_dose",
+        "delta_log1pCPM_MSE": 2.068761443523919,
+        "genes": 500
+      },
+      {
+        "fold": "time",
+        "dose_uM": 0.25,
+        "exposure_h": 24,
+        "baseline": "no_drug_effect",
+        "delta_log1pCPM_MSE": 0.6414783422402842,
+        "genes": 500
+      },
+      {
+        "fold": "time",
+        "dose_uM": 0.25,
+        "exposure_h": 24,
+        "baseline": "copy_early_effect",
+        "delta_log1pCPM_MSE": 1.3986799286030487,
+        "genes": 500
+      },
+      {
+        "fold": "time",
+        "dose_uM": 0.25,
+        "exposure_h": 24,
+        "baseline": "linear_time",
+        "delta_log1pCPM_MSE": 6.854509149224609,
+        "genes": 500
+      },
+      {
+        "fold": "time",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "no_drug_effect",
+        "delta_log1pCPM_MSE": 0.5185841202648241,
+        "genes": 500
+      },
+      {
+        "fold": "time",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "copy_early_effect",
+        "delta_log1pCPM_MSE": 1.5110391884564405,
+        "genes": 500
+      },
+      {
+        "fold": "time",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "linear_time",
+        "delta_log1pCPM_MSE": 8.453577789559393,
+        "genes": 500
+      },
+      {
+        "fold": "protocol",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "no_drug_effect",
+        "delta_log1pCPM_MSE": 0.6534125611614998,
+        "genes": 500
+      },
+      {
+        "fold": "protocol",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "copy_same_dose_early",
+        "delta_log1pCPM_MSE": 1.5651395714698324,
+        "genes": 500
+      },
+      {
+        "fold": "protocol",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "copy_same_time_lower_dose",
+        "delta_log1pCPM_MSE": 0.4992035059415465,
+        "genes": 500
+      },
+      {
+        "fold": "protocol",
+        "dose_uM": 0.5,
+        "exposure_h": 24,
+        "baseline": "additive_rectangle",
+        "delta_log1pCPM_MSE": 1.3439003804173106,
+        "genes": 500
+      }
+    ]
   }
 }
