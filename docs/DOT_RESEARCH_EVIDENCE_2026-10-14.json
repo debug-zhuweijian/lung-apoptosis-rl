@@ -2767,5 +2767,237 @@
     "limitation": "single sorted plate; QC can be biological and technical; conditional prediction is not transport or future fate",
     "source_manifest_sha256": "4b147ed6291b796d2968b4db586a275dc9e8300d3d076f2f063494edd773aea7",
     "script_sha256": "b1271e4d152e78923652f28f9fec4fd6c08f84aef6b94e8cd2f0fa5e175c2304"
+  },
+  "tidyi_actual_other_background_transfer": {
+    "folds": [
+      {
+        "name": "A549_P8_to_MDA_P6",
+        "metrics": {
+          "position": {
+            "cells": 350,
+            "accuracy": 0.7942857142857143,
+            "balanced_accuracy": 0.8756476683937824,
+            "mean_log_loss": 0.43374454897940384,
+            "per_state_recall": {
+              "PI+APC+": 1.0,
+              "PI-APC+": 1.0,
+              "PI-APC-": 0.6269430051813472
+            }
+          },
+          "QC": {
+            "cells": 350,
+            "accuracy": 0.7771428571428571,
+            "balanced_accuracy": 0.6091659252281013,
+            "mean_log_loss": 0.7968674536901168,
+            "per_state_recall": {
+              "PI+APC+": 0.8585858585858586,
+              "PI-APC+": 0.0,
+              "PI-APC-": 0.9689119170984456
+            }
+          },
+          "RNA": {
+            "cells": 350,
+            "accuracy": 0.7314285714285714,
+            "balanced_accuracy": 0.5667730849077999,
+            "mean_log_loss": 0.8026139981709043,
+            "per_state_recall": {
+              "PI+APC+": 0.7676767676767676,
+              "PI-APC+": 0.0,
+              "PI-APC-": 0.9326424870466321
+            }
+          },
+          "position_QC": {
+            "cells": 350,
+            "accuracy": 0.76,
+            "balanced_accuracy": 0.782402670021037,
+            "mean_log_loss": 0.4570495237968982,
+            "per_state_recall": {
+              "PI+APC+": 0.9494949494949495,
+              "PI-APC+": 0.7241379310344828,
+              "PI-APC-": 0.6735751295336787
+            }
+          },
+          "position_QC_RNA": {
+            "cells": 350,
+            "accuracy": 0.72,
+            "balanced_accuracy": 0.7303449599322388,
+            "mean_log_loss": 0.6323010250747761,
+            "per_state_recall": {
+              "PI+APC+": 0.7777777777777778,
+              "PI-APC+": 0.7241379310344828,
+              "PI-APC-": 0.689119170984456
+            }
+          }
+        },
+        "training_cell_count": 368,
+        "test_cell_count": 350,
+        "selected_gene_count": 200
+      },
+      {
+        "name": "MDA_P6_to_MDA_P14",
+        "metrics": {
+          "position": {
+            "cells": 327,
+            "accuracy": 0.7920489296636085,
+            "balanced_accuracy": 0.7827118809943238,
+            "mean_log_loss": 0.4115097172781482,
+            "per_state_recall": {
+              "PI+APC+": 1.0,
+              "PI-APC+": 0.3557692307692308,
+              "PI-APC-": 0.9923664122137404
+            }
+          },
+          "QC": {
+            "cells": 327,
+            "accuracy": 0.5932721712538226,
+            "balanced_accuracy": 0.5615942028985508,
+            "mean_log_loss": 0.9371493997867999,
+            "per_state_recall": {
+              "PI+APC+": 0.6847826086956522,
+              "PI-APC+": 0.0,
+              "PI-APC-": 1.0
+            }
+          },
+          "RNA": {
+            "cells": 327,
+            "accuracy": 0.6055045871559633,
+            "balanced_accuracy": 0.5752508361204014,
+            "mean_log_loss": 0.8085354863821024,
+            "per_state_recall": {
+              "PI+APC+": 0.7065217391304348,
+              "PI-APC+": 0.019230769230769232,
+              "PI-APC-": 1.0
+            }
+          },
+          "position_QC": {
+            "cells": 327,
+            "accuracy": 0.7431192660550459,
+            "balanced_accuracy": 0.7282608695652174,
+            "mean_log_loss": 0.4515454175898039,
+            "per_state_recall": {
+              "PI+APC+": 0.9347826086956522,
+              "PI-APC+": 0.25,
+              "PI-APC-": 1.0
+            }
+          },
+          "position_QC_RNA": {
+            "cells": 327,
+            "accuracy": 0.7522935779816514,
+            "balanced_accuracy": 0.7347743113176236,
+            "mean_log_loss": 0.48651219071956897,
+            "per_state_recall": {
+              "PI+APC+": 0.8369565217391305,
+              "PI-APC+": 0.375,
+              "PI-APC-": 0.9923664122137404
+            }
+          }
+        },
+        "training_cell_count": 350,
+        "test_cell_count": 327,
+        "selected_gene_count": 200
+      },
+      {
+        "name": "MDA_P6_to_A549_P8",
+        "metrics": {
+          "position": {
+            "cells": 368,
+            "accuracy": 0.8125,
+            "balanced_accuracy": 0.7749232717360978,
+            "mean_log_loss": 0.42018057803299674,
+            "per_state_recall": {
+              "PI+APC+": 1.0,
+              "PI-APC+": 0.40860215053763443,
+              "PI-APC-": 0.9161676646706587
+            }
+          },
+          "QC": {
+            "cells": 368,
+            "accuracy": 0.6304347826086957,
+            "balanced_accuracy": 0.541583499667332,
+            "mean_log_loss": 0.8668358717948706,
+            "per_state_recall": {
+              "PI+APC+": 0.6666666666666666,
+              "PI-APC+": 0.0,
+              "PI-APC-": 0.9580838323353293
+            }
+          },
+          "RNA": {
+            "cells": 368,
+            "accuracy": 0.3423913043478261,
+            "balanced_accuracy": 0.4346873755475906,
+            "mean_log_loss": 1.2811517925484077,
+            "per_state_recall": {
+              "PI+APC+": 0.3148148148148148,
+              "PI-APC+": 0.989247311827957,
+              "PI-APC-": 0.0
+            }
+          },
+          "position_QC": {
+            "cells": 368,
+            "accuracy": 0.7527173913043478,
+            "balanced_accuracy": 0.6859482945697613,
+            "mean_log_loss": 0.4841888419501166,
+            "per_state_recall": {
+              "PI+APC+": 0.9814814814814815,
+              "PI-APC+": 0.11827956989247312,
+              "PI-APC-": 0.9580838323353293
+            }
+          },
+          "position_QC_RNA": {
+            "cells": 368,
+            "accuracy": 0.7445652173913043,
+            "balanced_accuracy": 0.7376107999055653,
+            "mean_log_loss": 0.6632138491089974,
+            "per_state_recall": {
+              "PI+APC+": 0.5,
+              "PI-APC+": 0.8924731182795699,
+              "PI-APC-": 0.8203592814371258
+            }
+          }
+        },
+        "training_cell_count": 350,
+        "test_cell_count": 368,
+        "selected_gene_count": 200
+      }
+    ],
+    "QC": "recomputed on common measured axis, not copied source QC",
+    "training_HVG": 200,
+    "training_PCA": 10,
+    "calibration": "none",
+    "hyperparameter_search": false,
+    "independent_culture_proven": false,
+    "future_fate_validated": false,
+    "drug_endpoint_validated": false,
+    "natural_apoptosis_rate_validated": false,
+    "therapeutic_target_changed": false,
+    "limitation": "same source sorting design; cell-line and plate transfer does not eliminate repeated layout confounding",
+    "source_count_shape": [
+      684,
+      32858
+    ],
+    "actual_source_values": 22474872,
+    "strict_common_axis_values": 21976097,
+    "public_counts_receipt": {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_MDA_A_counts.csv",
+      "bytes": 90838111,
+      "sha256": "f23bb28fcf8f38e884a5e39911638ddcf88dab6709a6a16d19fceae285292cc7"
+    },
+    "metadata_source_url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_MDA_A_metadata.csv",
+    "actual_MDA_cells": 677,
+    "excluded_source_rows": 7,
+    "common_gene_count": 32461,
+    "source_hashes": {
+      "SS3_Human_MDA_A_counts.csv": "f23bb28fcf8f38e884a5e39911638ddcf88dab6709a6a16d19fceae285292cc7",
+      "SS3_Human_MDA_A_metadata.csv": "c022679c3ca1155f81b1a242ccd4d326ffe6d123283df5a3400d4ddb83ececfd",
+      "gene_axis.csv": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+      "tidyi_one_plate_counts.npz": "4095984d57be8a10ff28ef59082a3d397846930d970d942ee3d436c55c390c9e"
+    },
+    "script_sha256": "657727417c6f5c3c21021387c52b108667b6d86851dd7d18d33bc2e9a167b887",
+    "outputs": {
+      "excluded_unknown_background.csv": "e357c91bd9b6c040bc8cbcfd4181955c4c410a3c968617a3560d289f351c13fd",
+      "MDA_A_common_counts.npz": "22aa7331882ee73045ff128f1c57cd7b182b76098b24ea528078798e4b48fbcf",
+      "transfer_predictions.csv": "96e22fd92d0c08663dbc36f4e541e8fc8b06f8823e99150bfa530929be144c81",
+      "MDA_A_metadata.csv": "67fb1c2fb0b1d516bc9fafa27ccc1aa735d150b9922138b9fd4886cbafb18f19"
+    }
   }
 }
