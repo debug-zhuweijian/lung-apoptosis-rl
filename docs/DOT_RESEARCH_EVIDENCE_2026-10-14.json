@@ -3717,5 +3717,279 @@
     "actual_reader": "scripts.build_vielhauer_duration_challenge.build/load_challenge",
     "model_predictions_present": false,
     "original_local_digitization_read": false
+  },
+  "branch_bridge_primary_reading": {
+    "sources": [
+      {
+        "pmcid": "PMC12976925",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12976925/",
+        "xml_bytes": 913841,
+        "sha256": "14fbf8564cd8d76f3f4ca85083b03e7875592a3b3267d750861950d79d2a8ef4"
+      },
+      {
+        "pmcid": "PMC12642768",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12642768/",
+        "xml_bytes": 232203,
+        "sha256": "62cb5c0a97fb3fbc4b6d1bea3bfd5406cbc6519f8314961b3189fe9ea35df025"
+      }
+    ],
+    "primary_sections_read": [
+      "BranchSBM 5.3/E.5",
+      "EntangledSBM 4.1/5.1 and limitations"
+    ],
+    "author_code_executed": false,
+    "author_results_reproduced": false,
+    "OpenReview_access": "browser verification, not bypassed",
+    "GitHub_tree_access": "403, no source-code verification claim",
+    "new_true_time_labels": 0,
+    "new_functional_labels": 0
+  },
+  "inde_tahoe_actual_condition_links": {
+    "nominal_drugs": 36,
+    "strict_structure_drugs": 14,
+    "candidate_sample_links": 45,
+    "strict_structure_sample_links": 15,
+    "functional_values": 108,
+    "preserved_independent_experiments": 3,
+    "no_replicate_cross_product": true,
+    "full_protocol_matches": 0,
+    "actual_RNA_rows_recovered_by_this_script": 0,
+    "complete_scientific_qualification": false,
+    "unmatched_library_names_are_not_proven_absent": true,
+    "all_library_drugs_resolved": false,
+    "fingerprint": {
+      "rdkit": "2026.09.1",
+      "canonicalization": "isomeric_full_form_no_desalting",
+      "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+      "fingerprint": {
+        "type": "Morgan_binary",
+        "radius": 2,
+        "bits": 2048,
+        "includeChirality": true,
+        "useBondTypes": true,
+        "includeRedundantEnvironments": false
+      }
+    },
+    "independent_source_name_queries_verified": true,
+    "source_cache_manifest_sha256": "c67254991da404e1724be29c362dde88e7e6a97dce8c6813f7b21cdd377ab253",
+    "source_hashes": {
+      "/workspace/shared/lung-review-20261014/inde-tahoe/name_resolution.json": "3c3510edbcaafe2fc34eed15f21c1aeec43ca40d7286447dd8aa35f9be6215f1",
+      "/workspace/shared/lung-review-20261014/inde-tahoe/name_candidates.json": "a1f14093be7f3fbb8d90846267e92e1723bfa5a3bd578f0608b0a3bcb8b7732a",
+      "/workspace/shared/lung-review-20261014/inde-tahoe/synonyms.json": "65c33c507d2b36d99b58001e607c8037b5f6bd293527c9c8b91e331e9bff1d84",
+      "/workspace/shared/lung-review-20261014/inde-tahoe/properties.json": "8afc3d5d04f937e0ab98811236a2886cfbf32e3054852de03ce7e9dac692889b",
+      "/workspace/shared/lung-review-20261014/inde-tahoe/current_metadata/sample_metadata.parquet": "33167f0ce28cff8357c503cda67d1c7fea200bff6918ee1de3c4f3549175b9d3",
+      "/workspace/shared/lung-review-20261014/inde-tahoe/current_metadata/drug_metadata.parquet": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28",
+      "experiments/dot-20261014-inde-functional-v2/single_agent_24h.csv": "5a54128199ef34984cc9f94271c3b3c22c7ea84f793b728f1bd35189b27cb9ff"
+    },
+    "script_sha256": "c4173135ee2e1fd3e7ab2ec0aa2a869e93b7bd0ba6a584393075907581bd8280",
+    "outputs": {
+      "nominal_structures.csv": "fc5a56537256d8365ed728ff59cac23530ad29f1aed7764a25cc1435e31cbcb3",
+      "condition_links.csv": "e3afa8d436b15557fde741e636a95506bc2679fe80c1980a8134c505854cc39f",
+      "fingerprints.npy": "00f2236c754f802093054421055694e3bebcbd3a098f32d8a63bc54f92474274",
+      "chemical_catalog.csv": "8e3be84cef62180185852f1b1972978d862592e01f76b1778a9575010f0b8b0a",
+      "functional_observations.csv": "f7efdfdb42c60ba9f75f1065e746b238047d34110cbde2b94303bf27378a48b5"
+    }
+  },
+  "pie_a549_actual_group_reference": {
+    "source_url": "https://huggingface.co/datasets/arcinstitute/PIE_tahoe100m/resolve/aa919261564cfd63155f734760cf38d79e089b6c/de/CVCL_0023.parquet",
+    "source_revision": "aa919261564cfd63155f734760cf38d79e089b6c",
+    "source_file_bytes": 482895984,
+    "full_source_file_downloaded": false,
+    "full_file_sha256_verified": false,
+    "downloaded_row_groups": 13,
+    "selected_range_bytes": 62288225,
+    "ranges": [
+      {
+        "group": 2,
+        "start": 9527909,
+        "end_exclusive": 14290123,
+        "bytes": 4762214,
+        "path": "group_002.bin",
+        "sha256": "2c1ab68947d0788cf4b1652de92d4f987606df4d194104293680aab3336721fb"
+      },
+      {
+        "group": 7,
+        "start": 33506061,
+        "end_exclusive": 38329917,
+        "bytes": 4823856,
+        "path": "group_007.bin",
+        "sha256": "b04d860dd80c07e9806a6d22d8cd63ace4ae462ca0c39f0940b38b2d90a7a01b"
+      },
+      {
+        "group": 22,
+        "start": 105117200,
+        "end_exclusive": 109870093,
+        "bytes": 4752893,
+        "path": "group_022.bin",
+        "sha256": "055af9e2d7af3fc24ae89c71dab705703941ea95543f1a44911e8429207e13f6"
+      },
+      {
+        "group": 44,
+        "start": 209998434,
+        "end_exclusive": 214842555,
+        "bytes": 4844121,
+        "path": "group_044.bin",
+        "sha256": "a0d47aaad2a771dff3117919ef6a973f9260619cc55e4b818595f0aa933f8c0f"
+      },
+      {
+        "group": 47,
+        "start": 224491158,
+        "end_exclusive": 229280389,
+        "bytes": 4789231,
+        "path": "group_047.bin",
+        "sha256": "157e42fb6d23bbd3e56af903775d0ace6fd9adf5dca839b1d277751ad43920c2"
+      },
+      {
+        "group": 68,
+        "start": 324933170,
+        "end_exclusive": 329746203,
+        "bytes": 4813033,
+        "path": "group_068.bin",
+        "sha256": "77573fe98c11f27ace0b7971a3eaf92812785c989148477ce8a169867069c15e"
+      },
+      {
+        "group": 73,
+        "start": 348876654,
+        "end_exclusive": 353637054,
+        "bytes": 4760400,
+        "path": "group_073.bin",
+        "sha256": "e72e584eee13fb753cb273dc68c36ade7ad299bbd7927db269a879cf7a0f6b42"
+      },
+      {
+        "group": 74,
+        "start": 353637113,
+        "end_exclusive": 358469886,
+        "bytes": 4832773,
+        "path": "group_074.bin",
+        "sha256": "05902ae2bb136f4152e2b8aba7b8b1c57bf8180ce11e9fe376c5b6a9de12d5ee"
+      },
+      {
+        "group": 81,
+        "start": 387167147,
+        "end_exclusive": 391900660,
+        "bytes": 4733513,
+        "path": "group_081.bin",
+        "sha256": "3f571daf135489423cff7e35b55f75440150e7e2821dac4ac3da19682977cb43"
+      },
+      {
+        "group": 92,
+        "start": 439564700,
+        "end_exclusive": 444355796,
+        "bytes": 4791096,
+        "path": "group_092.bin",
+        "sha256": "0599099f9caa8059c07b9ec0e79db7cecd4843ace9d8230b81b39fa2571edbfd"
+      },
+      {
+        "group": 96,
+        "start": 458796877,
+        "end_exclusive": 463548676,
+        "bytes": 4751799,
+        "path": "group_096.bin",
+        "sha256": "94224f19b37094fdc65c013d3f91cd56efab039c17746d8f448c8feb0ef8803b"
+      },
+      {
+        "group": 97,
+        "start": 463548735,
+        "end_exclusive": 468352263,
+        "bytes": 4803528,
+        "path": "group_097.bin",
+        "sha256": "01ca816eaba3245555522794e45fc616cf5a4a6d86f3d5c50d418c287dd2fe2e"
+      },
+      {
+        "group": 99,
+        "start": 473071971,
+        "end_exclusive": 477901739,
+        "bytes": 4829768,
+        "path": "group_099.bin",
+        "sha256": "45c86b7780c7cd5caf180a8254ecb0b8a52b61f537adec01bec2f1eeb04f4282"
+      }
+    ],
+    "actual_mean_records": 153936,
+    "conditions": 14,
+    "reported_target_cells": 31352,
+    "raw_cell_records_read": 0,
+    "observed_axis_values": 306394,
+    "source_scale": "population_mean_CP10k",
+    "source_gene_filter": "author gpudge 0.7.0 >=5CPM tested genes; absent entries remain masked",
+    "phenotype": "RNA response group means, not functional death labels",
+    "same_cell_pair": false,
+    "full_protocol_match": false,
+    "model_training": false,
+    "scientific_feasibility_complete": false,
+    "source_catalog_sha256": "fc5a56537256d8365ed728ff59cac23530ad29f1aed7764a25cc1435e31cbcb3",
+    "gene_metadata_sha256": "d6104d1ca570d94832be0d27ffe8b7e4e54cfd366c9080239219f9c406eb751c",
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "footer_sha256": "c912f642790adac6668a57929191cb0054601c1510929fd1791ee296de85645c",
+    "script_sha256": "3485d5589bc0fb5f5caf4d7db629595feb8741d5410ba3ccbe561d5b77d48783",
+    "outputs": {
+      "aligned_group_means.npz": "c5ab5f3efad5c75c1ac3d818d4dd82e93fb2f0061e49426bdd0abee0ec3c5999",
+      "gene_mapping.csv.gz": "a1665d2c13d34cf366e1597bc38642d70518792260d0e1859ca915edadb01da7",
+      "source_group_means.parquet": "6022eb722080df3d20005616b428f775b09ef5dd64720ce3f4afcefadd8448ae",
+      "conditions.csv": "40dd74d5df9a580f096f085194371c68a632fdefec4da3b899de11fb455adf1e"
+    }
+  },
+  "actual_measured_RNA_function_transfer": {
+    "drugs": 14,
+    "independent_source_experiments": 3,
+    "crossed_holdouts": 42,
+    "metrics": [
+      {
+        "method": "training_function_mean",
+        "MAE": 0.10556901340010084,
+        "MSE": 0.047858215327606916,
+        "outside_unit_interval": 0,
+        "crossed_predictions": 42
+      },
+      {
+        "method": "structure_only",
+        "MAE": 0.10654995931695167,
+        "MSE": 0.047662215275025,
+        "outside_unit_interval": 0,
+        "crossed_predictions": 42
+      },
+      {
+        "method": "observed_RNA_only",
+        "MAE": 0.11414088898777382,
+        "MSE": 0.053337959330925354,
+        "outside_unit_interval": 0,
+        "crossed_predictions": 42
+      },
+      {
+        "method": "structure_plus_observed_RNA",
+        "MAE": 0.11057035096795376,
+        "MSE": 0.04978173403982596,
+        "outside_unit_interval": 0,
+        "crossed_predictions": 42
+      }
+    ],
+    "fixed_gene_limit": 200,
+    "fixed_kernel_ridge_alpha": 1.0,
+    "combined_kernel_weights": [
+      0.5,
+      0.5
+    ],
+    "hyperparameter_search": false,
+    "RNA_feature": "log1p(author treated CP10k mean)-log1p(author pooled-control CP10k mean)",
+    "endpoint": "SYTOX_STACK_lethal_fraction_not_Annexin",
+    "initial_state_increment": false,
+    "predicted_RNA_used": false,
+    "paired_RNA_functional_units": false,
+    "matched_culture": false,
+    "formal_G_or_RL_training": false,
+    "apoptosis_calibration": false,
+    "selection_benefit_validated": false,
+    "source_missing_values_zero_filled": false,
+    "cell_level_independence_assumed": false,
+    "statistical_pvalues_or_confidence_intervals": false,
+    "full_scientific_qualification": false,
+    "source_manifests": {
+      "experiments/dot-20261014-pie-a549-v2/manifest.json": "5a291496784b341ec33a543491babbc9ab4fe1e7548422bb8789bdc8984ccd1b",
+      "experiments/dot-20261014-inde-tahoe-v4/manifest.json": "e79eb22748f29ad51d00dd9e8bc072ff7286aba7432e99e8aa0bf65ae2ec5c23"
+    },
+    "script_sha256": "e90aca66183ba852c4d1ed422c75c040bcf22046d69c1f6d6c83446efe78d7dc",
+    "outputs": {
+      "predictions.csv": "3804ebe80698bf7b9e7d8d549772165d181bc665b465fadee109bbb98a6fa12a",
+      "identity_order.csv": "3fb59ccdc5a3a71af3347b249cb6190343872cb670f896017ba57ba17649a32b"
+    }
   }
 }
