@@ -37,6 +37,29 @@ def build_axis(genes,counts,meta):
     return axis,meta
 
 
+def audit_plate_layout(meta):
+    """A position-only negative control, not RNA or independent-plate validation."""
+    f=meta.loc[meta.Cell_line.eq('A549'),['Plate','Well','cell_state']].copy()
+    if f.Plate.nunique()!=1:raise ValueError('This diagnostic is explicitly single-plate')
+    if not f.Well.str.fullmatch(r'[A-P](?:[1-9]|1[0-9]|2[0-4])').all():raise ValueError('Invalid 384-well identity')
+    if f.Well.duplicated().any():raise ValueError('Duplicate well')
+    f['well_row']=f.Well.str[0];f['well_column']=f.Well.str[1:].astype(int)
+    f['prediction']=None
+    for row in f.well_row.unique():
+        train=f[f.well_row!=row];test=f.well_row==row
+        fallback=train.cell_state.value_counts().index[0]
+        majority=train.groupby('well_column').cell_state.agg(lambda x:x.value_counts().index[0]).to_dict()
+        f.loc[test,'prediction']=f.loc[test,'well_column'].map(majority).fillna(fallback)
+    f['correct']=f.prediction.eq(f.cell_state)
+    recall=f.groupby('cell_state').correct.mean()
+    return dict(cells=len(f),plate=str(f.Plate.iloc[0]),held_out_unit='well_row_not_biological_replicate',
+                inputs=['well_column'],RNA_used=False,accuracy=float(f.correct.mean()),
+                balanced_accuracy=float(recall.mean()),per_state_recall=recall.to_dict(),
+                independent_plate_validation=False,natural_apoptosis_rate=False,
+                expression_model_exploits_position_proven=False,
+                column_state_counts={str(k):v for k,v in pd.crosstab(f.well_column,f.cell_state).T.to_dict().items()}),f
+
+
 def verified_bundle(path):
     m=json.loads((path/'manifest.json').read_text())
     for name,sha in m['outputs'].items():
@@ -79,6 +102,9 @@ def main():
     np.savez_compressed(a.output/'tidyi_one_plate_counts.npz',expression=counts.loc[eligible,axis.ensembl_id].to_numpy(dtype=np.int32),
                         gene_ids=axis.ensembl_id.to_numpy(dtype=str),cell_ids=counts.index[eligible].to_numpy(dtype=str))
     meta.assign(strict_A549_eligible=eligible).to_csv(a.output/'tidyi_source_metadata.csv',index_label='cell_id')
+    layout,layout_cells=audit_plate_layout(meta)
+    (a.output/'tidyi_position_only_diagnostic.json').write_text(json.dumps(layout,indent=2))
+    layout_cells.to_csv(a.output/'tidyi_position_predictions.csv',index=False)
     outcomes={}
     for name in ['hm97662','gse161800']:
         p=a.public_recovery/name;verified_bundle(p)

@@ -986,5 +986,225 @@
         "individual_library_MSE": 1.3948368100931872
       }
     ]
+  },
+  "scifate_actual_recovery": {
+    "accession": "GSE131351",
+    "sample": "GSM3770930",
+    "doi": "10.1038/s41587-020-0480-9",
+    "cells": 7404,
+    "genes": 43167,
+    "source_total_nnz": 50057931,
+    "source_new_nnz": 23539135,
+    "time_cell_counts": {
+      "0": 1151,
+      "2": 1189,
+      "4": 1045,
+      "6": 1404,
+      "8": 1169,
+      "10": 1446
+    },
+    "common_axis_observed": 28599,
+    "common_axis_missing": 3862,
+    "new_UMI_subset_of_total_exact": true,
+    "independent_biological_replicates_verified": false,
+    "source_paper_final_filtered_cells": 6680,
+    "paper_final_filter_reproduced": false,
+    "annotation_exon_intron_mismatch_cells": 7404,
+    "annotation_read_total_mismatch_cells": 7404,
+    "value_unit": "gene_assigned_single_cell_UMI_summed_by_time_not_biological_replicate",
+    "actual_same_cell_total_new_measurement": true,
+    "actual_same_cell_before_after_pair": false,
+    "inferred_past_expression_exported": false,
+    "Annexin_endpoint": false,
+    "true_sequential_drug_actions": false,
+    "DEX_uM": 0.1,
+    "label_window_h": 2,
+    "full_research_qualified": false,
+    "source_files": [
+      {
+        "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3770nnn/GSM3770930/suppl/GSM3770930_A549_cell_annotate.txt.gz",
+        "bytes": 120091,
+        "sha256": "0e7106cf674d97e26194eddce15a979f5b1dcb08c7b5397b99e3b4e9eeb9fa3c"
+      },
+      {
+        "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3770nnn/GSM3770930/suppl/GSM3770930_A549_cell_annotate_newly_synthesised.txt.gz",
+        "bytes": 111858,
+        "sha256": "a92e6051178bee69b48fbc61b87e7310966a90966220bfeaa2139daf44e1acde"
+      },
+      {
+        "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3770nnn/GSM3770930/suppl/GSM3770930_A549_gene_annotate.txt.gz",
+        "bytes": 407274,
+        "sha256": "b235c3ec0e9161b910450aaa03dd00dcefab8780671fdb40ef447eb5ffb721a2"
+      },
+      {
+        "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3770nnn/GSM3770930/suppl/GSM3770930_A549_gene_annotate_newly_synthesised.txt.gz",
+        "bytes": 407292,
+        "sha256": "44373044b4bcffd52b89e991615d2d24a6032faa4100be3b572c67c249661956"
+      },
+      {
+        "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3770nnn/GSM3770930/suppl/GSM3770930_A549_gene_count.txt.gz",
+        "bytes": 156651589,
+        "sha256": "fdd930575daf6cb669978adc6bda99df1faf065d595cd2a0b5e0e1c29b90df89"
+      },
+      {
+        "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3770nnn/GSM3770930/suppl/GSM3770930_A549_gene_count_newly_synthesised.txt.gz",
+        "bytes": 72017800,
+        "sha256": "9237a48f0b3de878be45b66a636ee3958459b99bb80d69b5ae0c4540ee6c5b33"
+      }
+    ],
+    "source_protocol_hashes": {
+      "GSE131351.soft.gz": "01bd011155ef58745fb9e95385f9b3a78b3c9ae17c4b9089cb403c870782b10c",
+      "scifate.pdf": "75be0fd0b5770c6e9c9ecb63b1eefd71e2dabd6629db1fa56ea043b6d358e88b"
+    },
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "e04830745df42d408236d70b3888a4492750d29cbcb9d91ec9da1a068984d6eb",
+    "outputs": {
+      "cell_measurement_audit.csv": "09461c73c5087df65536960bad65e5f0df0dee10f591ad5d6d860dec99af1e18",
+      "gene_mapping.csv": "66489bd231b4a53309362a527763b2a1a793021b97b1eafdf6a25f7e3d54561d",
+      "source_genes.csv": "7a5247db7fec70e42684f86758f519cd7dc59bca13fd3e96a3ffba4498cccc90",
+      "time_sums.npz": "67f0ba01459123c7a3b11933a7540783039efe3155d074c60e8165af7ab3d646",
+      "common_axis_time_sums.npz": "23923ddfef296f334e88ba8c6f4e82e96f818f71b41db0761c2380912a6fb128"
+    }
+  },
+  "tidyi_position_negative_control": {
+    "cells": 368,
+    "plate": "8",
+    "held_out_unit": "well_row_not_biological_replicate",
+    "inputs": [
+      "well_column"
+    ],
+    "RNA_used": false,
+    "accuracy": 0.8940217391304348,
+    "balanced_accuracy": 0.9221556886227544,
+    "per_state_recall": {
+      "PI+APC+": 1.0,
+      "PI-APC+": 1.0,
+      "PI-APC-": 0.7664670658682635
+    },
+    "independent_plate_validation": false,
+    "natural_apoptosis_rate": false,
+    "expression_model_exploits_position_proven": false,
+    "column_state_counts": {
+      "1": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "2": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "3": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "4": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "5": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "6": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "7": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "8": {
+        "PI+APC+": 0,
+        "PI-APC+": 0,
+        "PI-APC-": 16
+      },
+      "9": {
+        "PI+APC+": 0,
+        "PI-APC+": 13,
+        "PI-APC-": 3
+      },
+      "10": {
+        "PI+APC+": 0,
+        "PI-APC+": 10,
+        "PI-APC-": 6
+      },
+      "11": {
+        "PI+APC+": 0,
+        "PI-APC+": 11,
+        "PI-APC-": 5
+      },
+      "12": {
+        "PI+APC+": 0,
+        "PI-APC+": 14,
+        "PI-APC-": 0
+      },
+      "13": {
+        "PI+APC+": 0,
+        "PI-APC+": 10,
+        "PI-APC-": 6
+      },
+      "14": {
+        "PI+APC+": 0,
+        "PI-APC+": 11,
+        "PI-APC-": 5
+      },
+      "15": {
+        "PI+APC+": 0,
+        "PI-APC+": 14,
+        "PI-APC-": 2
+      },
+      "16": {
+        "PI+APC+": 0,
+        "PI-APC+": 10,
+        "PI-APC-": 5
+      },
+      "17": {
+        "PI+APC+": 14,
+        "PI-APC+": 0,
+        "PI-APC-": 1
+      },
+      "18": {
+        "PI+APC+": 15,
+        "PI-APC+": 0,
+        "PI-APC-": 0
+      },
+      "19": {
+        "PI+APC+": 13,
+        "PI-APC+": 0,
+        "PI-APC-": 2
+      },
+      "20": {
+        "PI+APC+": 15,
+        "PI-APC+": 0,
+        "PI-APC-": 0
+      },
+      "21": {
+        "PI+APC+": 12,
+        "PI-APC+": 0,
+        "PI-APC-": 1
+      },
+      "22": {
+        "PI+APC+": 12,
+        "PI-APC+": 0,
+        "PI-APC-": 1
+      },
+      "23": {
+        "PI+APC+": 14,
+        "PI-APC+": 0,
+        "PI-APC-": 1
+      },
+      "24": {
+        "PI+APC+": 13,
+        "PI-APC+": 0,
+        "PI-APC-": 1
+      }
+    }
   }
 }

@@ -46,3 +46,17 @@ def test_sample_metadata_binding_cannot_be_position_guessed(tmp_path):
     g,x,m=sources();axis,_=build_axis(g,x,m)
     frame=pd.DataFrame({'ensembl_id':['E1'],'s':[1.]})
     with pytest.raises(ValueError):save_aligned(tmp_path,'bad',frame,axis,['s'],'bulk_TPM',pd.DataFrame({'sample_id':['wrong']}),'sha')
+
+
+def test_position_only_audit_can_expose_sorted_labels():
+    from scripts.recover_public_gene_axis import audit_plate_layout
+    rows=[dict(Cell_line='A549',Plate=8,Well=f'{r}{c}',cell_state='a' if c==1 else 'b') for r in ['A','B','C'] for c in [1,2]]
+    result,pred=audit_plate_layout(pd.DataFrame(rows))
+    assert result['accuracy']==1 and result['RNA_used'] is False
+    assert result['expression_model_exploits_position_proven'] is False
+
+
+def test_position_audit_rejects_duplicate_wells():
+    from scripts.recover_public_gene_axis import audit_plate_layout
+    f=pd.DataFrame([dict(Cell_line='A549',Plate=8,Well='A1',cell_state='a')]*2)
+    with pytest.raises(ValueError,match='Duplicate'):audit_plate_layout(f)
