@@ -568,3 +568,22 @@ scripts/recover_nci_a549_factorial.py生成 experiments/dot-20261014-nci-a549-v3
 重要预处理边界：原论文RMA按同药的全部细胞系数组拟合，本轮恢复的是发布的处理后值，未用训练分区重新拟合RMA。因此这组不是严格训练侧预处理的最终独立验证。正式方法比较应预先冻结相应转换或在授权的原始子集上重新处理；不能因下游特征选择无泄漏就忽略上游转换范围。
 
 本轮12个新增反例与既有公共轴/外部轴测试共27项通过，涵盖相邻多Ensembl注释、物种/样本范围、源名称与单位、负log信号保留、三个轴的特征隔离和缺格点处理。原文所述vorinostat→talazoparib序贯功能实验使用T-47D、NCI-H460等另外五个背景，终点为SRB生长读数，不能嫁接为A549序贯凋亡监督。本数据扩展表达验证空间；未填补Annexin、初态表达增量或真正序贯选择的独立证据。Dot自审，未使用独立代理。
+
+### 17.1 15种NCI药物的名义身份、结构表达缺口与车辆分离
+
+本轮进一步实际查询PubChem名称、同义词、结构与InChIKey，15个来源药名均得到唯一注册参考；原始响应逐文件保存哈希。实际运行新增 `scripts/recover_nci_chemical_links.py`，调用既有结构描述、化学目录和Morgan指纹路径，产生15×2048指纹，并绑定134条样本记录。45条车辆样本保留“属于哪种药的实验区组”，但 `action_drug_id` 留空，不把0浓度对照写成接受了药物。
+
+这一步也发现**注册条目一致不等于结构信息充分**：顺铂CID5702198返回 `N.N.Cl[Pt]Cl`，缺少配位连接和顺反几何。RDKit生成的InChIKey与注册参考相同，也不能证明指纹编码了顺铂的几何。程序已为此设置配位几何复审标记，顺铂6条处理样本的结构特征使用资格为false；其RNA数值、药名、剂量和时间仍保留。其余83条处理记录具有本轮名义结构特征资格，不代表实验批次、盐型、配方或药效验证。
+
+与同一固定版本Tahoe的379条药物元数据逐结构比较，Erlotinib全形式匹配；5-Azacytidine、Bortezomib、Gemcitabine、Paclitaxel、Rapamycin、Sunitinib的Tahoe字符串省略了立体信息，分别有4、2、3、11、19、1个未指定立体要素。旧结构关系字段虽然名为 `same_connectivity_different_stereochemistry`，本轮新增的限制字段明确：这里是**信息未指定，不能说实物是相反异构体**，也不能自动升级为全形式相同。Lapatinib只与Tahoe的ditosylate记录共享最大有机片段，盐/水合形式差异保留。未在这份固定表匹配到的其他药，不等于所有公开数据均不存在该药。
+
+实际输出 `experiments/dot-20261014-nci-chemistry-v2/`；v1作为先前阶段保留。7项新测试连同Macaya结构和NCI表达恢复测试共23项通过。关键断言包括车辆不可带药物动作、来源名称与缓存同义词绑定、结构/键冲突拒绝、顺铂几何限制传播到样本。这个脚本是已实际执行的数据绑定路径；没有改动冻结化学轴、训练集或奖励，也没有把名义结构匹配写成RNA—凋亡配对。
+
+复现：
+```bash
+python scripts/recover_nci_chemical_links.py \
+  --source /path/to/verified-public-pubchem-cache \
+  --expression experiments/dot-20261014-nci-a549-v3 \
+  --tahoe /path/to/pinned/tahoe_drug_metadata.parquet \
+  --output /new/output/directory
+```

@@ -2662,5 +2662,50 @@
       "samples.csv": "93e8dd1b8d867812f01b747e8bdf63f4c29362089371e59605c75f82db9b017c"
     },
     "diagnostic_output": "experiments/dot-20261014-nci-a549-v3/axis_diagnostics.json"
+  },
+  "nci_nominal_chemical_links_20261014": {
+    "nominal_drugs": 15,
+    "sample_rows": 134,
+    "coordination_review_drugs": [
+      "cisplatin"
+    ],
+    "treated_rows": 89,
+    "controls_without_action_drug": 45,
+    "fingerprint": {
+      "rdkit": "2026.09.1",
+      "canonicalization": "isomeric_full_form_no_desalting",
+      "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+      "fingerprint": {
+        "type": "Morgan_binary",
+        "radius": 2,
+        "bits": 2048,
+        "includeChirality": true,
+        "useBondTypes": true,
+        "includeRedundantEnvironments": false
+      }
+    },
+    "tahoe_eligible_drugs": [
+      "NCI_TPW:erlotinib"
+    ],
+    "independent_endpoint_link": false,
+    "experimental_lots_verified": false,
+    "full_research_qualified": false,
+    "source_hashes": {
+      "sources.json": "1644a9fb25c933529a3f6e5060667c0fe54ebde03b588e37d201acf161b39509",
+      "properties.json": "8274c109c56ca83223eb94d6d5cbca6b006b9007f1c9a598ed2c4d421d9a1364",
+      "resolved.json": "e43451ea72dc7d964aa87d4616a50f19c3ba92c80901c9520a68d75c39b828ab"
+    },
+    "expression_manifest_sha256": "c0536333dfe015b0e70a22e7c69dacd160d18b53b1c84d77699cdd0bf032b9c7",
+    "tahoe_sha256": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28",
+    "script_sha256": "1f2191c73d6f038ac51ae7858b3601344db643e5685136578b39693450f4d162",
+    "outputs": {
+      "nominal_structures.parquet": "7e0d95e26a9897157891a352ac9e2bc6456cbf98f31f1e4c0a2cebd54ba1f4c5",
+      "fingerprints.npy": "176870b7082f22fd0c1fc1a427fa1786b64aba472e3abd463be9bc820ae3b5d9",
+      "sample_structure_links.csv": "c518d968b5436e8b1641eed9a6e95827caccb4dbf5fb32a3afca190691d5c432",
+      "tahoe_matches.csv": "dd9b08d3d4815941d038ce239d9f316ecb11ed0f4e0619aa6e0128d7d4ca3d69",
+      "chemical_catalog.csv": "43e7f7eeef7dae2f66766c1a0d9faeef341d442fc05bacf23049b88f0a566d91"
+    },
+    "actual_feature_eligible_treated_rows": 83,
+    "stereo_missing_not_opposite_isomer": true
   }
 }
