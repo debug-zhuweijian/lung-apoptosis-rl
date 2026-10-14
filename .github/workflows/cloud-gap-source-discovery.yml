@@ -12,50 +12,49 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Retrieve public source descriptions, supplements and small archive
+      - name: Read author-documented processed A549 assets and original sequential supplements
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install requests
+          python -m pip install requests h5py numpy
           python - <<'PY'
-          import hashlib, json, re, time
+          import hashlib,json,re
           from pathlib import Path
-          from datetime import datetime, timezone
-          from urllib.parse import quote
+          from datetime import datetime,timezone
           import requests
-          out=Path('gap-sources');out.mkdir()
-          rows=[]
-          def get(url,name,limit=40000000):
+          out=Path('gap-sources');out.mkdir();rows=[]
+          def get(url,name,limit=40000000,head_only=False):
               p=out/name;p.parent.mkdir(parents=True,exist_ok=True)
               row=dict(url=url,path=name,retrieved_utc=datetime.now(timezone.utc).isoformat())
               try:
-                  with requests.get(url,headers={'User-Agent':'Mozilla/5.0 (compatible; academic-public-data-readback)'},stream=True,timeout=(20,90)) as r:
-                      r.raise_for_status();row.update(resolved_url=r.url,http_status=r.status_code,etag=r.headers.get('ETag'),last_modified=r.headers.get('Last-Modified'),content_type=r.headers.get('Content-Type'))
-                      if int(r.headers.get('Content-Length','0'))>limit:raise ValueError('not a selected small source; no bulk/raw download')
-                      n=0
-                      with p.with_suffix(p.suffix+'.part').open('xb') as h:
-                          for c in r.iter_content(65536):
-                              n+=len(c)
-                              if n>limit:raise ValueError('not a selected small source; no bulk/raw download')
-                              h.write(c)
-                  part=p.with_suffix(p.suffix+'.part');row.update(bytes=n,sha256=hashlib.sha256(part.read_bytes()).hexdigest(),status='downloaded_unpinned_snapshot');part.rename(p)
+                  with requests.get(url,stream=True,timeout=(20,90)) as r:
+                      r.raise_for_status();row.update(resolved_url=r.url,http_status=r.status_code,etag=r.headers.get('ETag'),last_modified=r.headers.get('Last-Modified'),content_type=r.headers.get('Content-Type'),declared_bytes=r.headers.get('Content-Length'))
+                      if head_only:
+                          row['status']='headers_only_no_matrix_read'
+                      else:
+                          if int(r.headers.get('Content-Length','0'))>limit:raise ValueError('outside selected processed-file scope')
+                          n=0
+                          with p.with_suffix(p.suffix+'.part').open('xb') as h:
+                              for c in r.iter_content(65536):
+                                  n+=len(c)
+                                  if n>limit:raise ValueError('outside selected processed-file scope')
+                                  h.write(c)
+                          part=p.with_suffix(p.suffix+'.part');row.update(bytes=n,sha256=hashlib.sha256(part.read_bytes()).hexdigest(),status='downloaded_unpinned_snapshot');part.rename(p)
               except Exception as e:row.update(status='failed',error=str(e))
               rows.append(row);(out/'retrieval_receipt.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)
               return p if row['status'].startswith('downloaded') else None
-          tenx='https://www.10xgenomics.com/datasets/30-k-a-549-lung-carcinoma-cells-treatments-transduced-with-a-crispr-pool-multiplexed-6-cm-os-3-1-standard-6-0-0'
-          page=get(tenx,'tenx/page.html')
-          if page:
-              text=page.read_text();urls=sorted(set(re.findall(r'https[^\s<>"\\]+',text)))
-              (out/'tenx/discovered_urls.json').write_text(json.dumps(urls,indent=2))
-          for acc in ['PMC3501264','PMC7409774','PMC3929868']:
-              get('https://www.ebi.ac.uk/europepmc/webservices/rest/'+acc+'/fullTextXML','papers/'+acc+'.xml')
-              get('https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id='+acc,'papers/'+acc+'_oa.xml')
-          for i,q in enumerate(['TITLE_ABS:"Sequential Application of Anti-Cancer Drugs"','A549 AND sequential AND apoptosis AND transcriptome','A549 AND Annexin AND "RNA-seq"']):
-              get('https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&pageSize=50&query='+quote(q),'literature/search_'+str(i)+'.json')
-          get('https://data.mendeley.com/datasets/9bccjb75wp/1','inde/page.html')
-          get('https://data.mendeley.com/public-api/datasets/9bccjb75wp/versions/1','inde/dataset.json')
-          get('https://prod-dcd-datasets-cache-zipfiles.s3.eu-west-1.amazonaws.com/9bccjb75wp-1.zip','inde/9bccjb75wp-1.zip')
-          get('https://cf.10xgenomics.com/samples/cell-exp/6.0.0/SC3_v3_NextGem_DI_CRISPR_30K_A549_6CMO/SC3_v3_NextGem_DI_CRISPR_30K_A549_6CMO_web_summary.html','tenx/candidate_web_summary.html')
+          name='SC3_v3_NextGem_DI_CellPlex_CRISPR_A549_30K_Multiplex'
+          base='https://cf.10xgenomics.com/samples/cell-exp/6.0.0/'+name+'/'+name
+          for suffix in ['_config.csv','_count_web_summary.html','_count_sample_barcodes.csv','_count_sample_barcodes.json','_count_guide_assignments.csv','_count_feature_reference.csv']:
+              get(base+suffix,'tenx/'+name+suffix)
+          get(base+'_count_raw_feature_bc_matrix.h5','tenx/raw_matrix_header.json',head_only=True)
+          for root,label in [('https://pmc.ncbi.nlm.nih.gov/articles/PMC3501264/bin/','pmc'),('https://europepmc.org/articles/PMC3501264/bin/','epmc')]:
+              for suffix in ['01.pdf','02.csv']:
+                  get(root+'NIHMS370678-supplement-'+suffix,'lee/'+label+'_'+suffix)
+          get('https://pmc.ncbi.nlm.nih.gov/articles/PMC3501264/?report=xml','lee/pmc_full.xml')
+          get('https://pmc.ncbi.nlm.nih.gov/articles/PMC3501264/pdf/nihms370678.pdf','lee/nihms370678.pdf')
+          get('https://scar-tutorials.readthedocs.io/en/v0.6.0/tutorials/scAR_tutorial_sgRNA_assignment.html','tenx/scar_sgrna.html')
+          get('https://scar-tutorials.readthedocs.io/en/v0.6.0/tutorials/scAR_tutorial_identity_barcode.html','tenx/scar_cmo.html')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
