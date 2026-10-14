@@ -3271,5 +3271,451 @@
       "pimasertib_5uM_96h_function.csv": "f0d2efc89e14886c1ab474038adf9a55c45eca3f122bdcc03c9da37b0cbde0ef",
       "RNA_source_FPKM.npz": "f117c89f3a73c2ef9c1611bdffba7e50e5c3c9371b333a0b0ac53697b54f1133"
     }
+  },
+  "vielhauer_actual_cloud_raster_recovery": {
+    "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3813569/",
+    "receipt": {
+      "source_image_sha256": {
+        "fig3.jpg": "41762f784511db99a069fdacec3a4ca13c24e8e50db5891ce0312f16faf139e6",
+        "fig5.jpg": "61d3c614ebfb2414b7336596aa51e693c0187c2297cf6f7a111837a644b4cd25"
+      },
+      "source_paper_sha256": "6f9a6d6ee605ae5f64b73d67878a322f9e283b06356c8f3c15866360605df47e",
+      "script_sha256": "7a7754e2a01a99d7216a0536d7a89ea5b0f5875eea77e123163d6c5003857ae5",
+      "contract": {
+        "protocol_id": "vielhauer2013_a549_annexin_pi_harvested_parent",
+        "label_type": "Annexin_positive_fraction",
+        "denominator": "post_protocol_harvested_parent_population",
+        "sampling_gate": "parent_population_gate_not_further_documented",
+        "common_terminal_time_h": 24,
+        "state_count": 1,
+        "active_conditions": 20,
+        "separate_references": 2,
+        "duration_comparisons": 10,
+        "clinical_or_natural_population_rate": false,
+        "same_initial_cohort_denominator_verified": false,
+        "verified_sham_wash_control": false,
+        "matched_initial_RNA": false,
+        "complete_generated_features": 0,
+        "formal_training_ready": false,
+        "current_G_training_manifest": false,
+        "data_exposure": "source outcomes inspected during design; retrospective challenge",
+        "interval_kind": "pixel_reading_bounds_not_SEM_or_confidence_interval",
+        "policy_or_prediction_evaluation_performed": false,
+        "source_statistical_notes": "Preserve per-condition n_status; no raw replicates or total SEM recovered"
+      },
+      "actual_original_figures_reviewed": true,
+      "old_local_source_tables_read": false,
+      "independent_digitization_review": false,
+      "synthetic": false,
+      "raw_replicates_recovered": false,
+      "comparison_to_historical_reading": "Different original raster calibration; use geometric ranges, not exact equality"
+    },
+    "pixel_sensitivity": [
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 2.671880554568077,
+        "pixel_lower_percentage_points": 1.670471841704718,
+        "pixel_upper_percentage_points": 3.6683986773736423,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 5.970849626733026,
+        "pixel_lower_percentage_points": 4.9581430745814306,
+        "pixel_upper_percentage_points": 6.978743504959849,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 10,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 28.65126199786705,
+        "pixel_lower_percentage_points": 27.56088280060883,
+        "pixel_upper_percentage_points": 29.737364194615026,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 40,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 3.587628865979383,
+        "pixel_lower_percentage_points": 2.442922374429223,
+        "pixel_upper_percentage_points": 4.726499763816724,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 1000,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": -2.5083540703874867,
+        "pixel_lower_percentage_points": -3.569254185692542,
+        "pixel_upper_percentage_points": -1.4529995276334429,
+        "reading_direction": "pulse_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 2.329185922502666,
+        "pixel_lower_percentage_points": 1.3318112633181123,
+        "pixel_upper_percentage_points": 3.3216816249409544,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 4.184856025595449,
+        "pixel_lower_percentage_points": 3.181126331811263,
+        "pixel_upper_percentage_points": 5.183750590458196,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 10,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 27.826519729825808,
+        "pixel_lower_percentage_points": 26.738964992389647,
+        "pixel_upper_percentage_points": 28.909777987718474,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 40,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": 7.411304656949877,
+        "pixel_lower_percentage_points": 6.385083713850836,
+        "pixel_upper_percentage_points": 8.432687765706188,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 1000,
+        "edge_error_pixels": 1,
+        "difference_percentage_points": -2.0263064344116604,
+        "pixel_lower_percentage_points": -3.0859969558599687,
+        "pixel_upper_percentage_points": -0.9721303731695787,
+        "reading_direction": "pulse_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 2.671880554568077,
+        "pixel_lower_percentage_points": 0.7039573820395737,
+        "pixel_upper_percentage_points": 4.63013698630137,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 5.970849626733026,
+        "pixel_lower_percentage_points": 3.9916286149162867,
+        "pixel_upper_percentage_points": 7.940481813887576,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 10,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 28.65126199786705,
+        "pixel_lower_percentage_points": 26.594368340943685,
+        "pixel_upper_percentage_points": 30.699102503542743,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 40,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 3.587628865979383,
+        "pixel_lower_percentage_points": 1.4764079147640814,
+        "pixel_upper_percentage_points": 5.688238072744451,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 1000,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": -2.5083540703874867,
+        "pixel_lower_percentage_points": -4.535768645357686,
+        "pixel_upper_percentage_points": -0.4912612187057146,
+        "reading_direction": "pulse_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 2.329185922502666,
+        "pixel_lower_percentage_points": 0.365296803652968,
+        "pixel_upper_percentage_points": 4.283419933868682,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 4.184856025595449,
+        "pixel_lower_percentage_points": 2.2146118721461185,
+        "pixel_upper_percentage_points": 6.145488899385924,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 10,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 27.826519729825808,
+        "pixel_lower_percentage_points": 25.772450532724505,
+        "pixel_upper_percentage_points": 29.8715162966462,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 40,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": 7.411304656949877,
+        "pixel_lower_percentage_points": 5.418569254185693,
+        "pixel_upper_percentage_points": 9.394426074633916,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 1000,
+        "edge_error_pixels": 2,
+        "difference_percentage_points": -2.0263064344116604,
+        "pixel_lower_percentage_points": -4.052511415525113,
+        "pixel_upper_percentage_points": -0.010392064241852239,
+        "reading_direction": "pulse_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 2.671880554568077,
+        "pixel_lower_percentage_points": -0.26255707762557146,
+        "pixel_upper_percentage_points": 5.591875295229098,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 5.970849626733026,
+        "pixel_lower_percentage_points": 3.025114155251141,
+        "pixel_upper_percentage_points": 8.902220122815304,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 10,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 28.65126199786705,
+        "pixel_lower_percentage_points": 25.627853881278536,
+        "pixel_upper_percentage_points": 31.66084081247047,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 40,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 3.587628865979383,
+        "pixel_lower_percentage_points": 0.5098934550989327,
+        "pixel_upper_percentage_points": 6.649976381672175,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 1000,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": -2.5083540703874867,
+        "pixel_lower_percentage_points": -5.5022831050228325,
+        "pixel_upper_percentage_points": 0.47047709022201367,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 2.329185922502666,
+        "pixel_lower_percentage_points": -0.6012176560121767,
+        "pixel_upper_percentage_points": 5.2451582427964105,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 4.184856025595449,
+        "pixel_lower_percentage_points": 1.2480974124809738,
+        "pixel_upper_percentage_points": 7.1072272083136525,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 10,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 27.826519729825808,
+        "pixel_lower_percentage_points": 24.80593607305936,
+        "pixel_upper_percentage_points": 30.833254605573927,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 40,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": 7.411304656949877,
+        "pixel_lower_percentage_points": 4.4520547945205475,
+        "pixel_upper_percentage_points": 10.356164383561644,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 1000,
+        "edge_error_pixels": 3,
+        "difference_percentage_points": -2.0263064344116604,
+        "pixel_lower_percentage_points": -5.01902587519026,
+        "pixel_upper_percentage_points": 0.951346244685876,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 2.671880554568077,
+        "pixel_lower_percentage_points": -1.2290715372907157,
+        "pixel_upper_percentage_points": 6.553613604156825,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 5.970849626733026,
+        "pixel_lower_percentage_points": 2.058599695585997,
+        "pixel_upper_percentage_points": 9.863958431743033,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 10,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 28.65126199786705,
+        "pixel_lower_percentage_points": 24.661339421613395,
+        "pixel_upper_percentage_points": 32.6225791213982,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 40,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 3.587628865979383,
+        "pixel_lower_percentage_points": -0.4566210045662089,
+        "pixel_upper_percentage_points": 7.611714690599905,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "bocnho",
+        "dose_nM": 1000,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": -2.5083540703874867,
+        "pixel_lower_percentage_points": -6.468797564687977,
+        "pixel_upper_percentage_points": 1.432215399149741,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.05,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 2.329185922502666,
+        "pixel_lower_percentage_points": -1.5677321156773214,
+        "pixel_upper_percentage_points": 6.206896551724138,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 0.5,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 4.184856025595449,
+        "pixel_lower_percentage_points": 0.2815829528158291,
+        "pixel_upper_percentage_points": 8.068965517241379,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 10,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 27.826519729825808,
+        "pixel_lower_percentage_points": 23.83942161339422,
+        "pixel_upper_percentage_points": 31.79499291450165,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 40,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": 7.411304656949877,
+        "pixel_lower_percentage_points": 3.4855403348554024,
+        "pixel_upper_percentage_points": 11.317902692489373,
+        "reading_direction": "continuous_higher",
+        "biological_significance_test": false
+      },
+      {
+        "drug_id": "cbi_indole2",
+        "dose_nM": 1000,
+        "edge_error_pixels": 4,
+        "difference_percentage_points": -2.0263064344116604,
+        "pixel_lower_percentage_points": -5.985540334855404,
+        "pixel_upper_percentage_points": 1.9130845536136043,
+        "reading_direction": "reading_overlap",
+        "biological_significance_test": false
+      }
+    ],
+    "targeted_test_result": "25 passed",
+    "full_repository_test_pass": false,
+    "actual_reader": "scripts.build_vielhauer_duration_challenge.build/load_challenge",
+    "model_predictions_present": false,
+    "original_local_digitization_read": false
   }
 }
