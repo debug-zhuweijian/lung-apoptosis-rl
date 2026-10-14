@@ -1,0 +1,31 @@
+name: Cloud source receipt
+on:
+  push:
+    branches: ['codex/data-chain-closure-20261015']
+    paths: ['.github/workflows/cloud-source-receipt.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export source history without credentials or research data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir receipt
+          git rev-parse HEAD > receipt/branch_head.txt
+          git branch cloud-handoff-export 4a78560bdeb2e0d98332d5a9520764a120abf612
+          git bundle create receipt/handoff.bundle refs/heads/cloud-handoff-export
+          git bundle verify receipt/handoff.bundle
+          sha256sum receipt/handoff.bundle > receipt/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloud-source-receipt
+          path: receipt/
+          retention-days: 14
+          if-no-files-found: error

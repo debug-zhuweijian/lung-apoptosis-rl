@@ -1,0 +1,102 @@
+name: Cloud public data readback
+on:
+  push:
+    branches: ['codex/data-chain-closure-20261015']
+    paths: ['.github/workflows/cloud-public-data-readback.yml']
+permissions:
+  contents: read
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fetch public sources only; no raw sequencing reads or model execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install requests
+          python - <<'PY'
+          import hashlib, json, re, sys, time
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from urllib.parse import quote
+          import requests
+          out = Path('cloud-readback'); out.mkdir()
+          records = []
+          def get(url, relative, expected=None, limit=80_000_000):
+              path = out / relative; path.parent.mkdir(parents=True, exist_ok=True)
+              record = {'url': url, 'path': relative, 'expected_sha256': expected,
+                        'retrieved_utc': datetime.now(timezone.utc).isoformat()}
+              try:
+                  with requests.get(url, stream=True, timeout=(20, 90)) as r:
+                      r.raise_for_status()
+                      record.update(status_code=r.status_code, resolved_url=r.url,
+                                    content_type=r.headers.get('Content-Type'), etag=r.headers.get('ETag'))
+                      declared = r.headers.get('Content-Length')
+                      if declared and int(declared) > limit: raise ValueError('outside small-file scope')
+                      n = 0
+                      with path.with_suffix(path.suffix + '.part').open('xb') as f:
+                          for chunk in r.iter_content(65536):
+                              n += len(chunk)
+                              if n > limit: raise ValueError('outside small-file scope')
+                              f.write(chunk)
+                  partial = path.with_suffix(path.suffix + '.part')
+                  digest = hashlib.sha256(partial.read_bytes()).hexdigest()
+                  record.update(bytes=n, sha256=digest)
+                  if expected and digest != expected.lower(): raise ValueError('frozen-source SHA256 mismatch')
+                  partial.rename(path); record['status'] = 'downloaded_hash_verified' if expected else 'downloaded_unpinned_source_snapshot'
+              except Exception as e:
+                  record.update(status='failed', error=str(e))
+              records.append(record)
+              (out / 'retrieval_receipt.json').write_text(json.dumps(records, indent=2))
+              print(json.dumps(record), flush=True)
+              return path if record['status'].startswith('downloaded') else None
+          rev = '2dc57900b7981cfcf5e211527169a0b006546a95'
+          tree = get(f'https://huggingface.co/api/datasets/tahoebio/Tahoe-100M/tree/{rev}/metadata?limit=100', 'tahoe/tree.json')
+          if tree:
+              entries = {x['path']: x for x in json.loads(tree.read_text())}
+              for name in ['gene_metadata.parquet','drug_metadata.parquet','sample_metadata.parquet','cell_line_metadata.parquet']:
+                  entry = entries['metadata/' + name]
+                  get(f'https://huggingface.co/datasets/tahoebio/Tahoe-100M/resolve/{rev}/metadata/{name}', 'tahoe/' + name, entry.get('lfs', {}).get('oid'))
+          for name, digest in [('SS3_Human_A549_counts.csv','b33aa1b03d71972f8e8c33864be0f0e2747ffa8b56289d00f27cd8c276cc3360'),('SS3_Human_A549_metadata.csv','6ee300a8ba36642950c94d3be7455beb51255e42d8f311273d00aa9e0868a38b')]:
+              get('https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/' + name, 'tidyi/' + name, digest)
+          for acc in ['E-MTAB-16354','E-MTAB-9923']:
+              get('https://www.ebi.ac.uk/biostudies/api/v1/studies/' + acc, 'studies/' + acc + '.json')
+          text = Path('08-datasets/GSE161218/SOURCE_MANIFEST.md').read_text()
+          for name, url, digest in re.findall(r'\[([^\]]+)\]\((https[^)]+)\) \| \d+ \| `([0-9a-f]{64})`', text):
+              if name.endswith('.html'): continue
+              get(url, 'macaya/' + name, digest if not name.endswith('.soft') else None)
+              if 'ncbi.nlm.nih.gov' in url: time.sleep(0.4)
+          for acc, directory in [('GSE108214','GSE108nnn'),('GSE306207','GSE306nnn'),('GSE333828','GSE333nnn')]:
+              get(f'https://ftp.ncbi.nlm.nih.gov/geo/series/{directory}/{acc}/soft/{acc}_family.soft.gz', acc + '/' + acc + '_family.soft.gz')
+          get('https://ftp.ncbi.nlm.nih.gov/geo/series/GSE306nnn/GSE306207/suppl/GSE306207_A375_Seq_All_Samples_TPM.xlsx','GSE306207/GSE306207_A375_Seq_All_Samples_TPM.xlsx')
+          get('https://ftp.ncbi.nlm.nih.gov/geo/series/GSE333nnn/GSE333828/suppl/GSE333828_raw_counts.tsv.gz','GSE333828/GSE333828_raw_counts.tsv.gz','28dd1a5341eb861cfabb2cf33ef5972d35437ce8122f63053b960777c9204f00')
+          text = Path('scripts/collect_a549_endpoint_review_sources_20261009.py').read_text()
+          match = re.search(r'\("(Inde2020[^\"]+xlsx)",\s*"([^"]+)",\s*"([0-9a-f]{64})"', text)
+          if match: get(match[2], 'inde/261 library + DMSO.xlsx', match[3])
+          for pmcid in ['PMC5877628','PMC5528889','PMC7409774','PMC13476540']:
+              get('https://www.ebi.ac.uk/europepmc/webservices/rest/' + pmcid + '/fullTextXML','papers/' + pmcid + '.xml')
+          queries = ['A549 AND sequential AND apoptosis','A549 AND transcriptomics AND Annexin','TITLE_ABS:"Glucocorticoid receptor activation induces"']
+          for i, query in enumerate(queries):
+              get('https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&pageSize=30&query=' + quote(query), f'literature/search_{i}.json')
+          get('https://datasets-server.huggingface.co/first-rows?dataset=tahoebio%2FTahoe-100M&config=default&split=train','tahoe/viewer_first_rows.json',limit=15_000_000)
+          print('SUCCEEDED',sum(x['status'].startswith('downloaded') for x in records),'FAILED',sum(x['status']=='failed' for x in records), flush=True)
+          PY
+      - name: Obtain optional offline Python wheel for local cloud tests
+        continue-on-error: true
+        run: |
+          mkdir -p cloud-readback/wheels
+          python -m pip download --only-binary=:all: --no-deps pyarrow==22.0.0 -d cloud-readback/wheels
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cloud-public-data-readback
+          path: cloud-readback/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
