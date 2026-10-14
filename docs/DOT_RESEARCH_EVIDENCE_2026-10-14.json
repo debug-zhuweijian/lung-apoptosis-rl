@@ -723,5 +723,88 @@
       "em2/aligned_expression.npz": "66db2c17f995086e68795756bf8bdfbccf6a7248eacb9da1daa05dc4a790fb2a"
     },
     "direct_tests": "64 passed"
+  },
+  "seventh_stage": {
+    "em2_identity": {
+      "source_paper_doi": "10.3389/fphar.2025.1580217",
+      "synthesis_doi": "10.1002/anie.202402050",
+      "nominal_structure_verified": true,
+      "verification": "Root source-drawing visual comparison plus formula, independent graph transcription, phantomolin relation and two registry graph equality checks",
+      "pubchem_cid": 73354392,
+      "chembl_id": "CHEMBL2368404",
+      "identity": {
+        "parse_status": "parsed",
+        "canonical_full_smiles": "C=C(C)C(=O)O[C@H]1C/C(C)=C\\[C@@]2(OC)C=C(C)[C@H](O2)[C@H]2OC(=O)C(=C)[C@@H]21",
+        "identity_id": "full_isomeric_smiles_v2:4a6874d970613001f139a6049c9f1defa6585f89b0a6614c7f0cdd30a2ea0a60",
+        "rdkit_inchikey": "CSIBMGLPBAXXSG-MKOUKINSSA-N",
+        "connectivity_smiles": "C=C(C)C(=O)OC1CC(C)=CC2(OC)C=C(C)C(O2)C2OC(=O)C(=C)C12",
+        "fragment_count": 1,
+        "organic_fragment_count": 1,
+        "parent_smiles": "C=C(C)C(=O)O[C@H]1C/C(C)=C\\[C@@]2(OC)C=C(C)[C@H](O2)[C@H]2OC(=O)C(=C)[C@@H]21",
+        "parent_id": "largest_organic_fragment_v2:4a6874d970613001f139a6049c9f1defa6585f89b0a6614c7f0cdd30a2ea0a60",
+        "parent_status": "single_fragment",
+        "formal_charge": 0,
+        "potential_stereo_count": 6,
+        "unspecified_stereo_count": 0,
+        "defined_stereo_count": 6
+      },
+      "fingerprint": {
+        "rdkit": "2026.09.1",
+        "canonicalization": "isomeric_full_form_no_desalting",
+        "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+        "fingerprint": {
+          "type": "Morgan_binary",
+          "radius": 2,
+          "bits": 2048,
+          "includeChirality": true,
+          "useBondTypes": true,
+          "includeRedundantEnvironments": false
+        }
+      },
+      "experimental_lot_verified": false,
+      "matched_RNA_Annexin_protocol": false,
+      "full_chain_qualified": false,
+      "rejected_same_formula_candidate": 163043788,
+      "expression_manifest_sha256": "419e7136ecea15fbeba513b33f1985998486d1856014ec8046a356370e9ea45f",
+      "script_sha256": "34f67233a1116dea93f147b653194d66e970f91f2fdc7a35e01e182e62ae4c53",
+      "source_hashes": {
+        "EM2_2025_fig1.webp": "a223aeb7a954051fdaae269ed70c1796731fc26742558acfbdc70044c5d0e837",
+        "synthesis2024.pdf": "aff890eb48994ccbdb8492183eab47e9603427aaf2de33b465d5a4729545c2ee",
+        "chembl2368404.json": "4bc818013eec751c2b3caee5c8099ac370e3dda476bd9e45357d4bce0f04f97e",
+        "CSIBMGLPBAXXSG-MKOUKINSSA-N.json": "e695a9813f96ebecdcdc92940f599f6232eb8125ec0633d4b6fbd85700c19338",
+        "phantomolin.json": "27da9876056c715ca590b66791053d0f0e89b2cd391146fd57c29e83e583aa2f"
+      },
+      "outputs": {
+        "RNA_sample_links.csv": "16977c11fa1bdc6008a782ed4b38915091713640b2955587683da6703ae80179",
+        "fingerprints.npy": "44e18c689d00976feebfad9905fe3cc4d5e2d7715f48f0e9187f2edefbed6f90",
+        "chemical.csv": "ae957edfa5776771479aa34680d4a10934ac828c1380bd7718b59378f90617b4"
+      }
+    },
+    "new_tests": "10 new tests plus existing chemical full-form test passed; final combined run pending",
+    "full_research_qualified": false,
+    "secretome_function": {
+      "source_doi": "10.1038/s43587-025-01054-2",
+      "source_workbook_sha256": "4b3b4dd94b83a65128e46f2425c8f0afa2bad432183a1972f8e3cccf955cff48",
+      "ena_metadata_sha256": "a60247b6bc1c2cf1557a7844a3d3b8b1ed2c4f9d671291f56ed334cbfc9d9fe5",
+      "observations": 18,
+      "conditions": 6,
+      "source_reported_A549_independent_repeats": 3,
+      "observation_unit": "Annexin V-positive image counts divided by cell confluence; not percent cells",
+      "companion_growth_control_triplet_duplicated": true,
+      "companion_growth_figure_table_agreement_verified": false,
+      "companion_growth_used_for_joint_fit": false,
+      "human_RNA_samples_are_donor_not_recipient": true,
+      "human_RNA_runs": 12,
+      "RNA_expression_recovered": false,
+      "matched_RNA_function": false,
+      "full_chain_qualified": false,
+      "script_sha256": "39137a7ab12fb9c557778638811b72b48ef9082ebe22fbfb9fca6157f60f5b53",
+      "outputs": {
+        "descriptive_summaries.csv": "8e17d473935f29bbb716f39e9bbbbaf49c1d570e4e1b3cbbd1dadfdb10a50a7d",
+        "protocols.csv": "12a981e49a0d2d831e510b26a36fb9e50cd9b59c3015028f325894c93e3bf269",
+        "endpoint_observations.csv": "f911bc24836975a989d1d025fc90777b517166a8e28df8c79203c3df49d5d381"
+      }
+    },
+    "direct_tests": "75 passed"
   }
 }
