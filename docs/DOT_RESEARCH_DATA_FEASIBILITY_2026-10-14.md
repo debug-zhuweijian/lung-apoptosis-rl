@@ -472,3 +472,11 @@ ENA PRJEB52271的公开元数据实读表明12个human RNA样本均为供体A549
 `scripts/recover_macaya_a549_endpoints.py` 实际接入既有EndpointBuilder、write_alignment及load_alignment，生成新目录 `experiments/dot-20261014-macaya-core-v3/`。源工作簿与人工审过的协议补充固定SHA；文件版本变化会拒绝套用旧剂量/时间。通过已有读取器重新核对8个条件、24个位置、22个数值和每项原始百分数转换结果，两个空值仍空。v1相对路径错误保留，v2读回成功，v3增加协议版本锁定和逐值读回断言；未覆盖历史版本。
 
 本次直接相关13个测试文件实际运行69项全部通过（含Macaya新增5项）；这是一组明确范围的重跑，不是仓库全量通过，也不与之前75项机械相加。未训练模型，结构注册连接、完整独立功能评价和整个课题验收仍未闭合。Dot自审，未使用独立代理。
+
+### 13.1 三种功能药物的实际结构绑定与Tahoe覆盖
+
+继续调用既有PubChem名称/同义词核验程序，实际取得Trametinib CID11707110、Lestaurtinib CID126565、Midostaurin CID9829523的公开响应。源名称、唯一CID、精确同义词、带立体结构SMILES及RDKit重算InChIKey相互核对。`recover_macaya_chemical_links.py`把三种名义结构实际连接到八行干预记录，并调用既有chemical catalog生成3×2048带手性Morgan指纹。原实测终点不改写；这不证明试剂批次或制剂形态已验收。
+
+实际下载同一固定Tahoe提交的379行官方药物表，而不只按名字猜覆盖。三种药物中仅Trametinib有合格的名义完整结构匹配；Lestaurtinib、Midostaurin没有对应完整结构。Tahoe另一个`Trametinib (DMSO_TF solvate)`虽然记录同一母体SMILES，名称指定的溶剂组分不在结构中，明确保留形态复核，不将两个条目合并为等效实验材料。以上只说明此固定药物表的结构覆盖，不推断整个公共数据世界不存在另外两药，也不把结构相同变成A549、剂量、时间或实验重复匹配。
+
+实际产物 `experiments/dot-20261014-macaya-chemistry-v1/`，17项直接相关测试通过，包含4个新增反例：溶剂化物不能仅凭相同母体提升、立体差异不能当完整相同、模糊名称拒绝、结构/key不一致拒绝。后续若将这组功能数据用于未见药物外部检验，必须明确两药对Tahoe属于结构分布外；不能把这部分误写成有已匹配Tahoe RNA监督的检验。

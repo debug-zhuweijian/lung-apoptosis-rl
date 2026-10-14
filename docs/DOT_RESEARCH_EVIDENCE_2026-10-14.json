@@ -834,5 +834,48 @@
     "RNA_background": "H1792",
     "RNA_exposure_h": 16,
     "A549_endpoint_exposure_h": 24
+  },
+  "macaya_nominal_chemical_recovery": {
+    "nominal_compounds": 3,
+    "intervention_rows": 8,
+    "fingerprint": {
+      "rdkit": "2026.09.1",
+      "canonicalization": "isomeric_full_form_no_desalting",
+      "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+      "fingerprint": {
+        "type": "Morgan_binary",
+        "radius": 2,
+        "bits": 2048,
+        "includeChirality": true,
+        "useBondTypes": true,
+        "includeRedundantEnvironments": false
+      }
+    },
+    "tahoe_nominal_eligible_names": [
+      "Trametinib"
+    ],
+    "matched_RNA_endpoint": false,
+    "experimental_lots_verified": false,
+    "full_research_qualified": false,
+    "endpoint_manifest_sha256": "1a726f6e17cc28550fcdf202a9791531b0d0a85c2a1587c8db76bba693f8a789",
+    "tahoe_source": {
+      "url": "https://huggingface.co/datasets/tahoebio/Tahoe-100M/resolve/2dc57900b7981cfcf5e211527169a0b006546a95/metadata/drug_metadata.parquet",
+      "bytes": 40475,
+      "sha256": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28"
+    },
+    "source_hashes": {
+      "sources.json": "3d34120cf5c91e8c3eac542f6065f926bc25378ab3676dfcbbbe2128ba437d01",
+      "properties.json": "8e219b998e76ad05b355a3d4208e0d3afa6f33643fec80dbbc583b6b53329373",
+      "resolved.json": "95707e6357a10f2f53917545b00898052ae20f30db8c4c51f0620da1c4bd15e8",
+      "tahoe_source.json": "1e9454be548e9f8de2f0c16bdacffaf75f5e7e98b66fa50ed6d2b94bd1e205c9"
+    },
+    "outputs": {
+      "nominal_structures.parquet": "107fbab7b194eea35cb1aefe85ed58b86fbdcc5eaffba7f40dc378ea28f430f0",
+      "fingerprints.npy": "fa9e2589cd976696c6cfd11f26140713af4b437aaa62ffd50e57e910c62c3397",
+      "intervention_structure_links.parquet": "45f5464dcd48f2b42945a649038042921df02583a2970f4de18cbd189ef42994",
+      "tahoe_matches.csv": "c53e41ff3c4a44f27703f271207fde6075857dfb1172c2b9b68005fecfa654e5",
+      "chemical_catalog.csv": "d0978c16ecce328d7dc21c1b5ede926cd489b499c593029672208a796364ee0e"
+    },
+    "script_sha256": "1e224565519b20fa8bb1020c3fc6ece7aabd7c373818cf0a239f7d7c278d8220"
   }
 }
