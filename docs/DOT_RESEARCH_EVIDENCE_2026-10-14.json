@@ -4644,5 +4644,205 @@
     "outputs": {
       "observed_comparison_vectors.npz": "9d489597d9713b39740a8d2a687f31d12a5b391aebeee65fc6e9a56042c8cd77"
     }
+  },
+  "offline_cached_pie_partial_recovery": {
+    "source_url": "https://huggingface.co/datasets/arcinstitute/PIE_tahoe100m/resolve/aa919261564cfd63155f734760cf38d79e089b6c/de/CVCL_0023.parquet",
+    "source_catalog_sha256": "f90dd289a23737024f8216fb5ae036e1eac494712d51222a556144bf300fd6a6",
+    "eligibility_column": "nominal_functional_transfer_eligible",
+    "declared_conditions": 42,
+    "recovered_complete_conditions": 22,
+    "pending_conditions": 20,
+    "declared_cohort_complete": false,
+    "full_cohort_evaluation_allowed": false,
+    "actual_mean_records": 242895,
+    "observed_axis_values": 483336,
+    "raw_cell_records_read": 0,
+    "source_scale": "population_mean_CP10k",
+    "plate_matched_reference": false,
+    "full_protocol_match": false,
+    "used_ranges": [
+      {
+        "group": 2,
+        "start": 9527909,
+        "end_exclusive": 14290123,
+        "bytes": 4762214,
+        "path": "group_002.bin",
+        "sha256": "2c1ab68947d0788cf4b1652de92d4f987606df4d194104293680aab3336721fb"
+      },
+      {
+        "group": 3,
+        "start": 14290181,
+        "end_exclusive": 19075897,
+        "bytes": 4785716,
+        "path": "group_003.bin",
+        "sha256": "c097754d098dcf5aa7d17cd999291650defe8a85c926d5fd43a4f99bff2f64ef"
+      },
+      {
+        "group": 5,
+        "start": 23853957,
+        "end_exclusive": 28679774,
+        "bytes": 4825817,
+        "path": "group_005.bin",
+        "sha256": "b3495c6ff90f72bd3fa0ce398cdbf48464e6b3d495e8a174cdb81ebf4c9cfb79"
+      },
+      {
+        "group": 7,
+        "start": 33506061,
+        "end_exclusive": 38329917,
+        "bytes": 4823856,
+        "path": "group_007.bin",
+        "sha256": "b04d860dd80c07e9806a6d22d8cd63ace4ae462ca0c39f0940b38b2d90a7a01b"
+      },
+      {
+        "group": 12,
+        "start": 57506880,
+        "end_exclusive": 62298921,
+        "bytes": 4792041,
+        "path": "group_012.bin",
+        "sha256": "bb5894814f654adc34206ea0c523f4c8f1aa4efa914c32289501e2dec0400d57"
+      },
+      {
+        "group": 13,
+        "start": 62298979,
+        "end_exclusive": 66988194,
+        "bytes": 4689215,
+        "path": "group_013.bin",
+        "sha256": "a167773aaaddec528935693c2b95742dedabdcc709cee7ec662b0ca2b6153afc"
+      },
+      {
+        "group": 18,
+        "start": 86016057,
+        "end_exclusive": 90791614,
+        "bytes": 4775557,
+        "path": "group_018.bin",
+        "sha256": "8d4a534634f604163bb39efc87ce02b9dc936d283a4b11bdb6065cb48c1a5375"
+      },
+      {
+        "group": 22,
+        "start": 105117200,
+        "end_exclusive": 109870093,
+        "bytes": 4752893,
+        "path": "group_022.bin",
+        "sha256": "055af9e2d7af3fc24ae89c71dab705703941ea95543f1a44911e8429207e13f6"
+      },
+      {
+        "group": 24,
+        "start": 114652259,
+        "end_exclusive": 119436876,
+        "bytes": 4784617,
+        "path": "group_024.bin",
+        "sha256": "0afec1c9835da5859db6d21123dd7ee92c0504961fb5b9332990fe681e8d6691"
+      },
+      {
+        "group": 26,
+        "start": 124231080,
+        "end_exclusive": 128993214,
+        "bytes": 4762134,
+        "path": "group_026.bin",
+        "sha256": "b7e6e38b297ca2ed0d22fb62e9cf9b4fc94739ced6638d332d074413c8a768b8"
+      },
+      {
+        "group": 44,
+        "start": 209998434,
+        "end_exclusive": 214842555,
+        "bytes": 4844121,
+        "path": "group_044.bin",
+        "sha256": "a0d47aaad2a771dff3117919ef6a973f9260619cc55e4b818595f0aa933f8c0f"
+      },
+      {
+        "group": 47,
+        "start": 224491158,
+        "end_exclusive": 229280389,
+        "bytes": 4789231,
+        "path": "group_047.bin",
+        "sha256": "157e42fb6d23bbd3e56af903775d0ace6fd9adf5dca839b1d277751ad43920c2"
+      },
+      {
+        "group": 68,
+        "start": 324933170,
+        "end_exclusive": 329746203,
+        "bytes": 4813033,
+        "path": "group_068.bin",
+        "sha256": "77573fe98c11f27ace0b7971a3eaf92812785c989148477ce8a169867069c15e"
+      },
+      {
+        "group": 73,
+        "start": 348876654,
+        "end_exclusive": 353637054,
+        "bytes": 4760400,
+        "path": "group_073.bin",
+        "sha256": "e72e584eee13fb753cb273dc68c36ade7ad299bbd7927db269a879cf7a0f6b42"
+      },
+      {
+        "group": 74,
+        "start": 353637113,
+        "end_exclusive": 358469886,
+        "bytes": 4832773,
+        "path": "group_074.bin",
+        "sha256": "05902ae2bb136f4152e2b8aba7b8b1c57bf8180ce11e9fe376c5b6a9de12d5ee"
+      },
+      {
+        "group": 81,
+        "start": 387167147,
+        "end_exclusive": 391900660,
+        "bytes": 4733513,
+        "path": "group_081.bin",
+        "sha256": "3f571daf135489423cff7e35b55f75440150e7e2821dac4ac3da19682977cb43"
+      },
+      {
+        "group": 92,
+        "start": 439564700,
+        "end_exclusive": 444355796,
+        "bytes": 4791096,
+        "path": "group_092.bin",
+        "sha256": "0599099f9caa8059c07b9ec0e79db7cecd4843ace9d8230b81b39fa2571edbfd"
+      },
+      {
+        "group": 96,
+        "start": 458796877,
+        "end_exclusive": 463548676,
+        "bytes": 4751799,
+        "path": "group_096.bin",
+        "sha256": "94224f19b37094fdc65c013d3f91cd56efab039c17746d8f448c8feb0ef8803b"
+      },
+      {
+        "group": 97,
+        "start": 463548735,
+        "end_exclusive": 468352263,
+        "bytes": 4803528,
+        "path": "group_097.bin",
+        "sha256": "01ca816eaba3245555522794e45fc616cf5a4a6d86f3d5c50d418c287dd2fe2e"
+      },
+      {
+        "group": 99,
+        "start": 473071971,
+        "end_exclusive": 477901739,
+        "bytes": 4829768,
+        "path": "group_099.bin",
+        "sha256": "45c86b7780c7cd5caf180a8254ecb0b8a52b61f537adec01bec2f1eeb04f4282"
+      }
+    ],
+    "source_bytes_already_cached": 95703322,
+    "new_network_bytes": 0,
+    "cache_modified": false,
+    "cache_receipt_sha256": "f849bade6367ac73e59d8d2d066e42940a9103c3683364d43b251c0558017e57",
+    "footer_sha256": "c912f642790adac6668a57929191cb0054601c1510929fd1791ee296de85645c",
+    "missing_targets_not_silently_excluded_from_declared_goal": true,
+    "model_training": false,
+    "scientific_feasibility_complete": false,
+    "gene_metadata_sha256": "d6104d1ca570d94832be0d27ffe8b7e4e54cfd366c9080239219f9c406eb751c",
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "77e2060e7c5ed78a30726fcb61d78f31b1fbecd5ece77a8fda56b38ea597090c",
+    "outputs": {
+      "aligned_group_means.npz": "3832106c6bc57d3624fdeed7b11347df1073e61e0de8fccdfed2e1c6d62792cb",
+      "gene_mapping.csv.gz": "402ad364c508799f7c45bb5d8e22f7deb010d6661ba3f914d46ceac530e72311",
+      "source_group_means.parquet": "4e80b760583a5a21ea32976fd3fefad2677018958bd4c95d7236af6824366233",
+      "conditions.csv": "0482fca17284928c3592c77ad5ff1bd6e2fbde07aa2633546489300cb46c90ff",
+      "declared_cohort_coverage.json": "416c918980ed0de62180344721a21c9956fc176ad87c4460f0cf126a0bd2d2c9"
+    },
+    "original_14_source_records_exact": true,
+    "actual_full_cohort_evaluation_rejected": true,
+    "related_tests_passed": 20,
+    "independent_agent_review": false
   }
 }
