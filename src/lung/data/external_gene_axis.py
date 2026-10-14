@@ -3,26 +3,31 @@
 import numpy as np
 import pandas as pd
 
+from .source_bridge import validate_gene_axis
+
 
 def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
     if scale not in {"bulk_raw_counts", "bulk_estimated_counts", "bulk_log2CPM"}:
         raise ValueError("External expression scale must be explicit")
-    axis = gene_axis.sort_values("common_gene_index")
-    if not np.array_equal(axis.common_gene_index, np.arange(len(axis))):
-        raise ValueError("Common gene axis is not contiguous")
-    if axis.ensembl_id.duplicated().any():
-        raise ValueError("Duplicate Ensembl identity in common axis")
+    axis = validate_gene_axis(gene_axis)
+    if not frame.columns.is_unique:
+        raise ValueError("Duplicate source expression column")
+    if not samples or len(samples) != len(set(samples)) or any(
+            not isinstance(s, str) or not s.strip() or s == identifier for s in samples):
+        raise ValueError("Source sample identities must be explicit and unique")
     target_key = "ensembl_id" if identifier == "ensembl_id" else "gene_symbol"
     if identifier not in {"ensembl_id", "gene_symbol"}:
         raise ValueError("Unrecognized gene identifier type")
     ids = frame[identifier].astype("string")
     if identifier == "ensembl_id":
         ids = ids.str.replace(r"\.\d+$", "", regex=True)
+    ids = ids.mask(ids.str.strip().eq(""))
     # Ambiguous symbols or multiple source rows cannot silently choose one gene.
     target = axis[target_key].astype("string")
+    target = target.mask(target.str.strip().eq(""))
     ambiguous = set(target[target.duplicated(keep=False)].dropna())
-    mapping = dict(zip(target[~target.duplicated(keep=False)],
-                       axis.loc[~target.duplicated(keep=False), "common_gene_index"]))
+    eligible = target.notna() & ~target.duplicated(keep=False)
+    mapping = dict(zip(target[eligible], axis.loc[eligible, "common_gene_index"]))
     duplicates = ids.duplicated(keep=False)
     values = frame[samples].apply(pd.to_numeric, errors="raise").to_numpy(dtype=np.float64)
     if not np.isfinite(values).all():

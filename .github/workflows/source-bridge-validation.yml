@@ -4,100 +4,88 @@ on:
     branches: [codex/source-bridge-validation-20261015]
     paths:
       - .github/workflows/source-bridge-validation.yml
+      - scripts/fetch_public_source_panel.py
       - scripts/recover_source_bridge.py
+      - scripts/recover_public_expression.py
       - src/lung/data/source_bridge.py
+      - src/lung/data/external_gene_axis.py
       - tests/test_source_bridge.py
 permissions:
   contents: read
 jobs:
   source-receipt:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Export exact repository history and environment
-        shell: bash
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install CPU data-validation dependencies
+        run: >-
+          python -m pip install numpy==2.3.5 pandas==2.2.3 scipy==1.17.0
+          pyarrow==26.0.0 pytest==9.0.2 PyYAML==6.0.3
+          scikit-learn==1.8.0 rdkit==2025.09.4
+      - name: Record exact source and environment
         run: |
-          set -euo pipefail
-          mkdir -p cloud-receipt/sources cloud-receipt/wheels
+          mkdir -p cloud-receipt/verification
           git bundle create cloud-receipt/repository.bundle HEAD refs/remotes/origin/main
           git bundle verify cloud-receipt/repository.bundle
           git rev-parse HEAD > cloud-receipt/commit.txt
           python --version > cloud-receipt/python.txt
+          python -m pip freeze > cloud-receipt/python-packages.txt
           sha256sum cloud-receipt/repository.bundle > cloud-receipt/SHA256SUMS
-      - name: Read public source panel (no FASTQ or large atlas download)
+      - name: Test changed behavior and adjacent consumers
         shell: bash
         run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_source_bridge.py tests/test_external_gene_axis.py tests/test_public_expression_recovery.py tests/test_sarin_gene_mapping.py tests/test_science_evaluation_comparison.py tests/test_damtc_reference.py tests/test_sciplex2_dose_audit.py --junitxml=cloud-receipt/verification/pytest.xml 2>&1 | tee cloud-receipt/verification/pytest.txt
+      - name: Fetch bounded public sources with hash receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u scripts/fetch_public_source_panel.py --output cloud-receipt/sources 2>&1 | tee cloud-receipt/verification/download.txt
+      - name: Recover actual source-bound expression and condition links
+        shell: bash
+        run: |
+          set -euo pipefail
+          S=cloud-receipt/sources
+          O=cloud-receipt/results
+          python -u scripts/recover_source_bridge.py --sources "$S" --output "$O/public-axis" 2>&1 | tee cloud-receipt/verification/public-axis.txt
+          A="$O/public-axis/genes.parquet"
+          python -u scripts/recover_public_expression.py hm97662 --soft "$S/HM_family.soft.gz" --matrix "$S/HM_counts.tsv.gz" --gene-axis "$A" --output "$O/hm97662" 2>&1 | tee cloud-receipt/verification/hm97662.txt
+          python -u scripts/recover_public_expression.py gse161800 --soft "$S/GSE161800.soft.gz" --matrix "$S/GSE161800_1vs2_counts.csv.gz" --extra-matrix "$S/GSE161800_7vs8_counts.csv.gz" --paper-xml "$S/GSE161800_paper.xml" --gene-axis "$A" --output "$O/pulse" 2>&1 | tee cloud-receipt/verification/pulse.txt
+          python -u scripts/recover_public_expression.py sarin --soft "$S/GSE108214.soft.gz" --annexin-docx "$S/Sarin_S8.docx" --gene-axis "$A" --hgnc "$S/hgnc_complete_set.txt" --gtf "$S/Homo_sapiens.GRCh37.75.gtf.gz" --output "$O/sarin" 2>&1 | tee cloud-receipt/verification/sarin.txt
+          python -u scripts/recover_public_expression.py gse96779 --soft "$S/GSE96779.soft.gz" --matrix "$S/GSE96779.fpkm.gz" --output "$O/history" 2>&1 | tee cloud-receipt/verification/history.txt
+      - name: Check complete manifests and immutable source tree
+        shell: bash
+        run: |
+          set -euo pipefail
           python - <<'PY'
-          import concurrent.futures, datetime, hashlib, json, pathlib, urllib.request
-          root = pathlib.Path('cloud-receipt/sources')
-          known = json.load(open('docs/DOT_RESEARCH_EVIDENCE_2026-10-14.json'))['sources']
-          selected = [x for x in known if x['local_name'] in {
-              'GSE108214.soft.gz', 'Sarin_S8.docx', 'HM_family.soft.gz', 'HM_counts.tsv.gz',
-              'GSE161800.soft.gz', 'GSE161800_1vs2_counts.csv.gz', 'GSE161800_7vs8_counts.csv.gz',
-              'GSE161800_paper.xml', 'GSE96779.soft.gz', 'GSE96779.fpkm.gz'}]
-          extra = {
-            'tidyi_A549_counts.csv': 'https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_A549_counts.csv',
-            'tidyi_A549_metadata.csv': 'https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_A549_metadata.csv',
-            'tidyi_study.json': 'https://www.ebi.ac.uk/biostudies/api/v1/studies/E-MTAB-16354',
-            'tahoe_gene_metadata.parquet': 'https://huggingface.co/datasets/tahoebio/Tahoe-100M/resolve/2dc57900b7981cfcf5e211527169a0b006546a95/metadata/gene_metadata.parquet',
-            'tahoe_drug_metadata.parquet': 'https://huggingface.co/datasets/tahoebio/Tahoe-100M/resolve/2dc57900b7981cfcf5e211527169a0b006546a95/metadata/drug_metadata.parquet',
-            'tahoe_sample_metadata.parquet': 'https://huggingface.co/datasets/tahoebio/Tahoe-100M/resolve/2dc57900b7981cfcf5e211527169a0b006546a95/metadata/sample_metadata.parquet',
-            'tahoe_tree.json': 'https://huggingface.co/api/datasets/tahoebio/Tahoe-100M/tree/2dc57900b7981cfcf5e211527169a0b006546a95/metadata',
-            'hgnc_complete_set.txt': 'https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt',
-            'Homo_sapiens.GRCh37.75.gtf.gz': 'https://ftp.ensembl.org/pub/release-75/gtf/homo_sapiens/Homo_sapiens.GRCh37.75.gtf.gz',
-            'bothe_study.json': 'https://www.ebi.ac.uk/biostudies/api/v1/studies/E-MTAB-9923',
-            'bothe_paper.xml': 'https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8403771/fullTextXML',
-            'Lee2012_paper.xml': 'https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3501264/fullTextXML',
-            'Lee2012_supplements.zip': 'https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3501264/supplementaryFiles'}
-          selected += [dict(local_name=k, url=v) for k,v in extra.items()]
-          expected = {'tidyi_A549_counts.csv': 'b33aa1b03d71972f8e8c33864be0f0e2747ffa8b56289d00f27cd8c276cc3360',
-                      'tidyi_A549_metadata.csv': '6ee300a8ba36642950c94d3be7455beb51255e42d8f311273d00aa9e0868a38b'}
-          def fetch(item):
-              rec = dict(item, retrieved_utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
-              partial = root/(item['local_name']+'.partial')
-              try:
-                  req=urllib.request.Request(item['url'], headers={'User-Agent':'lung-apoptosis-rl-public-source-audit/1.0'})
-                  with urllib.request.urlopen(req,timeout=90) as response, partial.open('wb') as out:
-                      rec['final_url']=response.url
-                      rec['http_status']=response.status
-                      rec['last_modified']=response.headers.get('Last-Modified')
-                      rec['etag']=response.headers.get('ETag')
-                      claimed=response.headers.get('Content-Length')
-                      rec['content_length']=int(claimed) if claimed else None
-                      if claimed and int(claimed)>120_000_000:
-                          raise ValueError('Beyond authorized small-source panel; not downloaded')
-                      size=0; sha=hashlib.sha256()
-                      while True:
-                          b=response.read(1024*1024)
-                          if not b: break
-                          size+=len(b)
-                          if size>120_000_000: raise ValueError('Beyond authorized small-source panel')
-                          out.write(b); sha.update(b)
-                  rec.update(actual_bytes=size, actual_sha256=sha.hexdigest())
-                  if claimed and size!=int(claimed): raise ValueError('HTTP byte count mismatch')
-                  target_hash=item.get('sha256',expected.get(item['local_name']))
-                  rec['expected_sha256']=target_hash
-                  if target_hash and sha.hexdigest()!=target_hash: raise ValueError('Recorded source hash changed; retain partial for review')
-                  partial.rename(root/item['local_name']);rec['status']='downloaded_hash_checked' if target_hash else 'downloaded_new_snapshot'
-              except Exception as exc:
-                  rec.update(status='failed', error=type(exc).__name__+': '+str(exc))
-              print(json.dumps(rec,ensure_ascii=False),flush=True)
-              return rec
-          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-              receipts=list(pool.map(fetch,selected))
-          (root/'download_receipts.json').write_text(json.dumps(receipts,ensure_ascii=False,indent=2))
+          import hashlib, json, pathlib
+          root=pathlib.Path('cloud-receipt/results')
+          summary={}
+          for name in ('public-axis','hm97662','pulse','sarin','history'):
+              folder=root/name
+              m=json.loads((folder/'manifest.json').read_text())
+              for file,expected in m['outputs'].items():
+                  actual=hashlib.file_digest((folder/file).open('rb'),'sha256').hexdigest()
+                  assert actual==expected,(name,file)
+              assert not m['validation'].get('model_input_ready',False)
+              summary[name]=m['validation']
+          (root/'verified_manifest_summary.json').write_text(json.dumps(summary,indent=2))
           PY
-      - name: Obtain Parquet reader for the current offline cloud Python
-        shell: bash
-        run: |
-          python -m pip download --only-binary=:all: --python-version 313 --platform manylinux_2_28_x86_64 --abi cp313 --implementation cp --no-deps pyarrow -d cloud-receipt/wheels
+          git diff --exit-code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: source-bridge-cloud-receipt
+          name: source-bridge-verified-data
           path: cloud-receipt/
           if-no-files-found: error
           retention-days: 14
