@@ -80,20 +80,22 @@ def aggregate_triplets(matrix, n_genes, n_cells, cell_group, n_groups):
     return counts, cell_totals, entries
 
 
-def evaluate_dose(group_counts, groups, n_features=500):
+def evaluate_dose(group_counts, groups, n_features=500, common_panel=False):
     """Exploratory held-dose diagnostics. Each condition gets equal weight."""
     if np.any(group_counts.sum(axis=1) <= 0):
         raise ValueError("Empty condition")
     y = np.log1p(10000 * group_counts / group_counts.sum(axis=1, keepdims=True))
     results, protocols = [], []
+    shared_train = ~groups.dose_source_label.isin([5.0, 100.0]).to_numpy()
+    shared_panel = np.argsort(np.var(y[shared_train], axis=0), kind="stable")[-min(n_features, y.shape[1]):]
     for held_label, kind in [(5.0, "interpolation"), (100.0, "upper_extrapolation")]:
         test = groups.dose_source_label.eq(held_label).to_numpy()
         train = ~test
         # Only training conditions select the evaluation gene panel.
-        chosen = np.argsort(np.var(y[train], axis=0), kind="stable")[-min(n_features, y.shape[1]):]
+        chosen = shared_panel if common_panel else np.argsort(np.var(y[train], axis=0), kind="stable")[-min(n_features, y.shape[1]):]
         protocols.append(dict(held_source_label=held_label, type=kind, train_conditions=groups.loc[train].to_dict("records"),
                               test_conditions=groups.loc[test].to_dict("records"), gene_indices=chosen.tolist(),
-                              gene_selection="variance_in_training_conditions_only", ridge_lambda=.1))
+                              gene_selection="variance_in_intersection_of_both_training_sets" if common_panel else "variance_in_training_conditions_only", ridge_lambda=.1))
         for drug in sorted(FACTORS):
             tr = train & groups.drug.eq(drug).to_numpy()
             te = test & groups.drug.eq(drug).to_numpy()

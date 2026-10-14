@@ -57,3 +57,12 @@ def test_feature_selection_cannot_see_held_dose():
         assert all(x['dose_source_label']!=p['held_source_label'] for x in p['train_conditions'])
         assert len(p['test_conditions'])==4
     assert set(first.method)=={'control_only','drug_mean','nearest_dose','logdose_ridge','logdose_interpolation_clamped'}
+
+
+def test_common_panel_sees_neither_holdout():
+    groups=pd.DataFrame([dict(drug=d,dose_source_label=z,dose_uM=z*f) for d,f in MOD.FACTORS.items() for z in [0,.1,.5,1,5,10,50,100]])
+    counts=np.random.default_rng(2).integers(1,100,size=(32,10))
+    _,before=MOD.evaluate_dose(counts,groups,n_features=4,common_panel=True)
+    counts[groups.dose_source_label.isin([5,100]),0]+=1000000
+    _,after=MOD.evaluate_dose(counts,groups,n_features=4,common_panel=True)
+    assert before[0]['gene_indices']==before[1]['gene_indices']==after[0]['gene_indices']==after[1]['gene_indices']
