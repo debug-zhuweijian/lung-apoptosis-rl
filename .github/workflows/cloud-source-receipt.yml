@@ -25,6 +25,20 @@ jobs:
           git bundle verify receipt/review.bundle
           git diff --binary 4a78560bdeb2e0d98332d5a9520764a120abf612 HEAD > receipt/review.patch
           sha256sum receipt/review.bundle receipt/review.patch > receipt/SHA256SUMS
+      - uses: actions/checkout@v4
+        with:
+          repository: Novartis/scar
+          ref: 6ad76db59c164e58d724663e2dd1149a840d45fd
+          path: author-scar
+          persist-credentials: false
+      - name: Archive published scAR v0.6.0 source only; do not run another agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C author-scar rev-parse HEAD)" = 6ad76db59c164e58d724663e2dd1149a840d45fd
+          git -C author-scar rev-parse HEAD > receipt/scar_commit.txt
+          tar -czf receipt/scar_source_v0.6.0.tgz -C author-scar scar pyproject.toml README.md
+          sha256sum receipt/scar_source_v0.6.0.tgz >> receipt/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: cloud-source-receipt
