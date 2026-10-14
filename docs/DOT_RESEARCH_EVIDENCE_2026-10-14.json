@@ -4136,5 +4136,77 @@
       "context_contrasts.csv": "31241e44dc34dc3c350a4ea72cc0790cea70225483911f4c7a582e4f498fae65"
     },
     "related_tests_passed": 12
+  },
+  "a549_clonal_state_expression_20261014": {
+    "source_doi": "10.1016/j.neo.2018.09.008",
+    "source_genes": 58051,
+    "source_libraries": 12,
+    "actual_count_values": 696612,
+    "named_subcultures": 9,
+    "parental_cultures": 3,
+    "common_observed_genes": 32340,
+    "common_missing_genes": 121,
+    "source_symbol_date_rows": 39,
+    "unique_genes_with_source_symbol_date": 13,
+    "source_gene_annotation": "GRCh38.87",
+    "source_scale": "HTSeq-count raw counts",
+    "author_normalized_columns_used": false,
+    "DE_rank_row_order_used_for_alignment": false,
+    "repeated_parental_counts_equal_after_gene_ID_join": true,
+    "all_12_count_sums_equal_author_mapped_read_totals": true,
+    "clone_IDs_also_in_functional_panel": 7,
+    "clone_specific_functional_values_recovered": false,
+    "source_functional_plot_statistic": "median_and_error_of_three_different_subcultures_per_class",
+    "functional_endpoint": "trypan_blue_excluded_live_cell_count_after_exposure_and_recovery_not_Annexin",
+    "independent_initial_RNA_increment_validated": false,
+    "complete_scientific_qualification": false,
+    "source_hashes": {
+      "mmc3.xlsx": "f2c71cb189b1b943874848abacad5030e64bbe85d7549f6a45623be531f6d82a",
+      "mmc2.docx": "c350cb0e8ead864c0f279eb635cefb7b7c2d85759ec5333fdb18b3827d0b8128",
+      "paper.xml": "aef6f26b849c5fc5fc770045863c59b559c0fca0dc27782b6b1fca3812253ff6",
+      "gene_axis.csv": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c"
+    },
+    "script_sha256": "b343a398d1a0bad924d341e4ff8c16040f1a732c3dfc059d9da9eb07ad19bde1",
+    "outputs": {
+      "common_axis_counts.npz": "208cc5622835286e7ec514da2b376f28c30286da73c6048cc9e1cb3d403378c3",
+      "source_symbol_date_audit.csv": "833638e09d9e8e795a5c19d4eedfc6b75af9b15be3547526f7441515b04e0342",
+      "gene_mapping.csv.gz": "539564779c4e964d396005973f5ed4bda39456b7c109ef8c241f05e49a3789f6",
+      "source_raw_counts.npz": "89bdf850fa4236dde29b143c5d80de57144fd81d2cfb196c5644ac610571034c",
+      "samples.csv": "26a94efc0a2adbceb72271641a5ef525b388a4578bb62ff6481b13b5242732d4",
+      "library_count_totals.csv": "f280e87a3950aa0b28d4cb7fc9e188ef6c46920d8073cd394e5ae10485cd13a7"
+    },
+    "targeted_tests_passed": 17
+  },
+  "lineage_method_reading_20261014": {
+    "primary_sources": [
+      {
+        "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13261651/fullTextXML",
+        "file": "PMC13261651.xml",
+        "bytes": 223231,
+        "sha256": "3efa31189b97ac80cd7ac2d0dd01ccb2fbfb64007e954b245610722f66ac6009"
+      }
+    ],
+    "background": "WM989 A6-G3 melanoma, not A549",
+    "main_2026_DOI": "10.1016/j.xgen.2026.101191",
+    "primary_2026_methods_read": true,
+    "2024_full_XML_obtained": false,
+    "source_overlap_adjudicated": false,
+    "shared_cited_asset": 25029338,
+    "large_lineage_data_downloaded": false,
+    "figshare_metadata_receipts": [
+      {
+        "id": 25029338,
+        "sha256": "01da3048a2e9325670c4732d0e627c7a5ed888ced483da6a5d5b7b5c9171e399"
+      },
+      {
+        "id": 25024463,
+        "sha256": "5cf02d5f7918f286e697911cc403e283281373688b6ae5924389f95ec1cd0cf5"
+      },
+      {
+        "id": 25024466,
+        "sha256": "6c3c11561183dc8fffc51c7347f759581de23b22e590cd086b9acfc35c26daa3"
+      }
+    ],
+    "not_A549_apoptosis_validation": true
   }
 }
