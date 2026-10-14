@@ -406,5 +406,75 @@
         "PEM_link_30945077.xlsx": "86216459a499853519521d91bfd38d7a9dc0262c9e67dd7e6341f355c2460c60"
       }
     }
+  },
+  "fourth_stage": {
+    "base_commit": "ec5be211874c6ccc64ce81b6238a689fc56fad12",
+    "OGA_actual_manifest": {
+      "paper_doi": "10.3390/ijms19061769",
+      "paper_sha256": "a32040cca3af2f77b28db91755603d03fbf88adebaa83e3aed13b0ccb1f4036c",
+      "figure_sha256": "1d725aa3fc6d00eb7ee61f0416db53e832525f4e2e370a40cdc38a778a26ffb6",
+      "script_sha256": "0a02b35e2133c4d6f4588207f201b6bf4177d9e1bbfb9b7f859c15006d1ecaf0",
+      "transcription": "Root visual reading of Figure 4 numerical annotations",
+      "number_of_treatment_protocols": 6,
+      "measured_quadrant_summaries": 12,
+      "derived_total_means": 6,
+      "OGA": "Source-defined enzymatic pectin mixture <1 kDa, no unique molecule or molar concentration assigned",
+      "RNA_available": false,
+      "source_replications_reconstructed": false,
+      "total_sd_missing_reason": "Early/late covariance not published; SDs cannot be added",
+      "external_sequence_reference": true,
+      "model_sequence_validated": false,
+      "full_chain_qualified": false,
+      "outputs": {
+        "endpoint_summaries.csv": "1e43057eb5e9bd336eaf2827292894e2f223dc39ae3c26c9178c00da3a64df0b",
+        "protocols.json": "14c87263a5d2656108b0a5252db8d8e2af275f0ef97618e44c17a4aa15835b9b",
+        "contrasts.json": "04682e91e00fe83a55bbff78cec36ff86f852e80468f12e62334d38f70096c74"
+      }
+    },
+    "state_actual_manifest": {
+      "source_doi": "10.1016/j.csbj.2023.12.039",
+      "shared_short_read_project": "PRJNA730205",
+      "long_read_assembly_project": "PRJNA793575",
+      "independent_of_EphB1_2022_RNA": false,
+      "supplement_sha256": "2df168dbeeaeb560698846f086a6a510d5e2e7b23e20b4746a5b74da6473fdd1",
+      "script_sha256": "4cbdb297e3e0e9e10469f9805789f040242156291dfe47bd62d43b9ee8705944",
+      "transcripts": 66359,
+      "group_summaries": 3,
+      "numeric_source_values": 199077,
+      "group_unit": "published_condition_summary_not_individual_sample",
+      "scale": "de_novo_transcript_FPKM",
+      "shared_dormancy_exact": true,
+      "biological_replicate_matrix_recovered": false,
+      "Annexin_RNA_pairing": false,
+      "gene_axis_aligned": false,
+      "full_chain_qualified": false,
+      "mapping_status_counts": {
+        "multiple_source_transcripts_per_gene": 63805,
+        "one_source_transcript_annotation": 1596,
+        "missing_source_annotation": 958
+      },
+      "outputs": {
+        "source_transcript_group_FPKM.npz": "046b3f64601c023d548cd3db3494642759e7fe4f0cd6a5e187a12bcb70a6d4c8",
+        "transcript_annotations.csv": "aa163b160e55bf8beab9415cbb868e7088265f15a9a314fdc899c78340e50451"
+      }
+    },
+    "state_source_hashes": {
+      "EphB1.xml": "1eb80742ecc142a9e8ef9e845cdbb87adb51e2ea35bb0196d9c52d352ff3a29b",
+      "EphB1_fig1.jpg": "e999a9f190123c8bf627599163e9f67f08d2e6ed374ee823239a37173868e38e",
+      "EphB1_fig3.jpg": "1650144b155d81b560a39cf707ca8dfc75222eb76ec653ed1bdb2e4b1c43c4db",
+      "EphB1_ENA.tsv": "0e05cd4b1efe7fa6c154921feaebe86c90e8df5716c64d2ba5e4e111845cf1bc",
+      "EphB1_project.xml": "c60e63decb498087f48ca043c6f8d04ad9232eed6f9d2098a517127651560aa6",
+      "EphB1_sample.xml": "5ce7d4447d46678d1040eab1700a60abeb95924289d7aee982607a8e7fc356a1",
+      "Splicing2024.xml": "b5fb67a2ff0dcabc90a29cde0293b151d9343d5ab085c3d6f284ddba247441a4",
+      "Splicing_supplementary.zip": "2df168dbeeaeb560698846f086a6a510d5e2e7b23e20b4746a5b74da6473fdd1"
+    },
+    "source_urls": [
+      "https://doi.org/10.3390/ijms19061769",
+      "https://doi.org/10.1038/s41419-022-05385-5",
+      "https://doi.org/10.1016/j.csbj.2023.12.039",
+      "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10819863/supplementaryFiles"
+    ],
+    "full_research_qualified": false,
+    "direct_tests": "35 passed"
   }
 }
