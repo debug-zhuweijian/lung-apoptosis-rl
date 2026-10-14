@@ -5013,5 +5013,29 @@
     "expanded_integration_failed": 10,
     "expanded_integration_errors": 23,
     "integration_blocker": "unuploaded endpoint-protocol-inputs-v1/manifest.json"
+  },
+  "fuca2_endpoint_reference": {
+    "doi": "10.1002/advs.202523667",
+    "pmcid": "PMC13335885",
+    "pmcaiid": "13459879",
+    "source_workbook_sha256": "41676635f1e897a8d262cc88b0cbc6878b390822a11830737cf7341a951f6b46",
+    "conditions": 12,
+    "numeric_observations": 36,
+    "A549_conditions": 6,
+    "A549_numeric_observations": 18,
+    "exposure_hours": 48,
+    "endpoint_conflict": "Methods Annexin V positive; S7B axis and first source values correspond to double-positive quadrant. Do not relabel as total Annexin.",
+    "repeat_hierarchy": "Three numbers per condition; Methods states three biological experiments with technical triplicates; workbook does not identify their aggregation or pairing.",
+    "sequence_status": "Fig7K-O contains sequential protocol and TUNEL images, no corresponding numeric N/O table in the recovered workbook; no matched sequence RNA recovered.",
+    "RNA_status": "Text describes FUCA2-knockdown RNA-seq; recovered workbook contains figure numbers, no expression matrix or accession identified.",
+    "total_annexin_training_eligible": false,
+    "complete_chain_validated": false,
+    "files": {
+      "condition_summary.csv": "b4b3cec7d1bdacb44222e4c2de2c96be122d727e93ac6c348720786ad2509c33",
+      "representative_flow_quadrants.csv": "362832540f8b362030246adfe14b26c6a9cf488ee0c3186eba5a8c3bfb576a90",
+      "reported_flow_observations.csv": "d375434a3889cafa8e26be5d0b41f78d0c2381d8e316b847ab5d64fc9fe1e6aa"
+    },
+    "targeted_tests_passed": 6,
+    "source_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13335885/supplementaryFiles"
   }
 }
