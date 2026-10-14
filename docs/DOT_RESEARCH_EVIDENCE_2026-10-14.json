@@ -4901,5 +4901,83 @@
       "formal_training": false
     },
     "related_tests_passed": 22
+  },
+  "vielhauer_cloud_physical_inputs": {
+    "source": "Vielhauer2013",
+    "actual_conditions": 20,
+    "actual_nominal_structures": 2,
+    "dose_unit_transform": "physical_molar_uM_v1",
+    "model_dose_unit": "uM",
+    "source_dose_unit": "nM",
+    "source_unit_tensor_retained": true,
+    "existing_weights_compatible_without_requalification": false,
+    "fingerprint_on_bits": [
+      74,
+      60
+    ],
+    "fingerprint_drug_order": [
+      "bocnho",
+      "cbi_indole2"
+    ],
+    "fingerprint_shape": [
+      2,
+      2048
+    ],
+    "tensor_shape": [
+      20,
+      4,
+      2048
+    ],
+    "actual_events": 50,
+    "all_observation_clocks_24h": true,
+    "unknown_wash_count_preserved": true,
+    "unknown_retention_preserved": true,
+    "conditioner_actual_class": "lung.models.full_protocol.FullProtocolConditioner",
+    "conditioner_untrained_QA_only": true,
+    "conditioner_output_shape": [
+      20,
+      8
+    ],
+    "pulse_continuous_distinct_pairs": 10,
+    "matched_initial_RNA": false,
+    "matched_response_weights": false,
+    "formal_training": false,
+    "final_endpoint_effect_evaluated": false,
+    "full_research_qualification": false,
+    "historical_batch_composition_or_ee_verified": false,
+    "original_frozen_inputs_modified": false,
+    "chemical_catalog": {
+      "rdkit": "2026.09.1",
+      "canonicalization": "isomeric_full_form_no_desalting",
+      "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+      "fingerprint": {
+        "type": "Morgan_binary",
+        "radius": 2,
+        "bits": 2048,
+        "includeChirality": true,
+        "useBondTypes": true,
+        "includeRedundantEnvironments": false
+      }
+    },
+    "primary_2013_figure_sha256": "ebdaaba83c066b28f8b038984a16c1705b782c553832863ca53335d878b4112f",
+    "primary_2010_identity_sha256": "b8f28d05844d5f297b19e94bc2c58ab7b37e86d5d6d449bd0198a7e80ce7d492",
+    "pubchem_properties_sha256": {
+      "bocnho": "d695cf80bcb8d37c585be455918bdb4ee69bd5f23dcab703713f6a0afef8ba54",
+      "cbi_indole2": "664dc2ac7a7fc12bbd937d8cae20b040ecc3b8c5e4ec2caf8d0de43859da9813"
+    },
+    "challenge_manifest_sha256": "392a85a2e0155d789aca613c66e3ac3b176d62dd17347d19f998192670223e53",
+    "script_sha256": "d69ca281a07ab08662d55a90509fb0410cb807c985656810b9b512fcac63648e",
+    "actual_consumer_sha256": "c6bdce150ed8a0cc53e3e26d3f438597805f918c6a4a4e1fa4f6304e1aa64e27",
+    "dose_transform_code_sha256": "2f98132c6139dd102c82f48388bc6a90f652e3050adf0b32d8c3659366cf827a",
+    "outputs": {
+      "source_unit_physical_batch.npz": "72f4b3316be1753501617d90897638e982519890e3d522b3935713c0bd184b5d",
+      "fingerprints.npy": "f9918a2c493dee3a2a25529ffe3c0772076019cb828c1c3cee56e2c0742a487d",
+      "physical_protocol_batch.npz": "9abd4358b210a548b41eaf02dfa6d064363083cde8b26f7e78e3f097f9383a5c",
+      "input_records.json": "98344be7152038cbc8be13778030a902d301d7754d547089c937cf85e029d53c",
+      "chemical_catalog.csv": "b96502dbda19a4875470c2c257eab4b80c34433fbe10b9c5c4c5c3fafe60d915"
+    },
+    "related_tests_passed": 42,
+    "actual_canonical_dose_readback": true,
+    "Dot_self_review_no_independent_agent": true
   }
 }
