@@ -31,14 +31,23 @@ jobs:
           ref: 6ad76db59c164e58d724663e2dd1149a840d45fd
           path: author-scar
           persist-credentials: false
-      - name: Archive published scAR v0.6.0 source only; do not run another agent
+      - name: Archive published scAR v0.6.0 with license; no remote model execution
         shell: bash
         run: |
           set -euo pipefail
           test "$(git -C author-scar rev-parse HEAD)" = 6ad76db59c164e58d724663e2dd1149a840d45fd
           git -C author-scar rev-parse HEAD > receipt/scar_commit.txt
-          tar -czf receipt/scar_source_v0.6.0.tgz -C author-scar scar pyproject.toml README.md
+          tar -czf receipt/scar_source_v0.6.0.tgz -C author-scar scar pyproject.toml README.md docs/License.rst
           sha256sum receipt/scar_source_v0.6.0.tgz >> receipt/SHA256SUMS
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download exact missing checksum dependency for offline installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip download --no-deps --only-binary=:all: --dest receipt/wheels crc32c==2.7.1
+          sha256sum receipt/wheels/* >> receipt/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: cloud-source-receipt
