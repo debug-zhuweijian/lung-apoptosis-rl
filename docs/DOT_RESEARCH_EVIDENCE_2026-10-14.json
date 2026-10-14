@@ -3048,5 +3048,68 @@
       "experiments/dot-20261014-nci-chemistry-v2": "eb6964ae346d1f47e01e443b8f105235b1fb3a77d1b4fc08305217ecf700fb56"
     },
     "script_sha256": "0133c3f52a12eef6a12a949ff74bc972f64c02e221e7534a6fad529b062c5c77"
+  },
+  "a549_state_context_actual_recovery": {
+    "accession": "GSE246690",
+    "doi": "10.1158/0008-5472.CAN-24-0529",
+    "source_genes": 60728,
+    "source_libraries": 32,
+    "actual_A549_libraries": 16,
+    "actual_A549_source_values": 971648,
+    "common_observed_genes": 32432,
+    "common_missing_genes": 29,
+    "source_replicate_labels": {
+      "2": 8,
+      "1": 4,
+      "3": 4
+    },
+    "conservative_split_groups": 3,
+    "processing_conflicts": [
+      "GEO says mouse reference GRCh38 although human ENSG IDs and paper human hg38",
+      "GEO featureCounts/STAR2.7.10a versus paper STAR GeneCounts2.7.10b; original pipeline not re-executed"
+    ],
+    "mapping_status_counts": {
+      "matched": 32432,
+      "not_in_common_axis": 28206,
+      "duplicate_source_identifier": 90
+    },
+    "identifier_suffix_limit": "numeric suffixes retained in source; collisions after existing suffix normalization are excluded, not summed",
+    "source_scale": "published_integer_gene_counts",
+    "palbociclib_history_conflict": true,
+    "functional_challenge": {
+      "endpoint": "crystal_violet_relative_viability_not_Annexin",
+      "initial_contexts": 4,
+      "normalization": "each context own untreated reference",
+      "duration_candidates_h": [
+        48,
+        72
+      ],
+      "duration_conflict": "Results48h versus Methods/Fig2B72h",
+      "raw_numeric_observations_recovered": false,
+      "RNA_measured_before_second_intervention": true,
+      "post_navitoclax_RNA_available_in_this_matrix": false,
+      "individual_RNA_function_pairs_verified": false
+    },
+    "independent_state_increment_validated": false,
+    "complete_sequence_model_validated": false,
+    "full_research_qualified": false,
+    "source_urls": {
+      "counts": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE246nnn/GSE246690/suppl/GSE246690_vramponi_202207_rnaseq_raw_counts.xlsx",
+      "GEO": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE246690",
+      "paper": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7617193/fullTextXML"
+    },
+    "source_hashes": {
+      "counts.xlsx": "d9fa5a6c8a71bed6c086cf4f6aaeb04052026ddfc2560b8c3d4571babd31893d",
+      "GSE246690.soft.gz": "1dac6d88e3442de59686bcb595317190703b26367c83bf84186b074b4a4441d7",
+      "paper.xml": "d55cb3e31220bd5e92ca130a981d841c941f3aeef0005d3db245e1013354944d",
+      "gene_axis.csv": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c"
+    },
+    "script_sha256": "a0b27cf8b3980d9665f658ab35f512c942ba1dd5ae754842ed09ee01baafc1eb",
+    "outputs": {
+      "common_axis_counts.npz": "4828554514577e5a09218aa97c95bccb49ed133284065e9288e531684b4cc321",
+      "gene_mapping.csv": "3f2e4148f0774f035b61731ed62531cad2c6fbe14c8e499765cb0d5c544d21e5",
+      "source_A549_counts.npz": "c28f4f559acb9dcd4254657a6700226e425d8e40d41a624b0884ea4ac3cf2088",
+      "samples.csv": "dbd79ce4934a343eab797829c7fa632a28c5288323d8b8d0c4d89a42d2672d5b"
+    }
   }
 }

@@ -684,3 +684,30 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/audit_nci_unseen_drug_ba
   --chemistry experiments/dot-20261014-nci-chemistry-v2 \
   --output /new/output/directory
 ```
+
+## 21. 新增四种A549历史状态的真实RNA，并明确后续功能连接的界限
+
+定向寻找“同一种后续干预在不同初态的效果”时，核对了[原始研究](https://doi.org/10.1158/0008-5472.CAN-24-0529)及[GSE246690](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE246690)。本课题仍研究肺腺癌促凋亡；该来源仅作为状态/历史条件连接的辅助挑战，不把目标改为耐受或休眠细胞清除。
+
+实际下载并读取官方7,660,969字节计数工作簿，源表60,728行×32个文库；由GSM的明确description绑定16个A549列，实际971,648个原始整数计数。四类为增殖对照、doxorubicin、palbociclib、INK128处理后的第7天状态。不是把RNA在第7天采样误写成所有药都连续暴露7天。
+
+本次实际修复/保留的对应关系：
+- doxorubicin 0.1µM：72小时暴露，随后96小时恢复，到168小时取RNA
+- INK128 0.2µM：连续168小时，约每72小时更换含药培养基
+- palbociclib 5µM：论文特指A549维持到收集，GEO通用说明却写72小时后撤药。输出保留168小时与72＋96小时两个来源解释，统一暴露时长留空、冲突标记为true
+- 每类有四个文库标签1、2、2-2、3，但2与2-2的源replicate均为2。保留全部文库，保守地绑定同一个划分组；不宣称四个独立生物重复，也不擅自合并计数
+- 45个基因ID带数字后缀并与无后缀行发生冲突。沿既有轴映射规则，90个冲突行不选择、不求和；公共轴32,432基因映射已逐值核验，29个轴位置仍为未确定映射，保留NaN/观测掩码。原始带后缀ID和计数完整保留，不能把未确定映射解释成实测零
+- GEO的“mouse reference GRCh38”表述与人类细胞、ENSG及原文human hg38不一致；计数生成软件描述也不一致。保留来源处理记录，未冒称已复现原始测序比对
+
+原文Fig2B确有不同初态之后再用Navitoclax的功能挑战，但测量是**各状态相对自身未处理对照的结晶紫存活指标**，不是Annexin凋亡率；正文写48小时，方法及图注写72小时，时钟冲突尚在。RNA在第二次处理前测量，没有后续Navitoclax RNA或可核验的逐重复RNA—功能配对；该功能图的原始数值本轮未取得。原文的Annexin实验用于检查INK128诱导状态，不能移作Navitoclax终点。
+
+因此，这一步真实增加了可用状态表达与处理历史，也提供了状态依赖功能的来源依据；仍不能检验RNA是否超越四种状态类别/诱导历史，更不能验收多药序列策略。功能原始数字、时长统一和独立统计单位的断点继续显式保留；不以“有RNA且文中出现Annexin”拼接一条虚假完整链。
+
+实际输出 `experiments/dot-20261014-state-context-v3/`。新增CLI `scripts/recover_a549_state_context.py` 调用现有公共轴读取路径；7项新测试覆盖时间冲突、撤药时钟、重复标签分组、列绑定、背景与基因后缀冲突。最新九文件相关自审共62项通过，未运行全仓库测试。v1/v2严格ID检查拒绝带后缀行的日志保留；允许源后缀后仍按既有重复身份拒绝映射，而非降低重复断言。
+
+```bash
+python scripts/recover_a549_state_context.py \
+  --source /path/to/GSE246690-and-original-paper-cache \
+  --gene-axis experiments/dot-20261014-public-axis-v3/gene_axis.csv \
+  --output /new/output/directory
+```
