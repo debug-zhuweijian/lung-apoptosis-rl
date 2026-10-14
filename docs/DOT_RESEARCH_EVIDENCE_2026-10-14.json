@@ -1385,5 +1385,1282 @@
         "genes": 500
       }
     ]
+  },
+  "nci_a549_actual_recovery": {
+    "accession": "GSE116436",
+    "doi": "10.1158/0008-5472.CAN-18-0989",
+    "source_series_samples": 7623,
+    "A549_actual_samples": 134,
+    "probe_count": 22277,
+    "numeric_source_values": 2985118,
+    "drug_labels": 15,
+    "time_h": [
+      2,
+      6,
+      24
+    ],
+    "actual_controls": 45,
+    "missing_protocols": [
+      {
+        "drug_name": "topotecan",
+        "dose_nM": 1000.0,
+        "exposure_h": 2
+      }
+    ],
+    "common_axis_observed": 11109,
+    "common_axis_missing": 21352,
+    "annotation_taxa": {
+      "9606": 193925,
+      "63221": 37,
+      "741158": 36
+    },
+    "probe_mapping_status": {
+      "unique_entrez_to_ensembl": 19640,
+      "ambiguous_or_missing_source_entrez": 2346,
+      "missing_or_ambiguous_current_ensembl": 291
+    },
+    "source_scale": "microarray_log2_RMA",
+    "aggregation": "arithmetic mean log2 intensity across probes with unique source Entrez and unique current Ensembl",
+    "RMA_fit_scope": "published within-drug all-cell-line arrays; not refitted on training split",
+    "strict_train_only_preprocessing": false,
+    "whole_NCI_RAW_downloaded": false,
+    "Annexin_labels": false,
+    "formal_training": false,
+    "full_research_qualified": false,
+    "annotation_revision": "GPL571 annotation 2016-08-09; current NCBI human gene_info pinned by bytes",
+    "source_hashes": {
+      "GPL571.annot.gz": "9f5a482f9f3d478b47fc80124600319e569f1e9ab447f3f256d61b1fbacce4fa",
+      "Homo_sapiens.gene_info.gz": "fcb82c4602af6005e65a2f1bc9b3fc27e303565ee8710c5afe85a3091a68c3fa",
+      "selected_samples.json": "07febd4609a7b62caf77ce47de25074ed79fa54185d7cab5d8a8a787bd018350",
+      "sample_download_receipts.json": "053f606c57e4293f5962572666ce2003c0617d959989d234bba65d6b077f9a26",
+      "a549_gds_summaries.json": "55be1d2942ba79af8946b3b36c99ad3815eb4f883f7bad0eaff6f60ac2068ac8",
+      "paper.html": "517de637373fe0a91a7e2babc844df9b41e42abf5650369c2e3aea7bcdab983e"
+    },
+    "source_samples": [
+      {
+        "accession": "GSM3231661",
+        "title": "A549_5-Azacytidine_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231661&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231661.soft.gz",
+        "uncompressed_bytes": 533653,
+        "stored_bytes": 192498,
+        "sha256": "e944b3f6a6e222e12931b9c4596bc7cb5dbdba5dc37dd3af96ed7fa9150016c1"
+      },
+      {
+        "accession": "GSM3231662",
+        "title": "A549_5-Azacytidine_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231662&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231662.soft.gz",
+        "uncompressed_bytes": 533530,
+        "stored_bytes": 192264,
+        "sha256": "904413e9be11dbfff290eca5e20c20c9832673b85ea456a5c893e03d72a0a8ab"
+      },
+      {
+        "accession": "GSM3231663",
+        "title": "A549_5-Azacytidine_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231663&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231663.soft.gz",
+        "uncompressed_bytes": 533565,
+        "stored_bytes": 192377,
+        "sha256": "73c11352cf0409e31a59114cc6ed6f24c8c0faea5b5de90ffdc95babb1374b93"
+      },
+      {
+        "accession": "GSM3231664",
+        "title": "A549_5-Azacytidine_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231664&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231664.soft.gz",
+        "uncompressed_bytes": 533622,
+        "stored_bytes": 192224,
+        "sha256": "646a82a71ec69d20a180308831396ff82fdeb6125c04c1f8315d92433e109840"
+      },
+      {
+        "accession": "GSM3231665",
+        "title": "A549_5-Azacytidine_1000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231665&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231665.soft.gz",
+        "uncompressed_bytes": 533596,
+        "stored_bytes": 192236,
+        "sha256": "1802d58fdcf907e7a3ff8087724fcdfcdd965a9a6301fdaf70f94b4736c7ab94"
+      },
+      {
+        "accession": "GSM3231666",
+        "title": "A549_5-Azacytidine_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231666&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231666.soft.gz",
+        "uncompressed_bytes": 533624,
+        "stored_bytes": 192475,
+        "sha256": "880596e678810eacda6806794591f748284f567edc0d83951d04fd2e89082b51"
+      },
+      {
+        "accession": "GSM3231667",
+        "title": "A549_5-Azacytidine_5000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231667&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231667.soft.gz",
+        "uncompressed_bytes": 533666,
+        "stored_bytes": 192427,
+        "sha256": "063035135efadf9bb0f53be1492052a4449130ff3dfba2f38990caaf103c56d9"
+      },
+      {
+        "accession": "GSM3231668",
+        "title": "A549_5-Azacytidine_5000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231668&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231668.soft.gz",
+        "uncompressed_bytes": 533723,
+        "stored_bytes": 192358,
+        "sha256": "15ab5a328d92a53b4e216f6c5d34687223182f78c98861fee398f21b47526d14"
+      },
+      {
+        "accession": "GSM3231669",
+        "title": "A549_5-Azacytidine_5000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3231669&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3231669.soft.gz",
+        "uncompressed_bytes": 533619,
+        "stored_bytes": 192244,
+        "sha256": "240676ebe1b059fdc88d1132b5467cefcaceca71d28132c840e0639d0d37a6cc"
+      },
+      {
+        "accession": "GSM3232103",
+        "title": "A549_bortezomib_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232103&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232103.soft.gz",
+        "uncompressed_bytes": 533613,
+        "stored_bytes": 191940,
+        "sha256": "2ef1c7373257ae55d6860e92021ffdab80615ebdf4ae35fcacf0448fa4e44167"
+      },
+      {
+        "accession": "GSM3232104",
+        "title": "A549_bortezomib_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232104&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232104.soft.gz",
+        "uncompressed_bytes": 533677,
+        "stored_bytes": 192087,
+        "sha256": "ca0447aac9440f60ba71bf8193b600fcbced70613a754f3bcd0a9f968f9cf001"
+      },
+      {
+        "accession": "GSM3232105",
+        "title": "A549_bortezomib_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232105&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232105.soft.gz",
+        "uncompressed_bytes": 533618,
+        "stored_bytes": 192242,
+        "sha256": "356fb1295230157f2a92b8f00cbe74b8de47bf1f55f113201fa1e1f1627bd33a"
+      },
+      {
+        "accession": "GSM3232106",
+        "title": "A549_bortezomib_100nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232106&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232106.soft.gz",
+        "uncompressed_bytes": 533617,
+        "stored_bytes": 192056,
+        "sha256": "0330eb410ccb15e87717969d3bc06ecb55590892a961af4ec0df713aa517e1b9"
+      },
+      {
+        "accession": "GSM3232107",
+        "title": "A549_bortezomib_100nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232107&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232107.soft.gz",
+        "uncompressed_bytes": 533692,
+        "stored_bytes": 192029,
+        "sha256": "65a67501090d35cf01c8e08c194e5cbbd3f54549ed2d28ae84231d9523c7a2dc"
+      },
+      {
+        "accession": "GSM3232108",
+        "title": "A549_bortezomib_100nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232108&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232108.soft.gz",
+        "uncompressed_bytes": 533646,
+        "stored_bytes": 191875,
+        "sha256": "de1f547abedef8ccd0bd40a6e65d8ff7b0945b49fb22020d2e9ec43e562a27aa"
+      },
+      {
+        "accession": "GSM3232109",
+        "title": "A549_bortezomib_10nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232109&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232109.soft.gz",
+        "uncompressed_bytes": 533612,
+        "stored_bytes": 191827,
+        "sha256": "2874d6721db1f28b48197954da31a9018fe4335b50b2cd5748d25e8a5db0349e"
+      },
+      {
+        "accession": "GSM3232110",
+        "title": "A549_bortezomib_10nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232110&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232110.soft.gz",
+        "uncompressed_bytes": 533652,
+        "stored_bytes": 191743,
+        "sha256": "8c446aa7e94ba945395cd190c27d63e8b042698c018da91349a35bb75e159392"
+      },
+      {
+        "accession": "GSM3232111",
+        "title": "A549_bortezomib_10nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232111&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232111.soft.gz",
+        "uncompressed_bytes": 533591,
+        "stored_bytes": 192028,
+        "sha256": "4b294d8b932e3438789b5c819a664cee092183e5df418f06fcc6174d193d2b1b"
+      },
+      {
+        "accession": "GSM3232619",
+        "title": "A549_cisplatin_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232619&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232619.soft.gz",
+        "uncompressed_bytes": 533442,
+        "stored_bytes": 192325,
+        "sha256": "6264007239ca79c5362918194d11799efad542306a871c8146b9912b1de13293"
+      },
+      {
+        "accession": "GSM3232620",
+        "title": "A549_cisplatin_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232620&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232620.soft.gz",
+        "uncompressed_bytes": 533659,
+        "stored_bytes": 192043,
+        "sha256": "e0d2378d0e6737f6bbbfe5ae03f75a7ac5f37f34a85206412484f52ff9809b8a"
+      },
+      {
+        "accession": "GSM3232621",
+        "title": "A549_cisplatin_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232621&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232621.soft.gz",
+        "uncompressed_bytes": 533690,
+        "stored_bytes": 192432,
+        "sha256": "13fc01fea2bb05fe919ea05aa791d456ee991f05a3efabfaeebbee2bf172e8e2"
+      },
+      {
+        "accession": "GSM3232622",
+        "title": "A549_cisplatin_15000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232622&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232622.soft.gz",
+        "uncompressed_bytes": 533709,
+        "stored_bytes": 192354,
+        "sha256": "9e0b30e398612dbf93419771d4ddae7e22b10e5a6e9e838f70ec93171f69202c"
+      },
+      {
+        "accession": "GSM3232623",
+        "title": "A549_cisplatin_15000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232623&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232623.soft.gz",
+        "uncompressed_bytes": 533627,
+        "stored_bytes": 192263,
+        "sha256": "5b233ec7ed060a50a5067bcb28251c568082e7def1cd0b6d052dcb2f98fa3ebe"
+      },
+      {
+        "accession": "GSM3232624",
+        "title": "A549_cisplatin_15000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232624&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232624.soft.gz",
+        "uncompressed_bytes": 533688,
+        "stored_bytes": 192314,
+        "sha256": "d59cfcffa8370c71eeadee6a1f6d53ec98a98dbabb61278c2a98cea157f50cc9"
+      },
+      {
+        "accession": "GSM3232625",
+        "title": "A549_cisplatin_3000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232625&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232625.soft.gz",
+        "uncompressed_bytes": 533573,
+        "stored_bytes": 192310,
+        "sha256": "64a8b4617c0779d85b921329cde4ad782426661556d254e87ef586a00224502e"
+      },
+      {
+        "accession": "GSM3232626",
+        "title": "A549_cisplatin_3000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232626&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232626.soft.gz",
+        "uncompressed_bytes": 533656,
+        "stored_bytes": 192293,
+        "sha256": "07e304015c8b95730a242f04397d8a3db8a0c3260b1601aa55ab51f13dccc6a8"
+      },
+      {
+        "accession": "GSM3232627",
+        "title": "A549_cisplatin_3000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3232627&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3232627.soft.gz",
+        "uncompressed_bytes": 533627,
+        "stored_bytes": 192441,
+        "sha256": "255b4ebf612f953a8a96ae128a28fc730a49adfed6111d9cffabfccd4ac6fe3b"
+      },
+      {
+        "accession": "GSM3233127",
+        "title": "A549_dasatinib_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233127&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233127.soft.gz",
+        "uncompressed_bytes": 533529,
+        "stored_bytes": 192242,
+        "sha256": "3f04c6855e52e79132f235abb0ac95929164826d667238c979d052ab2e4bcb06"
+      },
+      {
+        "accession": "GSM3233128",
+        "title": "A549_dasatinib_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233128&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233128.soft.gz",
+        "uncompressed_bytes": 533603,
+        "stored_bytes": 192595,
+        "sha256": "cfb21be51596e73a2b060e4f8b2e29ef376ba74d8ac3efec12c21f467cf8c4ed"
+      },
+      {
+        "accession": "GSM3233129",
+        "title": "A549_dasatinib_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233129&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233129.soft.gz",
+        "uncompressed_bytes": 533619,
+        "stored_bytes": 192327,
+        "sha256": "5c6020d17c70095e74b10ab9b4b95652294b4e55558bde743a7ba744ead4bf93"
+      },
+      {
+        "accession": "GSM3233130",
+        "title": "A549_dasatinib_100nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233130&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233130.soft.gz",
+        "uncompressed_bytes": 533651,
+        "stored_bytes": 192450,
+        "sha256": "69ee2a4a0bc5166833dd9155f7b98b6c7f0eb1fac3ee603505271614242e1de9"
+      },
+      {
+        "accession": "GSM3233131",
+        "title": "A549_dasatinib_100nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233131&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233131.soft.gz",
+        "uncompressed_bytes": 533593,
+        "stored_bytes": 192143,
+        "sha256": "87ce3be9701a0cc2d5cd0c24f411fa920214419ee76f48173801b3120b84bb0c"
+      },
+      {
+        "accession": "GSM3233132",
+        "title": "A549_dasatinib_100nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233132&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233132.soft.gz",
+        "uncompressed_bytes": 533548,
+        "stored_bytes": 192225,
+        "sha256": "f4aec9cff0134adbb91c22d003ff7c96f9e6174a4c707bc81ef1d581193c6444"
+      },
+      {
+        "accession": "GSM3233133",
+        "title": "A549_dasatinib_2000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233133&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233133.soft.gz",
+        "uncompressed_bytes": 533550,
+        "stored_bytes": 192364,
+        "sha256": "a3da086a594a31d951e30a90bb93835600f094ec87e4e4de7b77d26a3cc75267"
+      },
+      {
+        "accession": "GSM3233134",
+        "title": "A549_dasatinib_2000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233134&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233134.soft.gz",
+        "uncompressed_bytes": 533556,
+        "stored_bytes": 192263,
+        "sha256": "630b06e828413590f847e3fcc3445c81faea39c38dc7322648e6d3852d1fc09e"
+      },
+      {
+        "accession": "GSM3233135",
+        "title": "A549_dasatinib_2000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233135&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233135.soft.gz",
+        "uncompressed_bytes": 533596,
+        "stored_bytes": 192266,
+        "sha256": "8167a606a6973c2c37e00ad820d6d25da15b32da9d6fd39c885873b8d54d40d8"
+      },
+      {
+        "accession": "GSM3233623",
+        "title": "A549_doxorubicin_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233623&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233623.soft.gz",
+        "uncompressed_bytes": 533702,
+        "stored_bytes": 192180,
+        "sha256": "64901e8212c1db4234819e1511c8d768be67a89c1e4a7a3b1c4c246d2f4fc0fa"
+      },
+      {
+        "accession": "GSM3233624",
+        "title": "A549_doxorubicin_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233624&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233624.soft.gz",
+        "uncompressed_bytes": 533548,
+        "stored_bytes": 192396,
+        "sha256": "b75e57e4c523547553ac5f68bd10f275358712064441314e680fa0bf9d769659"
+      },
+      {
+        "accession": "GSM3233625",
+        "title": "A549_doxorubicin_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233625&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233625.soft.gz",
+        "uncompressed_bytes": 533589,
+        "stored_bytes": 192221,
+        "sha256": "ac3bae6658e94b314d32f34545b6d986d4c34034c58a59ac3583d14be6a027fc"
+      },
+      {
+        "accession": "GSM3233626",
+        "title": "A549_doxorubicin_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233626&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233626.soft.gz",
+        "uncompressed_bytes": 533631,
+        "stored_bytes": 192631,
+        "sha256": "7d8bf84352d5eb244095391943fe0d2002cc24478d1be97dbcd19a8318ab346e"
+      },
+      {
+        "accession": "GSM3233627",
+        "title": "A549_doxorubicin_1000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233627&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233627.soft.gz",
+        "uncompressed_bytes": 533568,
+        "stored_bytes": 192404,
+        "sha256": "630e9eed40ebf53c0da21180badfe075cc1ec780588a0a7d5b16a1418ba025b2"
+      },
+      {
+        "accession": "GSM3233628",
+        "title": "A549_doxorubicin_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233628&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233628.soft.gz",
+        "uncompressed_bytes": 533732,
+        "stored_bytes": 192410,
+        "sha256": "c3eb9b3512bc268b850ca6e42e39f7193f8ec583ee2515462d765d2c6f846db9"
+      },
+      {
+        "accession": "GSM3233629",
+        "title": "A549_doxorubicin_100nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233629&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233629.soft.gz",
+        "uncompressed_bytes": 533623,
+        "stored_bytes": 192479,
+        "sha256": "7eac63d5f2a371f0c24318703893238f1bcd72f58d74ee2dc4ad13600b041a9f"
+      },
+      {
+        "accession": "GSM3233630",
+        "title": "A549_doxorubicin_100nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233630&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233630.soft.gz",
+        "uncompressed_bytes": 533621,
+        "stored_bytes": 192320,
+        "sha256": "9d5b3b9ad42ad6f82b1c7ae7a3dfc3542ba894a748a653e3d9b0867cddee03e4"
+      },
+      {
+        "accession": "GSM3233631",
+        "title": "A549_doxorubicin_100nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3233631&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3233631.soft.gz",
+        "uncompressed_bytes": 533617,
+        "stored_bytes": 192278,
+        "sha256": "83649e24497b77cc30289111f9514c667e6d631497ed8d386be66889ed0db4be"
+      },
+      {
+        "accession": "GSM3234139",
+        "title": "A549_erlotinib_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234139&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234139.soft.gz",
+        "uncompressed_bytes": 533577,
+        "stored_bytes": 191753,
+        "sha256": "dcc700a93528c9572f2e45e966a5e298d8a6eab738e2ea30f655d08b341a96c6"
+      },
+      {
+        "accession": "GSM3234140",
+        "title": "A549_erlotinib_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234140&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234140.soft.gz",
+        "uncompressed_bytes": 533629,
+        "stored_bytes": 191969,
+        "sha256": "93bed0c26529ae189630129c78e7328bd12e18c28e61cd9b4660e26e69ea5ebd"
+      },
+      {
+        "accession": "GSM3234141",
+        "title": "A549_erlotinib_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234141&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234141.soft.gz",
+        "uncompressed_bytes": 533590,
+        "stored_bytes": 191849,
+        "sha256": "431424a039b21e108d1fb9185503c15155cbf76277b72af80d17d1b3a7abab76"
+      },
+      {
+        "accession": "GSM3234142",
+        "title": "A549_erlotinib_10000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234142&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234142.soft.gz",
+        "uncompressed_bytes": 533562,
+        "stored_bytes": 191802,
+        "sha256": "4a47f9600ffb6ca1af6b35a665c26b3a7f4f5bae03f0520ee10ee9f74964bb66"
+      },
+      {
+        "accession": "GSM3234143",
+        "title": "A549_erlotinib_10000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234143&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234143.soft.gz",
+        "uncompressed_bytes": 533588,
+        "stored_bytes": 191579,
+        "sha256": "324562fc3413258117abd5bd045414f5e718e8c192e0fac84d94819ac0b2e797"
+      },
+      {
+        "accession": "GSM3234144",
+        "title": "A549_erlotinib_10000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234144&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234144.soft.gz",
+        "uncompressed_bytes": 533523,
+        "stored_bytes": 191847,
+        "sha256": "7d0b34cc5f6c118de771b4f197f76bcdeb9d36fdb77749a037ea472cd9642ba3"
+      },
+      {
+        "accession": "GSM3234145",
+        "title": "A549_erlotinib_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234145&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234145.soft.gz",
+        "uncompressed_bytes": 533635,
+        "stored_bytes": 192192,
+        "sha256": "91362601babc1304325492217744cb11a3a809ca41e89bf3d33b232af5133cfd"
+      },
+      {
+        "accession": "GSM3234146",
+        "title": "A549_erlotinib_1000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234146&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234146.soft.gz",
+        "uncompressed_bytes": 533611,
+        "stored_bytes": 192201,
+        "sha256": "04f8cee9a3ea604c91c37ba745494eb48bcd8b8ef1d8a0d007d7af4087d5dc92"
+      },
+      {
+        "accession": "GSM3234147",
+        "title": "A549_erlotinib_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234147&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234147.soft.gz",
+        "uncompressed_bytes": 533572,
+        "stored_bytes": 191470,
+        "sha256": "2e49d2f64e9f2945460bc7e64c637d90b36d8bf0aeb2164da1bd34befc6ccd9d"
+      },
+      {
+        "accession": "GSM3234666",
+        "title": "A549_geldanamycin_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234666&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234666.soft.gz",
+        "uncompressed_bytes": 533714,
+        "stored_bytes": 192255,
+        "sha256": "0ef65ae6a889ec61efb940f9bae516783c7f4ec508ceb5ea63875cccb772c493"
+      },
+      {
+        "accession": "GSM3234667",
+        "title": "A549_geldanamycin_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234667&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234667.soft.gz",
+        "uncompressed_bytes": 533622,
+        "stored_bytes": 192176,
+        "sha256": "b8f8f8ae8a4c03a64938851f62c4f5e367dcd5d24a9487796b6fa31ff687e89d"
+      },
+      {
+        "accession": "GSM3234668",
+        "title": "A549_geldanamycin_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234668&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234668.soft.gz",
+        "uncompressed_bytes": 533661,
+        "stored_bytes": 192006,
+        "sha256": "1c9e9735f3d6060f44ccaed456337b6000cb0d9caaa4f74adead1538c43e7d43"
+      },
+      {
+        "accession": "GSM3234669",
+        "title": "A549_geldanamycin_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234669&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234669.soft.gz",
+        "uncompressed_bytes": 533659,
+        "stored_bytes": 192079,
+        "sha256": "dcd8d89989b50c65f2ef09239d2708fe9e01f557eb170862eafe44561a11eddd"
+      },
+      {
+        "accession": "GSM3234670",
+        "title": "A549_geldanamycin_1000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234670&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234670.soft.gz",
+        "uncompressed_bytes": 533577,
+        "stored_bytes": 192032,
+        "sha256": "70d427acb9160cee25e53480b06e5bf2b536aa4ed88b75a3d4b4b2dd788da65a"
+      },
+      {
+        "accession": "GSM3234671",
+        "title": "A549_geldanamycin_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234671&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234671.soft.gz",
+        "uncompressed_bytes": 533571,
+        "stored_bytes": 192197,
+        "sha256": "a2c4aa60332a305365a47e3fcbafb405c7a16b069d7cf57dbd9153dc8791e8e0"
+      },
+      {
+        "accession": "GSM3234672",
+        "title": "A549_geldanamycin_100nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234672&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234672.soft.gz",
+        "uncompressed_bytes": 533656,
+        "stored_bytes": 192300,
+        "sha256": "a95c74fdffa8b4a22fb8b19dac4158724b59f0e35c3ae9e493654a1abf321647"
+      },
+      {
+        "accession": "GSM3234673",
+        "title": "A549_geldanamycin_100nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234673&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234673.soft.gz",
+        "uncompressed_bytes": 533713,
+        "stored_bytes": 192043,
+        "sha256": "a54daf53518076692df176352a94cdb019e4490ec2e8585de0232e22d33b8c92"
+      },
+      {
+        "accession": "GSM3234674",
+        "title": "A549_geldanamycin_100nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3234674&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3234674.soft.gz",
+        "uncompressed_bytes": 533637,
+        "stored_bytes": 192081,
+        "sha256": "bf3d939dd302d388e8cf1365365cc842bbeb781bf3e4fe405ea48bf560f1193c"
+      },
+      {
+        "accession": "GSM3235170",
+        "title": "A549_gemcitibine_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235170&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235170.soft.gz",
+        "uncompressed_bytes": 533497,
+        "stored_bytes": 192379,
+        "sha256": "832f9e29b1d1bee2aa4d9541ac5645a5d0b870c1e9d002b9e1fe77e2b22978a8"
+      },
+      {
+        "accession": "GSM3235171",
+        "title": "A549_gemcitibine_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235171&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235171.soft.gz",
+        "uncompressed_bytes": 533634,
+        "stored_bytes": 192219,
+        "sha256": "81336d4ee1f74ee276b1c0cb0497077e0f9bedd0f0a18aeeadd5b9a19bddb5d5"
+      },
+      {
+        "accession": "GSM3235172",
+        "title": "A549_gemcitibine_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235172&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235172.soft.gz",
+        "uncompressed_bytes": 533676,
+        "stored_bytes": 192285,
+        "sha256": "70ac3cfa66aede7374a85ca5a2c1d8b2a6a21484f8b4cd49aec5df855f0a9e3c"
+      },
+      {
+        "accession": "GSM3235173",
+        "title": "A549_gemcitibine_2000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235173&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235173.soft.gz",
+        "uncompressed_bytes": 533665,
+        "stored_bytes": 192572,
+        "sha256": "c3397131625181460ef2e74f924a43bf78be113e5a401dc3bcff62d868ee20ad"
+      },
+      {
+        "accession": "GSM3235174",
+        "title": "A549_gemcitibine_2000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235174&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235174.soft.gz",
+        "uncompressed_bytes": 533572,
+        "stored_bytes": 192238,
+        "sha256": "a3fc53ac94f7ac3b972ae382cb57d7d5660bc244c34f219ae881b92f0811d968"
+      },
+      {
+        "accession": "GSM3235175",
+        "title": "A549_gemcitibine_2000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235175&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235175.soft.gz",
+        "uncompressed_bytes": 533629,
+        "stored_bytes": 192392,
+        "sha256": "37b049a14425f557c19ed675bd65485e19fcee9376596dd797b8448599258a46"
+      },
+      {
+        "accession": "GSM3235176",
+        "title": "A549_gemcitibine_200nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235176&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235176.soft.gz",
+        "uncompressed_bytes": 533616,
+        "stored_bytes": 192682,
+        "sha256": "b7bb628069577db81932ed03b6bd95f9f95a4cb3773425c443673825fb3c542f"
+      },
+      {
+        "accession": "GSM3235177",
+        "title": "A549_gemcitibine_200nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235177&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235177.soft.gz",
+        "uncompressed_bytes": 533609,
+        "stored_bytes": 192407,
+        "sha256": "fb41ed13bba368fe092926b248f5155b83742bac243d8d1f6f5efa49b6e5fc19"
+      },
+      {
+        "accession": "GSM3235178",
+        "title": "A549_gemcitibine_200nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235178&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235178.soft.gz",
+        "uncompressed_bytes": 533588,
+        "stored_bytes": 192358,
+        "sha256": "95c9e8797455e99b7e79063f825dfcb5c9c4c4b08d67db662df0c1cbb4d2d5ea"
+      },
+      {
+        "accession": "GSM3235666",
+        "title": "A549_lapatinib_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235666&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235666.soft.gz",
+        "uncompressed_bytes": 533628,
+        "stored_bytes": 192322,
+        "sha256": "f5c67d23e5e8afb4aea8edd5c031ce570612527595b23020ef26fc9aa2b1ad0c"
+      },
+      {
+        "accession": "GSM3235667",
+        "title": "A549_lapatinib_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235667&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235667.soft.gz",
+        "uncompressed_bytes": 533563,
+        "stored_bytes": 192410,
+        "sha256": "6f4cd033e6f538b2bb283b8ba04d4c65c497da2bc7af51ba436941bb66110145"
+      },
+      {
+        "accession": "GSM3235668",
+        "title": "A549_lapatinib_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235668&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235668.soft.gz",
+        "uncompressed_bytes": 533642,
+        "stored_bytes": 192314,
+        "sha256": "9458a4403a74163e4fcbf70288a1b27dc3798472e5b514f7e00dc8043aeaf1e7"
+      },
+      {
+        "accession": "GSM3235669",
+        "title": "A549_lapatinib_10000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235669&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235669.soft.gz",
+        "uncompressed_bytes": 533745,
+        "stored_bytes": 192322,
+        "sha256": "cea8b808c0f382824e12bff4b3cde88744344e195024097eb5a292a92e83fb4d"
+      },
+      {
+        "accession": "GSM3235670",
+        "title": "A549_lapatinib_10000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235670&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235670.soft.gz",
+        "uncompressed_bytes": 533639,
+        "stored_bytes": 192566,
+        "sha256": "84389582cf098109dc45fcb935cd011253768ed9df88e9bc98f3d3a88593edca"
+      },
+      {
+        "accession": "GSM3235671",
+        "title": "A549_lapatinib_10000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235671&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235671.soft.gz",
+        "uncompressed_bytes": 533572,
+        "stored_bytes": 192550,
+        "sha256": "3292f1863aa17733864bdcd38de9f5f8efd93beda15ec63746ce1ca6efd9ab22"
+      },
+      {
+        "accession": "GSM3235672",
+        "title": "A549_lapatinib_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235672&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235672.soft.gz",
+        "uncompressed_bytes": 533705,
+        "stored_bytes": 192235,
+        "sha256": "403abce9f4f0dac4de1f788f3aa6f2b3559b06d677e686183faeb5ce839d898e"
+      },
+      {
+        "accession": "GSM3235673",
+        "title": "A549_lapatinib_1000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235673&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235673.soft.gz",
+        "uncompressed_bytes": 533601,
+        "stored_bytes": 192271,
+        "sha256": "ee7f917c27f73a6d34edea3b086c118769139526c9ca8af4ed12a698ff9c9f8a"
+      },
+      {
+        "accession": "GSM3235674",
+        "title": "A549_lapatinib_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3235674&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3235674.soft.gz",
+        "uncompressed_bytes": 533677,
+        "stored_bytes": 192477,
+        "sha256": "2a80ba1f09dbc75e48966dbca7799cf9f78e2c443a6887cd8901c91275eda4b0"
+      },
+      {
+        "accession": "GSM3236155",
+        "title": "A549_paclitaxel_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236155&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236155.soft.gz",
+        "uncompressed_bytes": 533519,
+        "stored_bytes": 191881,
+        "sha256": "1a97dca70363e1815ab28dbbad1cf50baeff2f41ffeba2638a36f6dae216394e"
+      },
+      {
+        "accession": "GSM3236156",
+        "title": "A549_paclitaxel_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236156&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236156.soft.gz",
+        "uncompressed_bytes": 533573,
+        "stored_bytes": 192124,
+        "sha256": "02b946138c100d67f24c895bd1185f21fe90fe791d40618a7ccc9c6b272d6c6e"
+      },
+      {
+        "accession": "GSM3236157",
+        "title": "A549_paclitaxel_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236157&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236157.soft.gz",
+        "uncompressed_bytes": 533530,
+        "stored_bytes": 192079,
+        "sha256": "9f7b4bae1bd7ed39bbd901bf92ccc22fb9ecbaad09871c3e6951d7413557eaab"
+      },
+      {
+        "accession": "GSM3236158",
+        "title": "A549_paclitaxel_100nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236158&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236158.soft.gz",
+        "uncompressed_bytes": 533570,
+        "stored_bytes": 192117,
+        "sha256": "75b91d792589f78d3548c73d0fbfe2fabc845f17a4e06cbdb61ff0686f5d2721"
+      },
+      {
+        "accession": "GSM3236159",
+        "title": "A549_paclitaxel_100nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236159&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236159.soft.gz",
+        "uncompressed_bytes": 533644,
+        "stored_bytes": 192102,
+        "sha256": "a62915b43c5a408acb2f1bcb280af45781203dd0d0c12675f9c01b48fc18df1a"
+      },
+      {
+        "accession": "GSM3236160",
+        "title": "A549_paclitaxel_100nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236160&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236160.soft.gz",
+        "uncompressed_bytes": 533548,
+        "stored_bytes": 191943,
+        "sha256": "c352d3730910f402a13aef3ef0fb811a16e22145f5a96ac4b8e89e1104b954e8"
+      },
+      {
+        "accession": "GSM3236161",
+        "title": "A549_paclitaxel_10nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236161&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236161.soft.gz",
+        "uncompressed_bytes": 533648,
+        "stored_bytes": 192099,
+        "sha256": "b10c445eadf1aba882ee60c4c032e22b2952a21ba36dddd15d81bc5a5403de26"
+      },
+      {
+        "accession": "GSM3236162",
+        "title": "A549_paclitaxel_10nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236162&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236162.soft.gz",
+        "uncompressed_bytes": 533616,
+        "stored_bytes": 192213,
+        "sha256": "34b7a0fed521ac88fea2326050dc3b507e83e2688689a779ef363bf775f5439c"
+      },
+      {
+        "accession": "GSM3236163",
+        "title": "A549_paclitaxel_10nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236163&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236163.soft.gz",
+        "uncompressed_bytes": 533549,
+        "stored_bytes": 192073,
+        "sha256": "da11f859f4bcb5510bcca3df7a256690d1e95cf3a9a68a97cda434a7a5e679c8"
+      },
+      {
+        "accession": "GSM3236693",
+        "title": "A549_sirolimus_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236693&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236693.soft.gz",
+        "uncompressed_bytes": 533617,
+        "stored_bytes": 192218,
+        "sha256": "447662fa86ab771860bd67618c6808012620ac12d4ed65876fcbc1d75d919a24"
+      },
+      {
+        "accession": "GSM3236694",
+        "title": "A549_sirolimus_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236694&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236694.soft.gz",
+        "uncompressed_bytes": 533676,
+        "stored_bytes": 192225,
+        "sha256": "d1d0da59c84613dc4b9d25448102a93e2999490248fafb5a82a78ee391b9ac68"
+      },
+      {
+        "accession": "GSM3236695",
+        "title": "A549_sirolimus_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236695&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236695.soft.gz",
+        "uncompressed_bytes": 533697,
+        "stored_bytes": 192216,
+        "sha256": "0ce7ce5f1e855a93217bd91b023a06135a497c5892719a61af7785d8638793cf"
+      },
+      {
+        "accession": "GSM3236696",
+        "title": "A549_sirolimus_100nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236696&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236696.soft.gz",
+        "uncompressed_bytes": 533662,
+        "stored_bytes": 192486,
+        "sha256": "aba62cafadf22f908d9fc8e2b5732be9cafe6c0b1f0ad713eaf3e8a8c2c19b20"
+      },
+      {
+        "accession": "GSM3236697",
+        "title": "A549_sirolimus_100nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236697&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236697.soft.gz",
+        "uncompressed_bytes": 533654,
+        "stored_bytes": 192250,
+        "sha256": "c5eee3873a05fb8ab2d97dea35c8f4c7c0358e7d3326b17df975b718126d74b1"
+      },
+      {
+        "accession": "GSM3236698",
+        "title": "A549_sirolimus_100nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236698&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236698.soft.gz",
+        "uncompressed_bytes": 533604,
+        "stored_bytes": 192159,
+        "sha256": "978dd96086155f4cd530bc4de17aaf5911dd43c35b2b4983baaa971f2924fe90"
+      },
+      {
+        "accession": "GSM3236699",
+        "title": "A549_sirolimus_10nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236699&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236699.soft.gz",
+        "uncompressed_bytes": 533566,
+        "stored_bytes": 192034,
+        "sha256": "f8c71d5eb360158622c2dfc61a4ad1032f268c08d0c73ac24de7ed29e254e9e4"
+      },
+      {
+        "accession": "GSM3236700",
+        "title": "A549_sirolimus_10nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236700&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236700.soft.gz",
+        "uncompressed_bytes": 533654,
+        "stored_bytes": 192273,
+        "sha256": "012db99a8950cab043aa3d32dd8040273b075b8b12549eebf277d580abaf955e"
+      },
+      {
+        "accession": "GSM3236701",
+        "title": "A549_sirolimus_10nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3236701&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3236701.soft.gz",
+        "uncompressed_bytes": 533651,
+        "stored_bytes": 192338,
+        "sha256": "80d4d4b0618973fbf06a35ea7c8e06990fba7040277311fe46e65de24228d35d"
+      },
+      {
+        "accession": "GSM3237200",
+        "title": "A549_sorafenib_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237200&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237200.soft.gz",
+        "uncompressed_bytes": 533603,
+        "stored_bytes": 192178,
+        "sha256": "b082f68ea573f4c65dee60fb78ad34b343fa8c34f92471e21c59ff5f18ae006c"
+      },
+      {
+        "accession": "GSM3237201",
+        "title": "A549_sorafenib_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237201&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237201.soft.gz",
+        "uncompressed_bytes": 533622,
+        "stored_bytes": 192479,
+        "sha256": "54bf89e93f3a0fc8f6df6842c4df153909faebeb774e8f46226f8b891f627fc2"
+      },
+      {
+        "accession": "GSM3237202",
+        "title": "A549_sorafenib_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237202&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237202.soft.gz",
+        "uncompressed_bytes": 533577,
+        "stored_bytes": 192210,
+        "sha256": "7fddc6099b77906a8410115c55a06cebd545e0097e580ad72e9a522aebf07a0d"
+      },
+      {
+        "accession": "GSM3237203",
+        "title": "A549_sorafenib_10000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237203&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237203.soft.gz",
+        "uncompressed_bytes": 533627,
+        "stored_bytes": 192230,
+        "sha256": "dc54889e8510b8382b6ed208589ce558b8f2449c84f85c1be052f715dcb73e1e"
+      },
+      {
+        "accession": "GSM3237204",
+        "title": "A549_sorafenib_10000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237204&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237204.soft.gz",
+        "uncompressed_bytes": 533593,
+        "stored_bytes": 192234,
+        "sha256": "dab3d55906dcd2eeaade27f59b25d3a9d99b8bd75b995ee98ebc4a010e51fb5d"
+      },
+      {
+        "accession": "GSM3237205",
+        "title": "A549_sorafenib_10000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237205&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237205.soft.gz",
+        "uncompressed_bytes": 533632,
+        "stored_bytes": 192344,
+        "sha256": "d05715c48577d472d6c3a3e44eaf46f71c77301307b572a4d40335f78a759c8d"
+      },
+      {
+        "accession": "GSM3237206",
+        "title": "A549_sorafenib_5000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237206&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237206.soft.gz",
+        "uncompressed_bytes": 533621,
+        "stored_bytes": 192109,
+        "sha256": "a31cc2ea00b84c370564abd2b584967bbecea25128bcfb9b69d6675a9adb4f57"
+      },
+      {
+        "accession": "GSM3237207",
+        "title": "A549_sorafenib_5000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237207&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237207.soft.gz",
+        "uncompressed_bytes": 533513,
+        "stored_bytes": 192420,
+        "sha256": "a0a9ff63d3fba9585300a9242acc148f1b558f0c8a4601f7f53a3ea008b91078"
+      },
+      {
+        "accession": "GSM3237208",
+        "title": "A549_sorafenib_5000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237208&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237208.soft.gz",
+        "uncompressed_bytes": 533789,
+        "stored_bytes": 192296,
+        "sha256": "c7752e012807df36a2eef6c7709568bbd124eaddbc10f337ef1755e9a10fcc03"
+      },
+      {
+        "accession": "GSM3237724",
+        "title": "A549_sunitinib_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237724&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237724.soft.gz",
+        "uncompressed_bytes": 533616,
+        "stored_bytes": 191990,
+        "sha256": "ca86ffadcaea4f0f4ee5486eb3eb2780b7443f918c3ce28aaae38e228e2b642d"
+      },
+      {
+        "accession": "GSM3237725",
+        "title": "A549_sunitinib_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237725&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237725.soft.gz",
+        "uncompressed_bytes": 533613,
+        "stored_bytes": 192265,
+        "sha256": "5c80dafce7eae8dc8acefd835073d9d71691b101589a3a27649d33d5050b31fa"
+      },
+      {
+        "accession": "GSM3237726",
+        "title": "A549_sunitinib_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237726&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237726.soft.gz",
+        "uncompressed_bytes": 533544,
+        "stored_bytes": 191726,
+        "sha256": "b1662b23b379b52e9dcc4da1e0b1a1cb6f92afd36cca3f70752e180aeefce6cb"
+      },
+      {
+        "accession": "GSM3237727",
+        "title": "A549_sunitinib_2000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237727&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237727.soft.gz",
+        "uncompressed_bytes": 533539,
+        "stored_bytes": 192036,
+        "sha256": "5c400bda1e252d011fc8856cb8885d960553dda0cd05d256a66ef2f2aa2d805d"
+      },
+      {
+        "accession": "GSM3237728",
+        "title": "A549_sunitinib_2000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237728&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237728.soft.gz",
+        "uncompressed_bytes": 533633,
+        "stored_bytes": 192106,
+        "sha256": "89afcb04e12e191cb08924ba3e8f131530155f1f7f6646974b1b2de2478eeb6e"
+      },
+      {
+        "accession": "GSM3237729",
+        "title": "A549_sunitinib_2000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237729&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237729.soft.gz",
+        "uncompressed_bytes": 533566,
+        "stored_bytes": 191881,
+        "sha256": "86578b0bc8e193d3e05a91e04165f309f40ab9df37a546d7b8fe29df682bb585"
+      },
+      {
+        "accession": "GSM3237730",
+        "title": "A549_sunitinib_200nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237730&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237730.soft.gz",
+        "uncompressed_bytes": 533604,
+        "stored_bytes": 192034,
+        "sha256": "48d6b7f516112d3aed8063eb9ff3411cdd55907e510fda9a4bd3a7321a9a2aa5"
+      },
+      {
+        "accession": "GSM3237731",
+        "title": "A549_sunitinib_200nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237731&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237731.soft.gz",
+        "uncompressed_bytes": 533497,
+        "stored_bytes": 192031,
+        "sha256": "4c7b68a54d4c2f07bd6ece8c3fc280bc31d9a9d99517a72a6b7d612f272dc1e9"
+      },
+      {
+        "accession": "GSM3237732",
+        "title": "A549_sunitinib_200nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3237732&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3237732.soft.gz",
+        "uncompressed_bytes": 533580,
+        "stored_bytes": 191818,
+        "sha256": "3bb854ff04de074d5eed15c6e734dcd6e92e2f9c6daf6a8d99b276aa809596fa"
+      },
+      {
+        "accession": "GSM3238243",
+        "title": "A549_topotecan_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238243&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238243.soft.gz",
+        "uncompressed_bytes": 533486,
+        "stored_bytes": 192342,
+        "sha256": "dd6131b78a0ba2ce0f023da0571c1cf1a2462e3bdc5cd00308c6f399efaadcf8"
+      },
+      {
+        "accession": "GSM3238244",
+        "title": "A549_topotecan_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238244&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238244.soft.gz",
+        "uncompressed_bytes": 533542,
+        "stored_bytes": 192468,
+        "sha256": "28a8cc29e1e2dcb82c0a38ec8badea295781f4e6b19a621f0bd50f43eea1ab51"
+      },
+      {
+        "accession": "GSM3238245",
+        "title": "A549_topotecan_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238245&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238245.soft.gz",
+        "uncompressed_bytes": 533596,
+        "stored_bytes": 192503,
+        "sha256": "de44c661658ee562efbfbe600880c3183384d25271d4f03eee2df2a4723ba461"
+      },
+      {
+        "accession": "GSM3238246",
+        "title": "A549_topotecan_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238246&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238246.soft.gz",
+        "uncompressed_bytes": 533606,
+        "stored_bytes": 192466,
+        "sha256": "ca4ae653c0af21c1040bf2ecc362bf6791481de78999059f44e8b46eb27b75fd"
+      },
+      {
+        "accession": "GSM3238247",
+        "title": "A549_topotecan_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238247&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238247.soft.gz",
+        "uncompressed_bytes": 533548,
+        "stored_bytes": 192476,
+        "sha256": "96acf87f3becdf7dba411c553a2478960200ee60228ce0c24734304c9f0e989c"
+      },
+      {
+        "accession": "GSM3238248",
+        "title": "A549_topotecan_10nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238248&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238248.soft.gz",
+        "uncompressed_bytes": 533588,
+        "stored_bytes": 192398,
+        "sha256": "13f7c4eb60a0e5bb658f5fc00f5d00113185bdc1d282c48ee4be5e3e56cc37c4"
+      },
+      {
+        "accession": "GSM3238249",
+        "title": "A549_topotecan_10nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238249&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238249.soft.gz",
+        "uncompressed_bytes": 533614,
+        "stored_bytes": 192278,
+        "sha256": "1daed2ba46e0cce56a6ba35ed0ea32976e9ad5efcb64a7e439b075157ca14025"
+      },
+      {
+        "accession": "GSM3238250",
+        "title": "A549_topotecan_10nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238250&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238250.soft.gz",
+        "uncompressed_bytes": 533568,
+        "stored_bytes": 192227,
+        "sha256": "afbc4e53014439ecf8683bd7164e99429eccabd9011f5c3b77bb83b86e833067"
+      },
+      {
+        "accession": "GSM3238768",
+        "title": "A549_vorinostat_0nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238768&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238768.soft.gz",
+        "uncompressed_bytes": 533581,
+        "stored_bytes": 192218,
+        "sha256": "fddde9c3b738caae1a0a663ee6e10d5666115eb687735896263cd283990e4360"
+      },
+      {
+        "accession": "GSM3238769",
+        "title": "A549_vorinostat_0nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238769&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238769.soft.gz",
+        "uncompressed_bytes": 533666,
+        "stored_bytes": 192517,
+        "sha256": "f12f5e46251dda1cdb7711ced2c509bf4ae3ac06e624f3de283c9f06d1b5abf9"
+      },
+      {
+        "accession": "GSM3238770",
+        "title": "A549_vorinostat_0nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238770&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238770.soft.gz",
+        "uncompressed_bytes": 533649,
+        "stored_bytes": 192441,
+        "sha256": "39977d16a0c11036a0624cb4d1a9a9da2377aebf476d2a777c91ecee9aa44ca6"
+      },
+      {
+        "accession": "GSM3238771",
+        "title": "A549_vorinostat_1000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238771&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238771.soft.gz",
+        "uncompressed_bytes": 533672,
+        "stored_bytes": 192206,
+        "sha256": "f5c649741d060e23a174f72118254e429929e3f49716faebb106275d197c972e"
+      },
+      {
+        "accession": "GSM3238772",
+        "title": "A549_vorinostat_1000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238772&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238772.soft.gz",
+        "uncompressed_bytes": 533586,
+        "stored_bytes": 192177,
+        "sha256": "3c80aa01fd446f5bbca451d6fb1394f4284e755d68e79233c723c2786dbb7e77"
+      },
+      {
+        "accession": "GSM3238773",
+        "title": "A549_vorinostat_1000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238773&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238773.soft.gz",
+        "uncompressed_bytes": 533496,
+        "stored_bytes": 192375,
+        "sha256": "2d0462cd96c79f73cd2b4d382e0bc3ce581bba4406ef3a5ec8b3d0b041a6120f"
+      },
+      {
+        "accession": "GSM3238774",
+        "title": "A549_vorinostat_5000nM_24h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238774&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238774.soft.gz",
+        "uncompressed_bytes": 533649,
+        "stored_bytes": 192373,
+        "sha256": "14836a6565bf229e47a5e7f73fa2f087700b3fa3636f815016ff350ca2a505a9"
+      },
+      {
+        "accession": "GSM3238775",
+        "title": "A549_vorinostat_5000nM_2h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238775&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238775.soft.gz",
+        "uncompressed_bytes": 533618,
+        "stored_bytes": 192153,
+        "sha256": "4442d83cfee7fc262fa5c4f98fd9b15d2eaef3688f7593bb23e47af3fb2d06f5"
+      },
+      {
+        "accession": "GSM3238776",
+        "title": "A549_vorinostat_5000nM_6h",
+        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM3238776&targ=self&form=text&view=full",
+        "file": "sample_tables/GSM3238776.soft.gz",
+        "uncompressed_bytes": 533709,
+        "stored_bytes": 192309,
+        "sha256": "e5a2080a2260a8675ab0c7cd847f4ae5ecdc90e734dc7e1d75d88a0d282f5f25"
+      }
+    ],
+    "gene_info_source": {
+      "url": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz",
+      "bytes": 5197695,
+      "sha256": "fcb82c4602af6005e65a2f1bc9b3fc27e303565ee8710c5afe85a3091a68c3fa",
+      "last_modified": "Wed, 14 Oct 2026 07:41:18 GMT"
+    },
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "51794174ec474d7f745237797ca87551b35cfc98093148951b781661ab196392",
+    "outputs": {
+      "axis_diagnostics.json": "75de1b8ec7e69949afd573fd1717e54d4782e95b77e664adac80645b80c745d1",
+      "common_gene_mapping.csv": "cec057ecd821ea67642b4e2013af45c8bd56f13d112d14a18f1c38752b0e6b71",
+      "common_axis_expression.npz": "d958f9929d20200a77eba6dbb05c15d0bdb62ff87425e13e884f4a335fcc2fec",
+      "source_probe_expression.npz": "f044c9be82dc19c1fba6366bba0886c858613e49358d449e8aa62ee680db9726",
+      "probe_gene_mapping.csv": "ef615d8dabd1deba5b9620ddbba1104a755073716cc54ffde0836c78ea4a70bb",
+      "source_metadata.json": "d3486cdd69db98a29aa0e5725adee2beafa70b3d57bf08d1e12d5411bc63fdd7",
+      "samples.csv": "93e8dd1b8d867812f01b747e8bdf63f4c29362089371e59605c75f82db9b017c"
+    },
+    "diagnostic_output": "experiments/dot-20261014-nci-a549-v3/axis_diagnostics.json"
   }
 }

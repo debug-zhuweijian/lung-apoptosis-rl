@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
-    if scale not in {"bulk_raw_counts", "bulk_estimated_counts", "bulk_log2CPM", "bulk_TPM"}:
+    if scale not in {"bulk_raw_counts", "bulk_estimated_counts", "bulk_log2CPM", "bulk_TPM", "microarray_log2_RMA"}:
         raise ValueError("External expression scale must be explicit")
     axis = gene_axis.sort_values("common_gene_index")
     if not np.array_equal(axis.common_gene_index, np.arange(len(axis))):
