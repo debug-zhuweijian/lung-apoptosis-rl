@@ -476,5 +476,114 @@
     ],
     "full_research_qualified": false,
     "direct_tests": "35 passed"
+  },
+  "fifth_stage": {
+    "plate_context": {
+      "script_sha256": "c92682a0acad2e3dbd0c06f8f6279a33edeef5547736915bf61938dd2ec8b7ad",
+      "upstream_manifest_sha256": "ca14adec6e0e955cf78dab8f985f17c78dbf890605aef286a220a78faf28c80d",
+      "source_matrix_sha256": "d295e38924d7b4cab0b9be1087c0ac7aeca2a3dac634359919e85bcc57696685",
+      "triplet_entries": 60135001,
+      "plate_condition_groups": 64,
+      "excluded_unresolved_plate_cells": 44,
+      "source_UMI_totals_exact": true,
+      "individual_state_gain_identified": false,
+      "plate_effect_separated_from_biology": false,
+      "biological_independence_verified": false,
+      "fixed_additive_hypothesis": true,
+      "formal_training": false,
+      "full_research_qualified": false,
+      "outputs": {
+        "plate_condition_counts.npz": "22fd351aabc08ba8b7d2c6c9d6aed37ae92da907ee2bdb4dcaae2af70fd0110d",
+        "scores.csv": "1becbe1a831c7a8b0a5ef870984163ea5650e68d82d56ade2a3aa72b76d3c381",
+        "groups.csv": "42ece5ba5e32b4ad8a08c6bd9a79e99d908ad9d745b99709a779d8d89350f015",
+        "protocols.json": "5d9fffde049c667b194873409f5806b5c293bb7d27fc438a2e7f9c7efa1f89ac"
+      }
+    },
+    "archs4_em2": {
+      "series": "GSE270062",
+      "provider": "ARCHS4 uniformly reprocessed source reads",
+      "provider_endpoint": "https://maayanlab.cloud/sigpy/data/samples",
+      "provider_documentation": "https://archs4.org/help",
+      "source_paper_doi": "10.3389/fphar.2025.1580217",
+      "rows": 67186,
+      "samples": 4,
+      "values": 268744,
+      "scale": "bulk_estimated_counts_ARCHS4_integer_export",
+      "documentation_annotation": "GRCh38_Ensembl107_Kallisto",
+      "exact_provider_release_bound_to_export": false,
+      "source_row_order_verified": true,
+      "source_sample_metadata_verified": true,
+      "symbol_collision_rows": 6997,
+      "frozen_gene_axis_aligned": false,
+      "contemporaneous_RNA_Annexin": false,
+      "same_cell_fate": false,
+      "full_chain_qualified": false,
+      "script_sha256": "ab6b2cb3f56b17252b6da3b43e2b032c29145e247271dc63afa331ea7f488c75",
+      "source_hashes": {
+        "matrix": "ec4c6283928b1260f1c6f2ae2d1f689d794382997b3176821052d64ff59c9f2b",
+        "genes": "dd981ac6b3c263758f6c20d50545725e8cf45b7889af934e145330db1b77b659",
+        "metadata": "d2fc5a266197c98474b431218859ad5a6880feecf10745e576bfa696f8861136",
+        "soft": "b6a411e109f43c11a2e72f677328007c61a5fa12299461b6b8ea16b4214489d3"
+      },
+      "provider_axis_sha256": "5ba453493bb28ca5ac5577aedc70f4b90e7470001dba7f873a2cfff7b9199177",
+      "unique_symbol_Ensembl_links": 60189,
+      "symbol_collision_IDs_are_candidates_only": true,
+      "outputs": {
+        "gene_rows.csv": "920aa379d602fc05e5994d9017d9abeb72f71f31df7c214dbe81db1768ce2b5c",
+        "samples.csv": "4aea619180d1ff6cbdb6cf621c074149ee77680a7171f0d004618b6b68104e98",
+        "expression.npz": "37fc0804a22944493844746de6cff64b3111c88d5b27f2a45496309ff9f8c6e2"
+      }
+    },
+    "trf": {
+      "source_accession": "GSE222187",
+      "source_doi": "10.1007/s12032-022-01923-5",
+      "scale": "TPM",
+      "genes": 60902,
+      "individual_sample_columns": 12,
+      "group_means_excluded_from_sample_count": 4,
+      "numeric_expression_values": 730824,
+      "source_group_mean_rounding_verified": true,
+      "TPM_library_sums": {
+        "CON1": 999999.52,
+        "CON2": 999999.31,
+        "CON3": 1000000.26,
+        "DDP1": 1000000.3600000001,
+        "DDP2": 999999.4400000001,
+        "DDP3": 999999.98,
+        "TRF1": 999999.5800000001,
+        "TRF2": 999999.88,
+        "TRF3": 1000000.3099999999,
+        "TRF_DDP1": 1000000.0499999999,
+        "TRF_DDP2": 999999.6399999999,
+        "TRF_DDP3": 1000000.2200000001
+      },
+      "frozen_axis_aligned": false,
+      "exact_RNA_function_protocol_verified": false,
+      "full_chain_qualified": false,
+      "source_hashes": {
+        "matrix": "226e32994912127979aed79c764ab385fb8e8022828db3c5d439e5db3a4e2772",
+        "soft": "7a158442ffe976c2e8094983871bae8db1173ab53dff2ed03870360739ebc686"
+      },
+      "script_sha256": "bda177bc3d635c78a22eba5279b0d7598c4de6ea99551bb39d17ca141ff35937",
+      "outputs": {
+        "source_group_means_not_samples.csv": "942474f4dbd12703dea62902cf6999c5da3e14bcdb21ae6b88f08b4bed4836ca",
+        "samples.csv": "50e9bc5389303e8d160621bbf78da4d1c836e5f41ccf5265dcf98bdb9107c0aa",
+        "expression_TPM.npz": "d274e2745c3f1dfbb4099445de18d23e22083714f5d0f2b8672309cbf6cb024a"
+      }
+    },
+    "source_hashes": {
+      "EM2_2025.xml": "3a0ed7ef7fb0427199127172c746b5cfa04a91355566d205ba71c24008316d90",
+      "archs4_h5_gene_metadata.json": "5ba453493bb28ca5ac5577aedc70f4b90e7470001dba7f873a2cfff7b9199177",
+      "archs4_h5_metadata_receipt.json": "07d0e1da6a143c8efc87d552550014320a8ea213c3b1e42c5e50d20879e4273b",
+      "TRF2023.xml": "b1be7aa942a3c057574bd498ae2a14e1859b7889f9108390074545f70dc204bd",
+      "TRF_supp.docx": "239e7d30dbb3bdb1abfadd047c3d4bf58f79e0d466020b14bf73def175c2e635",
+      "RNF113A2020.xml": "e425c0f184545bd2a73c4381ca5ad029d82236150fc167250b1ab62c56bab5c6",
+      "GSE133029.soft.gz": "30616093671f5f02a086cdb8ae215d88f9d712080479269d653dffee2762ba1e"
+    },
+    "full_research_qualified": false,
+    "provider_release_value_check_completed": false,
+    "formal_training": false,
+    "review": "Dot 自审，未使用独立代理",
+    "direct_tests": "47 passed plus 8 existing external-axis/Sarin tests; 55 total"
   }
 }
