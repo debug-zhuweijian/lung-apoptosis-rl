@@ -2999,5 +2999,54 @@
       "transfer_predictions.csv": "96e22fd92d0c08663dbc36f4e541e8fc8b06f8823e99150bfa530929be144c81",
       "MDA_A_metadata.csv": "67fb1c2fb0b1d516bc9fafa27ccc1aa735d150b9922138b9fd4886cbafb18f19"
     }
+  },
+  "nci_unseen_drug_actual_baselines": {
+    "eligible_treatment_samples": 83,
+    "held_drugs": 14,
+    "results": {
+      "fixed_kernel_ridge": {
+        "mean_drug_MSE": 0.25656366826676985,
+        "drugs_better_than_zero": 9,
+        "drugs_better_than_training_mean": 9
+      },
+      "nearest_structure_protocol": {
+        "mean_drug_MSE": 0.4962662888621779,
+        "drugs_better_than_zero": 0,
+        "drugs_better_than_training_mean": 0
+      },
+      "training_mean_effect": {
+        "mean_drug_MSE": 0.26015692834954657,
+        "drugs_better_than_zero": 9,
+        "drugs_better_than_training_mean": 0
+      },
+      "zero_effect": {
+        "mean_drug_MSE": 0.26651300975478603,
+        "drugs_better_than_zero": 0,
+        "drugs_better_than_training_mean": 5
+      }
+    },
+    "excluded_treated_sample_ids": [
+      "GSM3232622",
+      "GSM3232623",
+      "GSM3232624",
+      "GSM3232625",
+      "GSM3232626",
+      "GSM3232627"
+    ],
+    "kernel": "binary Tanimoto times Gaussian on log10 uM and log10 h, bandwidth1 each",
+    "ridge_alpha": 1,
+    "training_HVG": 500,
+    "hyperparameter_search": false,
+    "formal_project_model_training": false,
+    "independent_initial_state_value": false,
+    "strict_blind_preprocessing": false,
+    "apoptosis_prediction": false,
+    "selection_or_RL_benefit": false,
+    "limitation": "published RMA uses all arrays within drug; retrospective development; dose/time reference controls define targets only",
+    "source_manifests": {
+      "experiments/dot-20261014-nci-a549-v3": "c0536333dfe015b0e70a22e7c69dacd160d18b53b1c84d77699cdd0bf032b9c7",
+      "experiments/dot-20261014-nci-chemistry-v2": "eb6964ae346d1f47e01e443b8f105235b1fb3a77d1b4fc08305217ecf700fb56"
+    },
+    "script_sha256": "0133c3f52a12eef6a12a949ff74bc972f64c02e221e7534a6fad529b062c5c77"
   }
 }
