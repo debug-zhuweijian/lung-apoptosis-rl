@@ -4328,5 +4328,116 @@
       }
     },
     "whitespace_repair_targeted_tests_passed": 23
+  },
+  "bothe_author_contrasts_actual_20261014": {
+    "source_accession": "E-MTAB-9923",
+    "statistics": {
+      "acute_response": {
+        "features": 24163,
+        "author_suffix_rows": 2291,
+        "rows_with_ambiguous_base_refseq": 3404,
+        "undefined_adjusted_p": 8008,
+        "FDR_lt_0_001": 583,
+        "FDR_lt_0_05_sensitivity_only": 1060,
+        "missing_by_field": {
+          "baseMean": 0,
+          "log2FoldChange": 4645,
+          "lfcSE": 4645,
+          "stat": 4645,
+          "pvalue": 4645,
+          "padj": 8008
+        }
+      },
+      "residual_history": {
+        "features": 24163,
+        "author_suffix_rows": 2291,
+        "rows_with_ambiguous_base_refseq": 3404,
+        "undefined_adjusted_p": 4010,
+        "FDR_lt_0_001": 0,
+        "FDR_lt_0_05_sensitivity_only": 2,
+        "missing_by_field": {
+          "baseMean": 0,
+          "log2FoldChange": 4010,
+          "lfcSE": 4010,
+          "stat": 4010,
+          "pvalue": 4010,
+          "padj": 4010
+        }
+      },
+      "reinduction_history": {
+        "features": 24163,
+        "author_suffix_rows": 2291,
+        "rows_with_ambiguous_base_refseq": 3404,
+        "undefined_adjusted_p": 3810,
+        "FDR_lt_0_001": 1,
+        "FDR_lt_0_05_sensitivity_only": 1,
+        "missing_by_field": {
+          "baseMean": 0,
+          "log2FoldChange": 3810,
+          "lfcSE": 3810,
+          "stat": 3810,
+          "pvalue": 3810,
+          "padj": 3810
+        }
+      }
+    },
+    "sample_libraries": 12,
+    "source_feature_identity": "author versioned RefSeq labels, including unmerged numeric suffix rows; not a unique gene axis",
+    "unit": "author DESeq2 contrasts of bulk unique-intron counts",
+    "prespecified_primary_threshold": "paper Fig3 FDR < 0.001",
+    "source_statistic_entries_exact_readback": 434934,
+    "raw_count_matrix_recovered": false,
+    "same_cell_pairing": false,
+    "intermediate_transition_labels": false,
+    "apoptosis_labels": false,
+    "initial_state_increment_validated": false,
+    "complete_scientific_qualification": false,
+    "source_receipts": [
+      {
+        "path": "DEseq2_DexDexVsEtOHDex_A549_byintrons.txt",
+        "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/DEseq2_DexDexVsEtOHDex_A549_byintrons.txt",
+        "bytes": 1709899,
+        "sha256": "86f24b813a9fb66430b582aeee2fd2b441c3d74f493e147349ed3041b6747792"
+      },
+      {
+        "path": "DEseq2_DexEtOHvsEtOHEtOH_A549_byintrons.txt",
+        "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/DEseq2_DexEtOHvsEtOHEtOH_A549_byintrons.txt",
+        "bytes": 1701783,
+        "sha256": "9f556b07eb3c74681d21f6989822ec643ae946263c936130167b66109442ace9"
+      },
+      {
+        "path": "DEseq2_EtOHDexVsEtOHEtOH_A549_byintrons.txt",
+        "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/DEseq2_EtOHDexVsEtOHEtOH_A549_byintrons.txt",
+        "bytes": 1619057,
+        "sha256": "05d5e70b8e585b5c72773e831dd845533baea7db9095ebc5c741361921725ae8"
+      },
+      {
+        "path": "E-MTAB-9923.idf.txt",
+        "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/E-MTAB-9923.idf.txt",
+        "bytes": 4759,
+        "sha256": "1b6ba5a7dfb9ef35282506b49f6a5af6254e395c343bce369e9146db2b48ffa9"
+      },
+      {
+        "path": "E-MTAB-9923.sdrf.txt",
+        "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/E-MTAB-9923.sdrf.txt",
+        "bytes": 19732,
+        "sha256": "cf7d41065c4f7ab2626014ffccfd57b08850360d1d262b605e03fa52e7175df6"
+      }
+    ],
+    "script_sha256": "c4af8f879382f2cfb559f00937e6e56c319bf8e00b63d8c9e888560c2f68b2bb",
+    "outputs": {
+      "source_samples.csv": "770c827910048fe2ed9090e810f216564cbc9641b25038d03f5ac49a9fcb2724",
+      "author_contrasts.parquet": "51911db5ea97c1277453015a6d4eb25d81706b91e77a312bfa7bc01f843774fc"
+    },
+    "primary_readback": {
+      "paper.xml": {
+        "bytes": 186306,
+        "sha256": "836ec5b9703faeb6cdf48489b81bd8e422457ea29149154ecd545039845f473e"
+      },
+      "study.json": {
+        "bytes": 17602,
+        "sha256": "01bd83f39bc64a092bac56d082908b43de3f57349fee63df258498d71bb2a1cb"
+      }
+    }
   }
 }
