@@ -4085,6 +4085,56 @@
       "historical_lot_verified": false,
       "included_in_34": false
     },
-    "independent_agent_review": false
+    "independent_agent_review": false,
+    "cohort_integrity_followup": {
+      "actual_old_14_replay": "experiments/dot-20261014-RNA-functional-transfer-v2",
+      "predictions_byte_identical_to_v1": true,
+      "related_tests": 23,
+      "expanded_cohort_silent_subsetting_rejected": true
+    }
+  },
+  "state_context_functional_reference_20261014": {
+    "source_doi": "10.1158/0008-5472.CAN-24-0529",
+    "actual_functional_group_means": 8,
+    "contexts": 4,
+    "doses_uM": [
+      1,
+      5
+    ],
+    "author_reported_n_per_mean": 3,
+    "raw_biological_replicates_recovered": false,
+    "original_raster_size": [
+      1600,
+      1975
+    ],
+    "image_sha256": "c9b27f15d3a421a127a02ba33b700b53f4fc7361ee21f0aa15c9db47dd2a47ca",
+    "image_url": "https://cdn.ncbi.nlm.nih.gov/pmc/blobs/fe39/11694068/c1f522c0cd8e/can-24-0529_f2.webp",
+    "calibration": {
+      "zero_y": 873.5,
+      "high_y": 669.5,
+      "high_value": 150.0
+    },
+    "nominal_context_links": 4,
+    "paired_RNA_functional_units": 0,
+    "post_navitoclax_RNA_available": false,
+    "duration_conflict": true,
+    "independent_state_RNA_increment_validated": false,
+    "context_category_and_history_are_confounded": true,
+    "apoptosis_endpoint_validated": false,
+    "real_sequence_response_model_validated": false,
+    "full_scientific_qualification": false,
+    "independent_digitization_review": false,
+    "self_review": "Dot self-review; no independent agent",
+    "source_hashes": {
+      "paper.xml": "d55cb3e31220bd5e92ca130a981d841c941f3aeef0005d3db245e1013354944d",
+      "state_manifest": "14346a8a2a03ceb2128828fa851c9fd910a91b5a08fd69e2da20e9a0e9f78cf9"
+    },
+    "script_sha256": "f8b72fb862411cd4120bc4271900b205b1c4b5f8d176727b5dc21f122513f046",
+    "outputs": {
+      "context_RNA_references.csv": "5f376b9d8b1a8b32441451951d8a9c57077b0420be4e9a16a6f008e109a0b64d",
+      "functional_group_means.csv": "ee61e3d7e0b7c1810bb906ad74d2707520fad2cf2da409671531f32adc062666",
+      "context_contrasts.csv": "31241e44dc34dc3c350a4ea72cc0790cea70225483911f4c7a582e4f498fae65"
+    },
+    "related_tests_passed": 12
   }
 }
