@@ -585,5 +585,143 @@
     "formal_training": false,
     "review": "Dot 自审，未使用独立代理",
     "direct_tests": "47 passed plus 8 existing external-axis/Sarin tests; 55 total"
+  },
+  "sixth_stage": {
+    "definition": "Documented sorted Ensembl intersection of fixed Tahoe vocabulary and original TIDYI CSV",
+    "tahoe_revision": "2dc57900b7981cfcf5e211527169a0b006546a95",
+    "source_hashes": {
+      "SS3_Human_A549_counts.csv": "b33aa1b03d71972f8e8c33864be0f0e2747ffa8b56289d00f27cd8c276cc3360",
+      "SS3_Human_A549_metadata.csv": "6ee300a8ba36642950c94d3be7455beb51255e42d8f311273d00aa9e0868a38b",
+      "gene_metadata.parquet": "d6104d1ca570d94832be0d27ffe8b7e4e54cfd366c9080239219f9c406eb751c"
+    },
+    "common_genes": 32461,
+    "tidyi_source_rows": 369,
+    "strict_A549_rows": 368,
+    "excluded_unconfirmed_background": 1,
+    "second_TIDYI_plate_recovered": false,
+    "frozen_manifest_read": false,
+    "original_frozen_file_byte_equality_verified": false,
+    "source_QC_total_count_difference_cells": 269,
+    "sources": {
+      "hm97662": {
+        "samples": 18,
+        "target_genes": 32461,
+        "observed_genes": 30268,
+        "missing_genes": 2193,
+        "measured_zeros": 189421,
+        "native_scale": "bulk_estimated_counts",
+        "normalization_performed": false,
+        "missing_values_are_nan": true,
+        "source_sample_identity_preserved": true,
+        "mapping_status_counts": {
+          "matched": 30268,
+          "not_in_common_axis": 27637
+        },
+        "source_manifest_sha256": "7b266db7a9adc82c5c13fea490f5cc217e6613f837c4371fbbe4043f1275599c",
+        "cross_source_scale_comparable": false,
+        "function_link_qualified": false,
+        "outputs": {
+          "gene_mapping.csv": "97dcca2ab73cb3bf048ecc401e0c51affbb2ea1f397eb1c7e51615b7d5c21911",
+          "samples.csv": "ff6f5251b6a177b708a1d5427896bd7d99032200511e68db876e4b46bb23f090",
+          "aligned_expression.npz": "3d96b704d1a9c3446d7b4dcdbb37b8912fa18da23a507019f5d0b5130fcab683"
+        }
+      },
+      "gse161800": {
+        "samples": 12,
+        "target_genes": 32461,
+        "observed_genes": 32461,
+        "missing_genes": 0,
+        "measured_zeros": 150922,
+        "native_scale": "bulk_raw_counts",
+        "normalization_performed": false,
+        "missing_values_are_nan": true,
+        "source_sample_identity_preserved": true,
+        "mapping_status_counts": {
+          "matched": 32461,
+          "not_in_common_axis": 26274
+        },
+        "source_manifest_sha256": "66a7bf8ec2af9a0c0dc505c59b7220c494218cc5ecc4c632197fe6b2846b6a03",
+        "cross_source_scale_comparable": false,
+        "function_link_qualified": false,
+        "outputs": {
+          "gene_mapping.csv": "050e5f8195e219e310241e5bc07a1b89403ef6bf44013e443545a4a1a6c3af28",
+          "samples.csv": "dd556e82e56b64b3ab886c847c6e46b8bf20c145a35d13d18e8e4d117deb8893",
+          "aligned_expression.npz": "174ef2457a3af96d14d41938c6f1d6571b09309ce805b0d96e2d60b838939251"
+        }
+      },
+      "em2": {
+        "samples": 4,
+        "target_genes": 32461,
+        "observed_genes": 30614,
+        "missing_genes": 1847,
+        "measured_zeros": 32534,
+        "native_scale": "bulk_estimated_counts",
+        "normalization_performed": false,
+        "missing_values_are_nan": true,
+        "source_sample_identity_preserved": true,
+        "mapping_status_counts": {
+          "matched": 30614,
+          "not_in_common_axis": 29575,
+          "missing_source_identifier": 6997
+        },
+        "source_manifest_sha256": "419e7136ecea15fbeba513b33f1985998486d1856014ec8046a356370e9ea45f",
+        "cross_source_scale_comparable": false,
+        "function_link_qualified": false,
+        "outputs": {
+          "gene_mapping.csv": "cc6c8ea553a16a0226859689be66cb4f788bbaa4dbec93023ddc0d23e2ef26a3",
+          "samples.csv": "cd681e5d835b3de8476d38e25b7685570f0d202043e048b9438d7c6dcd37854c",
+          "aligned_expression.npz": "66db2c17f995086e68795756bf8bdfbccf6a7248eacb9da1daa05dc4a790fb2a"
+        }
+      },
+      "trf": {
+        "samples": 12,
+        "target_genes": 32461,
+        "observed_genes": 32461,
+        "missing_genes": 0,
+        "measured_zeros": 152982,
+        "native_scale": "bulk_TPM",
+        "normalization_performed": false,
+        "missing_values_are_nan": true,
+        "source_sample_identity_preserved": true,
+        "mapping_status_counts": {
+          "matched": 32461,
+          "not_in_common_axis": 28203,
+          "duplicate_source_identifier": 238
+        },
+        "source_manifest_sha256": "369b53dd06549363074fec660457afc9c01235424e9a43ac5c93ea1b1a6a78b4",
+        "cross_source_scale_comparable": false,
+        "function_link_qualified": false,
+        "outputs": {
+          "gene_mapping.csv": "4d69f5bf5e029031676602061485371a1cb206d5d0b9d28fc01fb29dd781219d",
+          "samples.csv": "50e9bc5389303e8d160621bbf78da4d1c836e5f41ccf5265dcf98bdb9107c0aa",
+          "aligned_expression.npz": "8dd0f88ae13dc365ed389054957222f7245e69198e506853fb36753d8d103a81"
+        }
+      }
+    },
+    "formal_training": false,
+    "full_research_qualified": false,
+    "script_sha256": "8713804ce9e408b42d18cba8440f61735c8fa300dc28b0794f5f333fa911bf96",
+    "outputs": {
+      "tidyi_source_metadata.csv": "10a2a64090d2f6994a83122f38e464ad1abfbeb01fc51f4f119ac6932eba9aea",
+      "tidyi_one_plate_counts.npz": "4095984d57be8a10ff28ef59082a3d397846930d970d942ee3d436c55c390c9e",
+      "gene_axis.csv": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+      "hm97662/manifest.json": "3c35df7869963229e72a4079a3b1ce3f5e0fe796a87b9b15d96f71f2f280313c",
+      "hm97662/gene_mapping.csv": "97dcca2ab73cb3bf048ecc401e0c51affbb2ea1f397eb1c7e51615b7d5c21911",
+      "hm97662/samples.csv": "ff6f5251b6a177b708a1d5427896bd7d99032200511e68db876e4b46bb23f090",
+      "hm97662/aligned_expression.npz": "3d96b704d1a9c3446d7b4dcdbb37b8912fa18da23a507019f5d0b5130fcab683",
+      "trf/manifest.json": "ed8479413d330f0e1355d8e1dbde46b941fedb92e9ef50e75a554e38cee5e96b",
+      "trf/gene_mapping.csv": "4d69f5bf5e029031676602061485371a1cb206d5d0b9d28fc01fb29dd781219d",
+      "trf/samples.csv": "50e9bc5389303e8d160621bbf78da4d1c836e5f41ccf5265dcf98bdb9107c0aa",
+      "trf/aligned_expression.npz": "8dd0f88ae13dc365ed389054957222f7245e69198e506853fb36753d8d103a81",
+      "gse161800/manifest.json": "0f2f764c0a77f0704049a5da08fe8bb200183514f8042dc644a933fb7cdfd137",
+      "gse161800/gene_mapping.csv": "050e5f8195e219e310241e5bc07a1b89403ef6bf44013e443545a4a1a6c3af28",
+      "gse161800/samples.csv": "dd556e82e56b64b3ab886c847c6e46b8bf20c145a35d13d18e8e4d117deb8893",
+      "gse161800/aligned_expression.npz": "174ef2457a3af96d14d41938c6f1d6571b09309ce805b0d96e2d60b838939251",
+      "em2/manifest.json": "81a4ce78b04d8c6535a536f980bb0b65ced3db5a5ce62884cdacb3562b1f1633",
+      "em2/gene_mapping.csv": "cc6c8ea553a16a0226859689be66cb4f788bbaa4dbec93023ddc0d23e2ef26a3",
+      "em2/samples.csv": "cd681e5d835b3de8476d38e25b7685570f0d202043e048b9438d7c6dcd37854c",
+      "em2/aligned_expression.npz": "66db2c17f995086e68795756bf8bdfbccf6a7248eacb9da1daa05dc4a790fb2a"
+    },
+    "direct_tests": "64 passed"
   }
 }

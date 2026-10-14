@@ -1,0 +1,48 @@
+import numpy as np
+import pandas as pd
+import pytest
+from scripts.recover_public_gene_axis import build_axis,save_aligned
+from lung.data.external_gene_axis import align_gene_axis
+
+
+def sources():
+    genes=pd.DataFrame({'ensembl_id':['E3','E1','E2','E4'],'gene_symbol':['C','A','B','D'],'token_id':[3,4,5,6]})
+    counts=pd.DataFrame([[2,0,8],[0,1,9]],columns=['E2','E1','outside'],index=['c1','c2'])
+    meta=pd.DataFrame({'Cell_line':['A549',None]},index=['c1','c2'])
+    return genes,counts,meta
+
+
+def test_identity_intersection_sorted_not_position_or_expression_selected():
+    g,x,m=sources();a,meta=build_axis(g,x,m.iloc[::-1])
+    assert a.ensembl_id.tolist()==['E1','E2']
+    assert a.tidyi_source_column.tolist()==[1,0]
+    assert meta.index.tolist()==['c1','c2']
+    assert meta.Cell_line.isna().sum()==1
+
+
+@pytest.mark.parametrize('defect',['gene_duplicate','cell_duplicate','cell_mismatch','negative','fraction','nan'])
+def test_invalid_axis_source_rejected(defect):
+    g,x,m=sources()
+    if defect=='gene_duplicate':g.loc[1,'ensembl_id']='E3'
+    elif defect=='cell_duplicate':x.index=['c1','c1']
+    elif defect=='cell_mismatch':m.index=['c1','other']
+    elif defect=='negative':x.iloc[0,0]=-1
+    elif defect=='fraction':x=x.astype(float);x.iloc[0,0]=.5
+    else:x=x.astype(float);x.iloc[0,0]=np.nan
+    with pytest.raises(ValueError):build_axis(g,x,m)
+
+
+def test_TPM_alignment_preserves_scale_zero_and_missingness():
+    g,x,m=sources();axis,_=build_axis(g,x,m)
+    frame=pd.DataFrame({'ensembl_id':['E1'],'s':[0.]})
+    values,mask,_=align_gene_axis(frame,axis,identifier='ensembl_id',samples=['s'],scale='bulk_TPM')
+    assert values[0,0]==0 and np.isnan(values[0,1])
+    assert mask.tolist()==[[True,False]]
+    frame.loc[0,'s']=-1
+    with pytest.raises(ValueError):align_gene_axis(frame,axis,identifier='ensembl_id',samples=['s'],scale='bulk_TPM')
+
+
+def test_sample_metadata_binding_cannot_be_position_guessed(tmp_path):
+    g,x,m=sources();axis,_=build_axis(g,x,m)
+    frame=pd.DataFrame({'ensembl_id':['E1'],'s':[1.]})
+    with pytest.raises(ValueError):save_aligned(tmp_path,'bad',frame,axis,['s'],'bulk_TPM',pd.DataFrame({'sample_id':['wrong']}),'sha')
