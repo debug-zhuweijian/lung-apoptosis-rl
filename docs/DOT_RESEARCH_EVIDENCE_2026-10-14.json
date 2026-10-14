@@ -366,5 +366,45 @@
       "GSE75960": "Official SOFT verified DV90, not A549; not admitted as A549 RNA",
       "GSE196835": "A549 siDDX17 RNA and Annexin described; source treatment metadata copies CCK8 timing; exact RNA-function clock not established, not admitted"
     }
+  },
+  "third_stage": {
+    "base_commit": "3218e7ce65ba7184d0ea506b46a8ecd6e4ebc5c4",
+    "sampling_manifest": {
+      "upstream_manifest_sha256": "ca14adec6e0e955cf78dab8f985f17c78dbf890605aef286a220a78faf28c80d",
+      "source_matrix_sha256": "d295e38924d7b4cab0b9be1087c0ac7aeca2a3dac634359919e85bcc57696685",
+      "script_sha256": "62971fcf2115eac0c8030d504dc40ac2dbdde3ab18cb33b4ba3b23ccec99d40b",
+      "dose_module_sha256": "0b5d04e7ca2517f394374a7938377c46a234840cb80277530d245dee1ee9c8bb",
+      "selected_gene_count": 500,
+      "cell_count": 12345,
+      "panel_aggregates_exact": true,
+      "biological_uncertainty_estimated": false,
+      "cell_fate_identified": false,
+      "formal_training": false,
+      "scope": "Conditional resampling of observed cells only; not a confidence interval over biological replicates or unobserved dead cells",
+      "outputs": {
+        "cell_sampling_sensitivity.csv": "1f739ec6d1d1363e3cef7142f8187164470e7c1e1aa9e68a39d4cfa2e5d773d1",
+        "protocol.json": "8b8d1c4def902d20ab5c62b4f0fc1d6038f4733f374cfe8bc78a467f21bcce11",
+        "common_panel_diagnostics.csv": "d2b790dfbf721f4acf9d084911226607d9f91a59dfcadac25ba75ab8705ef722",
+        "selected_cell_counts.npz": "4ec87ab3f59b20b32f85d687ba6467337a91b4c535bd58782366dd2f8910ca80"
+      }
+    },
+    "direct_tests": "26 passed; five files",
+    "expanded_endpoint_checks": "8 failed, 10 errors due to unavailable endpoint-protocol assets; not passed",
+    "PEM2026_data_link_mismatch": {
+      "paper": "https://doi.org/10.3389/fphar.2025.1764937",
+      "links": [
+        "https://doi.org/10.6084/m9.figshare.30945029",
+        "https://doi.org/10.6084/m9.figshare.30945077"
+      ],
+      "actual_files_read": true,
+      "eligible_A549_PEM_RNA": false,
+      "hashes": {
+        "PEM2026.xml": "2d996231a7c792ef19cf5c740a69468648a22880b3ada207da0fd968a936c5d1",
+        "figshare-30945029.json": "7fc28d774378d23bb4eb21ef891df896626b66a0a5eb7ffc14afb68936c87743",
+        "figshare-30945077.json": "3e8f810ac609ea2f288f79645eeac4be7b89626dc68bd23ac35db74377a84910",
+        "PEM_link_30945029.xlsx": "752e60e2cab68be474099ccab1823a59238216ecb83c443b9fcd3ef188d05486",
+        "PEM_link_30945077.xlsx": "86216459a499853519521d91bfd38d7a9dc0262c9e67dd7e6341f355c2460c60"
+      }
+    }
   }
 }
