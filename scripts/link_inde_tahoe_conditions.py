@@ -87,6 +87,26 @@ def parse_single_dose(text,expected_drug):
     return dose
 
 
+def qualify_functional_catalog(catalog, observations):
+    """Keep chemical identity separate from the author's assay exclusions."""
+    out=catalog.copy();eligible=[];reasons=[]
+    for name in out.source_compound_name:
+        g=observations.loc[observations.source_compound_name.eq(name)]
+        if sorted(g.replicate.tolist())!=[1,2,3]:raise ValueError('Functional experiment coverage differs')
+        if not g.arm.eq('single_agent').all() or not g.time_h.eq(24).all() or not g.library_dose_uM.eq(5).all():
+            raise ValueError('Functional comparison protocol differs')
+        if not g.valid_measured_fraction.isin([True,False]).all() or not g.author_autofluorescence_exclusion.isin([True,False]).all():
+            raise ValueError('Explicit functional quality flags required')
+        why=[]
+        if g.author_autofluorescence_exclusion.any():why.append('author_autofluorescence_exclusion')
+        if not g.valid_measured_fraction.all() or not g.lethal_fraction.between(0,1).all():why.append('invalid_measured_fraction')
+        eligible.append(not why);reasons.append(';'.join(why))
+    out['functional_assay_group_eligible']=eligible
+    out['functional_assay_exclusion_reason']=reasons
+    out['nominal_functional_transfer_eligible']=out.nominal_reference_link_eligible & out.functional_assay_group_eligible
+    return out
+
+
 def bind(catalog,samples,observations):
     if samples['sample'].duplicated().any():raise ValueError('Duplicate Tahoe sample')
     if observations[['replicate','source_column_1based']].duplicated().any():raise ValueError('Duplicate functional unit')
@@ -133,11 +153,15 @@ def main():
     validate_name_resolution(candidates,resolutions)
     t=pd.read_parquet(a.tahoe/'drug_metadata.parquet');s=pd.read_parquet(a.tahoe/'sample_metadata.parquet')
     c=resolve(candidates,json.loads((a.source/'synonyms.json').read_text()),json.loads((a.source/'properties.json').read_text()),t,a.complete_omitted_stereo,resolutions)
-    links,f=bind(c,s,pd.read_csv(a.functional/'single_agent_24h.csv'))
+    functional=pd.read_csv(a.functional/'single_agent_24h.csv')
+    c=qualify_functional_catalog(c,functional)
+    links,f=bind(c,s,functional)
     chem,fp,meta=build_chemical_catalog(c);a.output.mkdir(parents=True)
     c.to_csv(a.output/'nominal_structures.csv',index=False);links.to_csv(a.output/'condition_links.csv',index=False)
     f.to_csv(a.output/'functional_observations.csv',index=False);chem.to_csv(a.output/'chemical_catalog.csv',index=False);np.save(a.output/'fingerprints.npy',fp)
-    report=dict(nominal_reference_drugs=int(c.nominal_reference_link_eligible.sum()),
+    report=dict(nominal_functional_transfer_drugs=int(c.nominal_functional_transfer_eligible.sum()),
+        assay_excluded_names=c.loc[~c.functional_assay_group_eligible,'source_compound_name'].tolist(),
+        nominal_reference_drugs=int(c.nominal_reference_link_eligible.sum()),
         derived_stereo_completions=int(c.omitted_stereo_reference_completion_used.sum()),
         original_Tahoe_records_modified=0,nominal_drugs=len(c),strict_structure_drugs=int(c.strict_structure_link_eligible.sum()),candidate_sample_links=len(links),
         strict_structure_sample_links=int(links.strict_structure_link_eligible.sum()),functional_values=len(f),

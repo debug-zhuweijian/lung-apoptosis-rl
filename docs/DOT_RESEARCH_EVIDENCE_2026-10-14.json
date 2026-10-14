@@ -4208,5 +4208,96 @@
       }
     ],
     "not_A549_apoptosis_validation": true
+  },
+  "full_Inde_library_identity_audit_20261014": {
+    "registry_audit": {
+      "library_names": 261,
+      "query_responses": 261,
+      "unique_primary_CIDs": 254,
+      "exact_CID_Tahoe_candidates": 45,
+      "unique_candidates_for_existing_review": 45,
+      "duplicate_source_CID_names": [],
+      "unresolved_names": [
+        "Vatalanib (PTK787) 2HCl",
+        "Palbociclib (PD-0332991) HCl",
+        "Tunicamycin",
+        "17-DMAG (Alvespimycin) HCl",
+        "Vaquinol-1",
+        "CHIR-99021 (CT99021) HCl",
+        "NSC 23766"
+      ],
+      "structure_and_alias_review_complete": false,
+      "experimental_form_verified": false,
+      "RNA_recovery_performed": false,
+      "complete_scientific_qualification": false,
+      "source_hashes": {
+        "name_resolution": "b4fc81b123a6404570647b5a993fe536c75d9cbf42698062e96450d154005a70",
+        "receipts": "bea7a77ed3a14d8c32132a6df1dd790e82b48bc3af2a27d276d65d1e549a1e3d",
+        "functional": "5a54128199ef34984cc9f94271c3b3c22c7ea84f793b728f1bd35189b27cb9ff",
+        "tahoe": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28"
+      },
+      "script_sha256": "85d2bd1d25876e74cc9f366047c7113283d350c8db1c2c4d83ebf1123f8e1200",
+      "outputs": {
+        "library_CID_audit.csv": "e2e0726bf86939794441fe638e664ecd94a2561249970093e20a4564b5910343",
+        "name_candidates.json": "236f78233387aa7ef7fa9a67ca0f553b422aec11b9f29a5c56c5201ad4b2661c"
+      }
+    },
+    "actual_extended_links": {
+      "nominal_functional_transfer_drugs": 42,
+      "assay_excluded_names": [
+        "Mitoxantrone HCl"
+      ],
+      "nominal_reference_drugs": 43,
+      "derived_stereo_completions": 26,
+      "original_Tahoe_records_modified": 0,
+      "nominal_drugs": 45,
+      "strict_structure_drugs": 17,
+      "candidate_sample_links": 55,
+      "strict_structure_sample_links": 19,
+      "functional_values": 135,
+      "preserved_independent_experiments": 3,
+      "no_replicate_cross_product": true,
+      "full_protocol_matches": 0,
+      "actual_RNA_rows_recovered_by_this_script": 0,
+      "complete_scientific_qualification": false,
+      "unmatched_library_names_are_not_proven_absent": true,
+      "all_library_drugs_resolved": false,
+      "fingerprint": {
+        "rdkit": "2026.09.1",
+        "canonicalization": "isomeric_full_form_no_desalting",
+        "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+        "fingerprint": {
+          "type": "Morgan_binary",
+          "radius": 2,
+          "bits": 2048,
+          "includeChirality": true,
+          "useBondTypes": true,
+          "includeRedundantEnvironments": false
+        }
+      },
+      "independent_source_name_queries_verified": true,
+      "source_cache_manifest_sha256": "cf965d3d3b09055e4b36f60ca27fb2643ba1b2d17a7307bf386ed64ecd871590",
+      "source_hashes": {
+        "/workspace/shared/lung-review-20261014/inde-tahoe-library-v1/name_resolution.json": "5bc3d618c838a68ece298c61a8cf24433fb3d5c9125e8027840579bcb60d3093",
+        "/workspace/shared/lung-review-20261014/inde-tahoe-library-v1/name_candidates.json": "67ceb3262c4fc628086032a03ad900add0566efd20c96cc395fae4c67ac703cb",
+        "/workspace/shared/lung-review-20261014/inde-tahoe-library-v1/synonyms.json": "304720c5ebd732a94b2692ff0df1f1fdae90a3a0ef608fc174e3b825a9e918cf",
+        "/workspace/shared/lung-review-20261014/inde-tahoe-library-v1/properties.json": "e498ccba46d0063120d2db07fa58d653d5ce17c1c897f59e10bf7f80256d7512",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/current_metadata/sample_metadata.parquet": "33167f0ce28cff8357c503cda67d1c7fea200bff6918ee1de3c4f3549175b9d3",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/current_metadata/drug_metadata.parquet": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28",
+        "experiments/dot-20261014-inde-functional-v2/single_agent_24h.csv": "5a54128199ef34984cc9f94271c3b3c22c7ea84f793b728f1bd35189b27cb9ff"
+      },
+      "script_sha256": "ace2c55cee285b1d3340af0e4fe596ae018b27597f39fc1f5347913398450fe1",
+      "outputs": {
+        "nominal_structures.csv": "f90dd289a23737024f8216fb5ae036e1eac494712d51222a556144bf300fd6a6",
+        "condition_links.csv": "04922968e2d5fc571257b5ad3948b963607938d40237141e7de02e9d163a29a3",
+        "fingerprints.npy": "00b0ed87bb533d4d8f09023f73b043d40b9f72525258dfff190b21bf65e5e884",
+        "chemical_catalog.csv": "21f8739dd9bcdef62f935e3c68e97f531246f48ff60d7b5db507d70e7bafd661",
+        "functional_observations.csv": "61bce5c987f7ab0f2a74fcd7d35c03c0da5a2116b7ecd06cdb834bef7eaba012"
+      }
+    },
+    "directly_related_tests_passed": 37,
+    "new_42_drug_RNA_recovered": false,
+    "new_42_drug_predictive_diagnostic_executed": false,
+    "original_14_drug_negative_result_preserved": true
   }
 }

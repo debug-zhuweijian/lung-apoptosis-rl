@@ -40,3 +40,19 @@ def test_target_metadata_cannot_supply_source_identity_without_independent_query
     for ids in [[],[2],[1,2]]:
         with pytest.raises(ValueError,match='unresolved or conflicting'):
             validate_name_resolution(c,[dict(source_name='X (alias)',queried_primary_name='X',status=200,cids=ids)])
+
+
+def test_identity_match_cannot_remove_author_assay_exclusion():
+    from scripts.link_inde_tahoe_conditions import qualify_functional_catalog
+    c=pd.DataFrame([dict(source_compound_name='X',nominal_reference_link_eligible=True)])
+    obs=pd.DataFrame([dict(source_compound_name='X',replicate=r,arm='single_agent',time_h=24,
+        library_dose_uM=5,valid_measured_fraction=True,lethal_fraction=.3,
+        author_autofluorescence_exclusion=True) for r in [1,2,3]])
+    result=qualify_functional_catalog(c,obs)
+    assert result.nominal_reference_link_eligible.all()
+    assert not result.nominal_functional_transfer_eligible.any()
+    assert result.functional_assay_exclusion_reason.iloc[0]=='author_autofluorescence_exclusion'
+    obs['author_autofluorescence_exclusion']=False
+    assert qualify_functional_catalog(c,obs).nominal_functional_transfer_eligible.all()
+    obs.loc[0,'lethal_fraction']=1.1
+    assert not qualify_functional_catalog(c,obs).nominal_functional_transfer_eligible.any()

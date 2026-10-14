@@ -90,7 +90,7 @@ def validate_cohort(expression_targets, catalog, eligibility_column):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for k in ['expression','chemistry','output']:p.add_argument('--'+k,type=Path,required=True)
-    p.add_argument('--eligibility-column',choices=['strict_structure_link_eligible','nominal_reference_link_eligible'],default='strict_structure_link_eligible')
+    p.add_argument('--eligibility-column',choices=['strict_structure_link_eligible','nominal_reference_link_eligible','nominal_functional_transfer_eligible'],default='strict_structure_link_eligible')
     a=p.parse_args()
     if a.output.exists():raise FileExistsError('New output directory required')
     for directory in [a.expression,a.chemistry]:

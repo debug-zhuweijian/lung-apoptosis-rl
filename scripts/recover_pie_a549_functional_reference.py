@@ -132,7 +132,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for n in ['source','catalog','gene-axis','gene-metadata','output']:p.add_argument('--'+n,type=Path,required=True)
     p.add_argument('--fetch',action='store_true')
-    p.add_argument('--eligibility-column',choices=['strict_structure_link_eligible','nominal_reference_link_eligible'],default='strict_structure_link_eligible')
+    p.add_argument('--eligibility-column',choices=['strict_structure_link_eligible','nominal_reference_link_eligible','nominal_functional_transfer_eligible'],default='strict_structure_link_eligible')
     p.add_argument('--max-source-bytes',type=int,default=80_000_000)
     a=p.parse_args()
     if a.output.exists():raise FileExistsError('New output directory required')
