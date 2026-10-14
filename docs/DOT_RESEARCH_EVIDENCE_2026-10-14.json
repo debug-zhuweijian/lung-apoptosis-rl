@@ -4439,5 +4439,73 @@
         "sha256": "01bd83f39bc64a092bac56d082908b43de3f57349fee63df258498d71bb2a1cb"
       }
     }
+  },
+  "furugaki_sequence_actual": {
+    "source_url": "https://www.spandidos-publications.com/10.3892/or_00000965/download",
+    "source_pdf_sha256": "0108b52dfe4960bfacc786ce135b875914158c84fc204b991ed37a8520204cea",
+    "source_pdf_bytes": 1224251,
+    "source_page": "printed1144/PDFpage4 TableI; Methods printed1142/PDFpage2",
+    "visually_checked": true,
+    "author_number_precision_percentage_points": 0.1,
+    "number_of_conditions": 14,
+    "A549_conditions": 7,
+    "comparisons": {
+      "D_to_E_minus_D_to_M_percentage_points": 0.1999999999999993,
+      "E_to_D_minus_M_to_D_percentage_points": -37.9,
+      "D_to_E_minus_E_to_D_percentage_points": 10.599999999999998,
+      "M_to_D_minus_D_to_M_percentage_points": 27.5
+    },
+    "inferential_pvalues_computed": false,
+    "source_is_representative_run_not_group_mean": true,
+    "MTT_protocol_distinct": "A549 docetaxel6h/erlotinib72h/recovery24h; NOT used for this subG1 table",
+    "fully_qualified_sequence_apoptosis_chain": false,
+    "outputs": {
+      "published_conditions.csv": "f0405dd270a8f3e87ba9b78030b2b3070f4b6c6a8c79b875c62756f4b3ef8817"
+    }
+  },
+  "erlotinib_quinacrine_actual": {
+    "accession": "GSE57422",
+    "source_arrays": 24,
+    "nominal_A549_arrays": 12,
+    "source_probe_count": 53617,
+    "actual_numeric_source_values": 643404,
+    "common_axis_observed": 16525,
+    "common_axis_missing": 15936,
+    "source_scale": "author_RMA_log2_intensity_not_counts",
+    "aggregation": "mean_log2_intensity_only_for_unique_source_Entrez_to_unique_current_Ensembl",
+    "genotype_flagged_samples": [
+      "GSM1382380",
+      "GSM1382381"
+    ],
+    "entire_A549_background_has_paper_genotype_conflict": true,
+    "strict_train_only_preprocessing": false,
+    "observed_quinacrine_48h_RNA": false,
+    "matched_RNA_function_condition_references": 2,
+    "actual_paired_RNA_function_replicates": 0,
+    "initial_state_increment_validated": false,
+    "full_research_qualified": false,
+    "source_hashes": {
+      "GSE57422_family.soft.gz": "bbf9b185404bf98df5ac44e11acab097d30ff3b534d935f13e5130098434c0a1",
+      "bioc.xml": "719b540b3c349a6e6da23d24f380e06b1b5da2bd3ed7883a64d03b2c92ca64a0",
+      "figure2.jpg": "1b407e3ae6740ed37f063448352add09663bae30679fe40b040e2fb75c85db06"
+    },
+    "annotation_sha256": "fcb82c4602af6005e65a2f1bc9b3fc27e303565ee8710c5afe85a3091a68c3fa",
+    "axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "18d25a9e5387b6fe2de41a7d8ae54a7191fabc0ccaa1e995d618822383861dbb",
+    "outputs": {
+      "common_gene_mapping.csv": "d05a509ac8288637392f3447a48ae58a0d6d99b67c41bca7bc6bf7242c7c5bb0",
+      "probe_gene_mapping.csv.gz": "99382af49d372e49422446672b61b85dbd00bbf4740dc602b7ff1e01ef8a90d9",
+      "common_axis_expression.npz": "f4b709819e24f91623fe6eaf7a2fe1e7c5f11f69aaf06ef6cfb4898f18d312fb",
+      "functional_reference.csv": "0d1f5d93304ce88e6a02a11e8ffa78350cbb2a42920c0294a7c01e651ca6abca",
+      "source_metadata.json": "bf85ccca5f5bcac8fde5cad51a217ae76a6063e2c03d66fc03100d55deeaf7dd",
+      "samples.csv": "c95095e0f9fd08b386b83dd02bee6902a87c1180f32e6c21f8c3245cc8cc33dd",
+      "source_expression.npz": "37cd11c804a0744c052b1ea4806c5b39508559f7acd8bbbd9abffe486630ac24"
+    },
+    "Cellosaurus_primary_reference": {
+      "url": "https://api.cellosaurus.org/cell-line/CVCL_0023?format=json",
+      "sha256": "d3ecf9f2545016141ebd4ab0abe20f936e94e3c08471db9905203dcfbbd00d24",
+      "bytes": 1181899,
+      "KRAS": "p.Gly12Ser (c.34G>A)"
+    }
   }
 }
