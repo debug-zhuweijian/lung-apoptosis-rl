@@ -1,0 +1,36 @@
+name: Source bridge validation
+on:
+  push:
+    branches: [codex/source-bridge-validation-20261015]
+    paths:
+      - .github/workflows/source-bridge-validation.yml
+      - scripts/recover_source_bridge.py
+      - src/lung/data/source_bridge.py
+      - tests/test_source_bridge.py
+permissions:
+  contents: read
+jobs:
+  source-receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact repository history and environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cloud-receipt
+          git bundle create cloud-receipt/repository.bundle HEAD refs/remotes/origin/main
+          git bundle verify cloud-receipt/repository.bundle
+          git rev-parse HEAD > cloud-receipt/commit.txt
+          git status --porcelain > cloud-receipt/git-status.txt
+          python --version > cloud-receipt/python.txt
+          sha256sum cloud-receipt/repository.bundle > cloud-receipt/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-bridge-cloud-receipt
+          path: cloud-receipt/
+          if-no-files-found: error
+          retention-days: 14
