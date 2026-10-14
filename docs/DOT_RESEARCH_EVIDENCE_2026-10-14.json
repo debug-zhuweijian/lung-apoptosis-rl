@@ -1,0 +1,212 @@
+{
+  "baseline_commit": "4a78560bdeb2e0d98332d5a9520764a120abf612",
+  "sources": [
+    {
+      "local_name": "GSE108214.soft.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE108nnn/GSE108214/soft/GSE108214_family.soft.gz",
+      "bytes": 13590245,
+      "sha256": "fc097a591d6e9f1dcc56d82f70db3be5230a5d75d7fac6227d03445f2b161d28"
+    },
+    {
+      "local_name": "Sarin_S8.docx",
+      "url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0181081.s008&type=supplementary",
+      "bytes": 98060,
+      "sha256": "7311fdb7f6b0f45877262a62d91aabf227c076f87b1529b88fb2bc11aadcc3ee"
+    },
+    {
+      "local_name": "HM_family.soft.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE333nnn/GSE333828/soft/GSE333828_family.soft.gz",
+      "bytes": 3462,
+      "sha256": "c0e66b6aa5e6badbfcc5a7f25d83bbd1eb01ac97b95b84628de42ef90ec1e184"
+    },
+    {
+      "local_name": "HM_counts.tsv.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE333nnn/GSE333828/suppl/GSE333828_raw_counts.tsv.gz",
+      "bytes": 1401587,
+      "sha256": "28dd1a5341eb861cfabb2cf33ef5972d35437ce8122f63053b960777c9204f00"
+    },
+    {
+      "local_name": "GSE96779.soft.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE96nnn/GSE96779/soft/GSE96779_family.soft.gz",
+      "bytes": 3006,
+      "sha256": "71e2902eb225558ad0e5965a655c37d304da477433454464233f7c616f2a7cbf"
+    },
+    {
+      "local_name": "GSE96779.fpkm.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE96nnn/GSE96779/suppl/GSE96779_MSR_A549_genes.fpkm_tracking.gz",
+      "bytes": 1262781,
+      "sha256": "c887b02e826874b1bbd014f6ac8f7a6304c97c93382e79fbbd89bf8e6f7e0fa2"
+    },
+    {
+      "local_name": "GSE161800.soft.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE161nnn/GSE161800/soft/GSE161800_family.soft.gz",
+      "bytes": 3305,
+      "sha256": "fb6a5c641146dcc675b7696a7485625b269a4f7cf466f58e38b8093d963f7478"
+    },
+    {
+      "local_name": "GSE161800_1vs2_counts.csv.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE161nnn/GSE161800/suppl/GSE161800_AGR_1_vs_2_edgeR_featureCounts_with_read_counts.csv.gz",
+      "bytes": 1735595,
+      "sha256": "19da21ebedee7cd261ac9253d751a74484dfc96df02db6cffccd799ff4e726db"
+    },
+    {
+      "local_name": "GSE161800_7vs8_counts.csv.gz",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE161nnn/GSE161800/suppl/GSE161800_AGR_7_vs_8_edgeR_featureCounts_with_read_counts.csv.gz",
+      "bytes": 1886499,
+      "sha256": "443a08a6185f85823495f90281f34cb5a4528fed7f086d1cdd93f10ff1464808"
+    },
+    {
+      "local_name": "HM_supplements.complete.zip",
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13476540/supplementaryFiles",
+      "bytes": 43585481,
+      "sha256": "64b677fdedc3ae4485123ed4f86501e4aa264678c4224eaaf8a5a8c32f034b29"
+    },
+    {
+      "local_name": "Sakuma_supplements.zip",
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6925249/supplementaryFiles",
+      "bytes": 19253521,
+      "sha256": "87f0a856ecf9c60aa4b24d487b7fc40e742be3bb1cc5253bde673bcb9b197740"
+    },
+    {
+      "local_name": "DBKERO_catalog.tsv",
+      "url": "https://kero.hgc.jp/template/data_portal_kero_matrix.txt",
+      "bytes": 1390277,
+      "sha256": "5f339c1678ae558bfde5a760069e37fc59cafb8d5bc401cc54b41c86cf8c2303"
+    },
+    {
+      "local_name": "GSE161800_paper.xml",
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8169122/fullTextXML",
+      "bytes": 244572,
+      "sha256": "08686baaa9c360786d92b80d57375a959d6b17184c88abbf9dbc93ab7047b08a"
+    }
+  ],
+  "real_executions": {
+    "sarin": {
+      "validation": {
+        "feature_count": 29729,
+        "sample_count": 22,
+        "measurement_values": 654038,
+        "minimum": -0.816772203,
+        "maximum": 19.28334696,
+        "noninteger_values": 654038,
+        "roundtrip_exact": true,
+        "scale": "deposited_background_corrected_quantile_normalized_microarray_VALUE",
+        "endpoint_values": 10,
+        "condition_links": 3,
+        "endpoint_unit": "fold_change_to_respective_untreated_control",
+        "common_axis_verified": false,
+        "same_cell_pre_post_pairing": false,
+        "normalization_performed": false,
+        "training_performed": false,
+        "model_input_ready": false,
+        "full_research_feasibility_proven": false
+      },
+      "script_sha256": "be91e909b7ddd4a54acd777bf75949e0d5f1ea2399d8e953214a7a95018fcb67",
+      "outputs_sha256": {
+        "condition_links.json": "c4133011a90b61fe14aa505981a97e9238bb1162eaba8a29b5230846fad59e30",
+        "annexin_source_values.csv": "6b2b967dd4d7e79fdcd00b9d36f47da9e65cb251a4b8fcafe061450f8bcdf039",
+        "probe_annotation.csv.gz": "66be80dfa5db0bb29e59bfe4f88c19894c97332b8d5cd058bd5c1a5b955315b5",
+        "probe_expression.csv.gz": "b6850f8847a5cf27005ef1a97c7a3a5cb8f83cdba8650113d5bd4ae2066eac10",
+        "source_metadata.json": "78a9ae110c096e98820876f81ff181b0032c16fbf965c20421684908689b8941",
+        "samples.csv": "d694bed32080430b860eb8c102399867537b9c0e7d3228772d1a848b8d473587",
+        "source_expression.npz": "08f299306db23aeebe5e16872ecfeef1d6eec677ad0bc77133308c52f08a422b"
+      }
+    },
+    "hm97662": {
+      "validation": {
+        "feature_count": 57905,
+        "sample_count": 18,
+        "measurement_values": 1042290,
+        "minimum": 0.0,
+        "maximum": 890362.394,
+        "noninteger_values": 129069,
+        "roundtrip_exact": true,
+        "scale": "bulk_estimated_counts",
+        "common_axis_verified": false,
+        "same_cell_pre_post_pairing": false,
+        "normalization_performed": false,
+        "training_performed": false,
+        "model_input_ready": false,
+        "full_research_feasibility_proven": false
+      },
+      "script_sha256": "be91e909b7ddd4a54acd777bf75949e0d5f1ea2399d8e953214a7a95018fcb67",
+      "outputs_sha256": {
+        "source_metadata.json": "20e03397d48817fd65efa5ec56e77a4a39fb0047d8dfe517cb4b8c2af7785ee5",
+        "samples.csv": "3cdb1c57510157a0f7788f4865368387785111d79d0e4875b0a857d992c97680",
+        "source_expression.npz": "cbe6d3daa82428f40570a55b731b9c27f3c6f3fc3e15e988b084ef82ed4d8570"
+      }
+    },
+    "gse96779": {
+      "validation": {
+        "feature_count": 27427,
+        "sample_count": 12,
+        "measurement_values": 329124,
+        "minimum": 0.0,
+        "maximum": 61580.9,
+        "noninteger_values": 209185,
+        "roundtrip_exact": true,
+        "scale": "bulk_FPKM",
+        "duplicate_symbol_rows": 2049,
+        "repeated_symbols": 475,
+        "endpoint_link_verified": false,
+        "history_observed": true,
+        "arbitrary_sequence_support": false,
+        "common_axis_verified": false,
+        "same_cell_pre_post_pairing": false,
+        "normalization_performed": false,
+        "training_performed": false,
+        "model_input_ready": false,
+        "full_research_feasibility_proven": false
+      },
+      "script_sha256": "be91e909b7ddd4a54acd777bf75949e0d5f1ea2399d8e953214a7a95018fcb67",
+      "outputs_sha256": {
+        "source_features.csv.gz": "aee061f77a235d746a9a6aa678bd91e68633e48452c7e31d5d675ac4d7186dc2",
+        "source_metadata.json": "1fed114bc09b92a342e244c871f5361d7ec2ec3eafa358e1a759e2199dfe5a7b",
+        "samples.csv": "374927667b17e02d3d22155c9f4de2db3e715a54d3a0047060008181aae5b41f",
+        "source_expression.npz": "cf81d8b76b9fe6adeac9a10813b111e4afaec8b70acd6e0fe8d2b7e309c9c8ff"
+      }
+    },
+    "gse161800": {
+      "validation": {
+        "feature_count": 58735,
+        "sample_count": 12,
+        "measurement_values": 704820,
+        "minimum": 0.0,
+        "maximum": 193538.0,
+        "noninteger_values": 0,
+        "roundtrip_exact": true,
+        "scale": "bulk_raw_counts",
+        "common_axis_verified": false,
+        "same_cell_pre_post_pairing": false,
+        "normalization_performed": false,
+        "training_performed": false,
+        "model_input_ready": false,
+        "full_research_feasibility_proven": false
+      },
+      "script_sha256": "be91e909b7ddd4a54acd777bf75949e0d5f1ea2399d8e953214a7a95018fcb67",
+      "outputs_sha256": {
+        "source_metadata.json": "19ef88df844071eedadc9c6fd73305fbc6245539a95ad46a4fe2e30e626efb23",
+        "samples.csv": "c48bbe0a9b0c83a2baaec49e8acd7dac3d71779ad2a1250335e750485a45eb95",
+        "source_expression.npz": "e05473bf4e86ec621512f93336d5e1fc64e71e9a417e02c0e6fea2273e578a81"
+      }
+    }
+  },
+  "engineering_tests": {
+    "selected_suite": "test_public_expression_recovery.py + test_sarin_gene_mapping.py + test_external_gene_axis.py + test_science_evaluation_comparison.py",
+    "passed": 49,
+    "full_baseline_test_suite_run": false
+  },
+  "common_32461_axis_available": false,
+  "formal_training_run": false,
+  "full_scientific_feasibility_accepted": false,
+  "research_source_check": {
+    "scDFM_author_repository_commit": "8de47e7d3d443939f93f768f7902c66e0e82eda2",
+    "GSE161800_GEO_dose_text": "5 mg/mL",
+    "GSE161800_primary_RNAseq_methods_dose_text": "5 μg/ml",
+    "dose_resolution": "explicit_primary_methods_override_with_both_fields_preserved",
+    "DBKERO_catalog_rows": 2693,
+    "DBKERO_A549_download_type": "histogram_not_gene_by_condition_matrix",
+    "DBKERO_catalog_unit": "nM",
+    "Sakuma_supplement_S1A_unit": "μM"
+  }
+}

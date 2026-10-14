@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
-    if scale not in {"bulk_raw_counts", "bulk_log2CPM"}:
+    if scale not in {"bulk_raw_counts", "bulk_estimated_counts", "bulk_log2CPM"}:
         raise ValueError("External expression scale must be explicit")
     axis = gene_axis.sort_values("common_gene_index")
     if not np.array_equal(axis.common_gene_index, np.arange(len(axis))):
@@ -29,6 +29,8 @@ def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
         raise ValueError("Nonfinite measured expression value")
     if scale == "bulk_raw_counts" and (np.any(values < 0) or np.any(values != np.floor(values))):
         raise ValueError("Raw count source contains negative or noninteger values")
+    if scale == "bulk_estimated_counts" and np.any(values < 0):
+        raise ValueError("Estimated count source contains negative values")
     aligned = np.full((len(samples), len(axis)), np.nan, dtype=np.float64)
     ledger = []
     for i, key in enumerate(ids):
