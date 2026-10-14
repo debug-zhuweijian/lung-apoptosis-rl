@@ -877,5 +877,114 @@
       "chemical_catalog.csv": "d0978c16ecce328d7dc21c1b5ede926cd489b499c593029672208a796364ee0e"
     },
     "script_sha256": "1e224565519b20fa8bb1020c3fc6ece7aabd7c373818cf0a239f7d7c278d8220"
+  },
+  "trametinib_actual_timecourse": {
+    "accession": "GSE247512",
+    "doi": "10.1038/s41392-025-02382-w",
+    "source_genes": 61541,
+    "source_matrix_samples": 48,
+    "A549_samples": 12,
+    "numeric_A549_values": 738492,
+    "scale": "bulk_estimated_counts",
+    "source_scale_label": "raw counts; extraction and normalization with StringTie",
+    "common_axis_observed_genes": 32461,
+    "common_axis_missing_genes": 0,
+    "days": [
+      0,
+      2,
+      5,
+      10
+    ],
+    "dose_uM": 0.01,
+    "contemporaneous_control_samples": 0,
+    "pure_drug_time_effect_identified": false,
+    "true_sequential_actions": false,
+    "individual_cell_pairing": false,
+    "combination_RNA_claim_in_overall_design_but_not_in_matrix": true,
+    "combination_replicates_conflict": "GEO overall design 3 per treatment; paper Methods 1 per treatment; actual 48-column matrix only time-course",
+    "matched_Annexin_protocol": false,
+    "full_research_qualified": false,
+    "source_hashes": {
+      "GSE247512_gene_count.csv.gz": "e88adbcbe139b773bdaaa0240c817e5fdbe427aeb9fc9f5ce6e40a98ce2d4c38",
+      "GSE247512.soft.gz": "c19a57a137ed356c9787cf2ac6ac0652c4d8515ae8ca2f66470dc09fa89f4d97",
+      "paper.xml": "a53e85dd28bd3ac199472b1a62693e2cb69844d8201c1c77b10923beb25bfa91"
+    },
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "b9ad1df7a6254c8f1fa9cad18471239d397626ff39a0d5e84c48a51aabd60c84",
+    "outputs": {
+      "expression_common_axis.npz": "7ff304feef51f2db236146028704f386e0936f737f3ecfb346db67f92779e396",
+      "gene_mapping.csv": "23d5b63e02f562a8d458e157f595f36e01db17198ad533c610330085c4def841",
+      "time_diagnostic.json": "3a37a8045f01602202544c199459bdddce3f87d4e1b2ac90d7a009e292bddf71",
+      "samples.csv": "499b608cd2154c0237ab8d162da13dde0259a91064ee29a5669f4d528b32aed0",
+      "expression_source_counts.npz": "96b37e231c70e1d22ee1024fa2b0b4898e770da67a79cc2eb3c18846073acea2"
+    },
+    "diagnostic_results": [
+      {
+        "held_day": 5,
+        "training_days": [
+          2,
+          10
+        ],
+        "baseline": "nearest_time",
+        "features": 500,
+        "mean_expression_MSE": 0.3665978174728817,
+        "individual_library_MSE": 0.5537200437883839
+      },
+      {
+        "held_day": 5,
+        "training_days": [
+          2,
+          10
+        ],
+        "baseline": "linear_time",
+        "features": 500,
+        "mean_expression_MSE": 0.26771351882410843,
+        "individual_library_MSE": 0.4548357451396105
+      },
+      {
+        "held_day": 5,
+        "training_days": [
+          2,
+          10
+        ],
+        "baseline": "linear_log_time",
+        "features": 500,
+        "mean_expression_MSE": 0.3397110180192178,
+        "individual_library_MSE": 0.52683324433472
+      },
+      {
+        "held_day": 10,
+        "training_days": [
+          2,
+          5
+        ],
+        "baseline": "nearest_time",
+        "features": 500,
+        "mean_expression_MSE": 0.45163680595385763,
+        "individual_library_MSE": 0.699818437967993
+      },
+      {
+        "held_day": 10,
+        "training_days": [
+          2,
+          5
+        ],
+        "baseline": "linear_time",
+        "features": 500,
+        "mean_expression_MSE": 2.747526685358532,
+        "individual_library_MSE": 2.9957083173726664
+      },
+      {
+        "held_day": 10,
+        "training_days": [
+          2,
+          5
+        ],
+        "baseline": "linear_log_time",
+        "features": 500,
+        "mean_expression_MSE": 1.146655178079052,
+        "individual_library_MSE": 1.3948368100931872
+      }
+    ]
   }
 }
