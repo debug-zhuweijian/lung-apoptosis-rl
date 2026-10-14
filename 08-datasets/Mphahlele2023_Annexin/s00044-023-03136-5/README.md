@@ -1,5 +1,17 @@
 # Mphahlele 2023：A549 24 h Annexin 数值案例
 
+## 2026-10-15：归档转录与名义结构的云端对齐
+
+已从固定 Git blob 的旧采集脚本恢复全部 12 条已归档观测，并依据原论文的命名、取代位置和 E 构型登记 11 个名义结构；真实 RDKit Morgan 指纹与剂量、24 h 终点、untreated 对照、来源 ID 已连接并读回。30 项针对性测试通过，限于部分源码快照，不代表全仓库或模型效果验收。
+
+新入口：[align_mphahlele_review.py](../../../scripts/align_mphahlele_review.py)；[结构登记](../../../configs/mphahlele2023_nominal_structures_v1.json)；[完整数据链核查与限制](../../../docs/DATA_CHAIN_CLOSURE_RESEARCH_2026-10-15.md)。在项目根目录执行 `python scripts/align_mphahlele_review.py --output experiments/cloud-data-chain-review/mphahlele-v1`，输出目录必须尚不存在；不下载、不训练、不改冻结资产。
+
+3k 的论文 HRMS 文字与名义含四个 F 的结构冲突，显式登记 `source_identity_conflict=true`。名义结构并非实验材料鉴定。RNA、批次与逐生物重复仍缺失，训练角色未分配，`use_for_training=false`、`training_ready=false`。本轮没有重新取得原 DOCX/FCS，因此只是旧转录的实际恢复/计算与名义结构对齐，不是全部原始流式数据的独立再核验，更不是完整研究数据链已闭合。
+
+## 2026-10-09 历史来源核查
+
+以下保留原记录；其中原件读取和哈希属于当时核查，不升级为本轮原件重验。
+
 日期：2026-10-09。[原论文](https://link.springer.com/article/10.1007/s00044-023-03136-5)，DOI 10.1007/s00044-023-03136-5。
 
 已核实 Methods 的A549、1×各自IC50、24 h、Annexin-V/PI流程；实际读取Table2的A549浓度列，亲看补充TableS3。
