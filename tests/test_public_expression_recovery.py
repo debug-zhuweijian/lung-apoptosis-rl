@@ -128,3 +128,29 @@ def test_raw_native_counts_cannot_be_fractional(tmp_path):
     samples = pd.DataFrame({"geo_accession": ["GSM1"]})
     with pytest.raises(ValueError, match="integers"):
         MOD.save_native(tmp_path, frame, samples, "id", "bulk_raw_counts")
+
+
+def test_source_reconstructed_axis_does_not_claim_frozen_asset_identity(tmp_path):
+    import json
+    axis_path = tmp_path / "genes.parquet"
+    axis = pd.DataFrame({"ensembl_id": ["ENSG1", "ENSG2"], "common_gene_index": [0, 1]})
+    axis.to_parquet(axis_path, index=False)
+    reference = tmp_path / "manifest.json"
+    reference.write_text(json.dumps({"outputs": {"genes.parquet": {"sha256": MOD.digest(axis_path), "bytes": axis_path.stat().st_size}},
+                                    "validation": {"frozen_asset_identity_verified": False, "shared_genes": 2}}))
+    actual, provenance = MOD.load_projection_axis(axis_path, reference)
+    pd.testing.assert_frame_equal(actual, axis)
+    assert provenance["source_reference_verified"] is True
+    assert provenance["frozen_asset_identity_verified"] is False
+    axis.loc[0, "ensembl_id"] = "ENSG3"
+    axis.to_parquet(axis_path, index=False)
+    with pytest.raises(ValueError, match="axis"):
+        MOD.load_projection_axis(axis_path, reference)
+
+
+def test_unmanifested_axis_remains_unauthenticated(tmp_path):
+    p = tmp_path / "genes.parquet"
+    pd.DataFrame({"ensembl_id": ["ENSG1"], "common_gene_index": [0]}).to_parquet(p, index=False)
+    _, scope = MOD.load_projection_axis(p, None)
+    assert scope["source_reference_verified"] is False
+    assert scope["frozen_asset_identity_verified"] is False

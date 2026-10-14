@@ -1,7 +1,8 @@
 """Recover source-native public expression without requiring unpublished caches.
 
 No normalization, split fitting, gene-name guessing, or endpoint pseudo-pairing.
-Use --gene-axis only with the actual frozen axis; missing genes remain NaN.
+Use an explicit gene axis; missing genes remain NaN. A reconstructed public
+axis is not an authenticated frozen training asset. Bind it with --gene-axis-manifest.
 """
 from __future__ import annotations
 
@@ -271,6 +272,22 @@ def save_native(out, frame, samples, ids, scale):
             "roundtrip_exact": True, "scale": scale}
 
 
+def load_projection_axis(path, reference_manifest=None):
+    """Separate verified projection coordinates from frozen-training identity."""
+    axis = pd.read_parquet(path)
+    scope = {"axis_sha256": digest(path), "source_reference_verified": False,
+             "frozen_asset_identity_verified": False, "reference_manifest_sha256": None}
+    if reference_manifest is not None:
+        reference = json.loads(Path(reference_manifest).read_text(encoding="utf-8"))
+        expected = reference["outputs"]["genes.parquet"]
+        if (expected["sha256"] != scope["axis_sha256"] or expected["bytes"] != Path(path).stat().st_size
+                or reference["validation"]["shared_genes"] != len(axis)):
+            raise ValueError("Reference axis manifest does not match the supplied axis")
+        scope.update(source_reference_verified=True, reference_manifest_sha256=digest(reference_manifest))
+        # This source manifest attests bytes, not unavailable training assets.
+    return axis, scope
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", choices=["sarin", "hm97662", "gse96779", "gse161800"])
@@ -280,12 +297,16 @@ def main():
     parser.add_argument("--extra-matrix", type=Path, help="GSE161800 7vs8 original count table")
     parser.add_argument("--paper-xml", type=Path, help="GSE161800 primary paper XML for unit adjudication")
     parser.add_argument("--gene-axis", type=Path)
+    parser.add_argument("--gene-axis-manifest", type=Path, help="Source reference manifest; does not authenticate frozen training assets")
     parser.add_argument("--hgnc", type=Path, help="Versioned HGNC TSV for Sarin probe mapping")
     parser.add_argument("--gtf", type=Path, help="Versioned GRCh37 transcript GTF.gz for Sarin")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError("Use a new output directory; frozen data are never overwritten")
+    if args.gene_axis_manifest and not args.gene_axis:
+        parser.error("--gene-axis-manifest requires --gene-axis")
+    axis, axis_provenance = load_projection_axis(args.gene_axis, args.gene_axis_manifest) if args.gene_axis else (None, None)
     # Validate source before creating output, so failures cannot look like completed recovery.
     paths = [args.soft]
     if args.source == "sarin":
@@ -344,7 +365,6 @@ def main():
                       repeated_symbols=int(frame.loc[frame.gene_id.duplicated(keep=False), "gene_id"].nunique()),
                       endpoint_link_verified=False, history_observed=True, arbitrary_sequence_support=False)
     if args.gene_axis:
-        axis = pd.read_parquet(args.gene_axis)
         if args.source == "sarin":
             hgnc = pd.read_csv(args.hgnc, sep="\t", dtype=str, keep_default_na=False)
             wanted = set().union(*(set(transcript_ids(row)) for row in annotation.to_dict("records")))
@@ -365,8 +385,10 @@ def main():
                 raise ValueError("Missing genes were filled")
         ledger.to_parquet(args.output / "gene_mapping.parquet", index=False)
         paths.append(args.gene_axis)
+        if args.gene_axis_manifest:
+            paths.append(args.gene_axis_manifest)
         report["common_axis_matched_genes"] = int(mask.all(axis=0).sum())
-    report.update(common_axis_verified=bool(args.gene_axis), same_cell_pre_post_pairing=False,
+    report.update(common_axis_verified=bool(args.gene_axis), gene_axis_provenance=axis_provenance, same_cell_pre_post_pairing=False,
                   normalization_performed=False, training_performed=False, model_input_ready=False, full_research_feasibility_proven=False)
     (args.output / "source_metadata.json").write_text(json.dumps({a: m for a, m, _ in records}, ensure_ascii=False, indent=2))
     manifest = {"schema_version": 1, "created_utc": datetime.now(timezone.utc).isoformat(),
