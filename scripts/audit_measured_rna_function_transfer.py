@@ -69,6 +69,24 @@ def evaluate(x,fp,y,names,genes=200):
     return report,predictions
 
 
+def validate_cohort(expression_targets, catalog, eligibility_column):
+    """Require the declared cohort; never silently fit a downloaded subset."""
+    selected = catalog.loc[catalog[eligibility_column].eq(True), 'tahoe_drug']
+    if selected.empty or selected.duplicated().any():
+        raise ValueError('Declared chemical cohort is empty or duplicated')
+    observed = []
+    for target in expression_targets:
+        parsed = ast.literal_eval(str(target))
+        if not isinstance(parsed, list) or len(parsed) != 1 or len(parsed[0]) != 3:
+            raise ValueError('Single chemical condition required')
+        drug, dose, unit = parsed[0]
+        if isinstance(dose, bool) or dose != 5 or unit != 'uM':
+            raise ValueError('Declared 5uM cohort differs')
+        observed.append(drug)
+    if len(observed) != len(set(observed)) or set(observed) != set(selected):
+        raise ValueError('Incomplete or duplicate declared expression cohort')
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for k in ['expression','chemistry','output']:p.add_argument('--'+k,type=Path,required=True)
@@ -81,6 +99,7 @@ def main():
             if digest(directory/name)!=sha:raise ValueError('Input package bytes changed')
     z=np.load(a.expression/'aligned_group_means.npz',allow_pickle=False);c=pd.read_csv(a.chemistry/'nominal_structures.csv')
     f=pd.read_csv(a.chemistry/'functional_observations.csv');chem=pd.read_csv(a.chemistry/'chemical_catalog.csv');fp=np.load(a.chemistry/'fingerprints.npy',allow_pickle=False)
+    validate_cohort(z['targets'], c, a.eligibility_column)
     names=[];fps=[];targets=[]
     for t in z['targets']:
         drug,dose,unit=ast.literal_eval(str(t))[0]

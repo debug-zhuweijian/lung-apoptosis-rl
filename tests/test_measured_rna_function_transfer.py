@@ -37,3 +37,17 @@ def test_constant_function_has_no_invented_improvement():
 def test_out_of_range_measured_fraction_is_not_clipped_to_pass():
     x,f,y,n=inputs();y[0,0]=1.1
     with pytest.raises(ValueError,match='Valid measured'):evaluate(x,f,y,n,4)
+
+
+def test_partial_expression_cannot_silently_narrow_expanded_cohort():
+    import pandas as pd
+    from scripts.audit_measured_rna_function_transfer import validate_cohort
+    c=pd.DataFrame({'tahoe_drug':['a','b'], 'strict_structure_link_eligible':[True,False],
+                    'nominal_reference_link_eligible':[True,True]})
+    observed=["[('a', 5.0, 'uM')]"]
+    validate_cohort(observed,c,'strict_structure_link_eligible')
+    with pytest.raises(ValueError,match='Incomplete'):
+        validate_cohort(observed,c,'nominal_reference_link_eligible')
+    validate_cohort(observed+["[('b', 5.0, 'uM')]"],c,'nominal_reference_link_eligible')
+    with pytest.raises(ValueError,match='duplicate'):
+        validate_cohort(observed*2,c,'strict_structure_link_eligible')
