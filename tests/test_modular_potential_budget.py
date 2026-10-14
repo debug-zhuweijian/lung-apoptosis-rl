@@ -13,16 +13,10 @@ from lung.engine.checkpoint import atomic_save, load_checkpoint
 from lung.engine.modular_budget import StagePaused
 from lung.engine.training_control import checkpoint_completion
 from test_decision_engine_v1 import Monitor, synthetic_world
-from test_modular_aux_budget import assert_same
+from conftest import assert_same
 
 
-@pytest.fixture(autouse=True)
-def cpu_only(monkeypatch):
-    threads = torch.get_num_threads()
-    torch.set_num_threads(1)
-    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
-    yield
-    torch.set_num_threads(threads)
+pytestmark = pytest.mark.usefixtures("cpu_only")
 
 
 class BudgetMonitor(Monitor):

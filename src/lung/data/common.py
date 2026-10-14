@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 
 import yaml
 
@@ -68,7 +69,129 @@ def dataset_config(root: Path, config_path=None) -> dict:
         raise ValueError("Invalid gene_count / graph_neighbors")
     if config["graph_block_size"] < 1 or config["stream_batch_size"] < 1:
         raise ValueError("Block and batch sizes must be positive")
+    identity_keys = ("drug_identity_manifest", "drug_identity_manifest_sha256")
+    if any(key in config for key in identity_keys):
+        if not all(config.get(key) for key in identity_keys):
+            raise ValueError("Drug identity requires both a manifest path and its expected SHA256")
+        inside(root, config["drug_identity_manifest"])
+        if not re.fullmatch(r"[0-9a-f]{64}", str(config["drug_identity_manifest_sha256"])):
+            raise ValueError("Drug identity expected SHA256 must be 64 lowercase hexadecimal characters")
+        if inside(root, config["assets"]) == inside(root, DEFAULT_ASSETS):
+            raise ValueError("Drug identity changes require a new training assets version")
+    if "sciplex_source" in config:
+        source = config["sciplex_source"]
+        for key in ("extraction_manifest", "chemical_manifest", "base_training_manifest"):
+            inside(root, source[key])
+            if not re.fullmatch(r"[0-9a-f]{64}", str(source.get(key + "_sha256", ""))):
+                raise ValueError(f"sci-Plex requires a pinned {key}")
+        if inside(root, config["assets"]) == inside(root, source["base_training_manifest"]).parent:
+            raise ValueError("Additional response sources require new training assets")
     return config
+
+
+def identity_dependencies(root: Path, config: dict):
+    """Verify the explicitly pinned identity manifest and every data dependency.
+
+    This check is mandatory even when a reader skips ordinary asset hashing.
+    A path alone cannot establish which chemical identities produced a model.
+    """
+    if "drug_identity_manifest" not in config:
+        return None
+    path = inside(root, config["drug_identity_manifest"])
+    manifest_hash = sha256(path)
+    if manifest_hash != config["drug_identity_manifest_sha256"]:
+        raise ValueError("Drug identity manifest hash mismatch")
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if (manifest.get("version") not in ("identity-v2", "identity-v3")
+            or manifest.get("status") != "reference_mapping_complete_with_explicit_exclusions"):
+        raise ValueError("Drug identity manifest is not a completed supported mapping")
+    required = {"drug_identity.parquet", "condition_identity.parquet", "morgan2048_chiral.npy", "sources.json"}
+    if not required.issubset(manifest.get("outputs", {})) or not manifest.get("inputs_sha256"):
+        raise ValueError("Drug identity manifest lacks required dependencies")
+    outputs, inputs, responses = {}, {}, {}
+    for name, record in manifest["outputs"].items():
+        dependency = inside(path.parent, name)
+        digest = sha256(dependency)
+        if digest != record["sha256"] or dependency.stat().st_size != record["bytes"]:
+            raise ValueError(f"Drug identity output hash mismatch: {name}")
+        outputs[name] = digest
+    for name, expected in manifest["inputs_sha256"].items():
+        dependency = inside(root, name)
+        digest = sha256(dependency)
+        if digest != expected:
+            raise ValueError(f"Drug identity input hash mismatch: {name}")
+        inputs[dependency.relative_to(root).as_posix()] = digest
+    sources = json.loads((path.parent / "sources.json").read_text(encoding="utf-8"))
+    if not isinstance(sources, list) or len(sources) != manifest.get("raw_response_count"):
+        raise ValueError("Drug identity source response registry is incomplete")
+    for record in sources:
+        dependency = inside(path.parent, record["path"])
+        digest = sha256(dependency)
+        if digest != record["sha256"] or dependency.stat().st_size != record["bytes"]:
+            raise ValueError(f"Drug identity raw response hash mismatch: {record['path']}")
+        responses[dependency.relative_to(path.parent).as_posix()] = digest
+    if len(responses) != len(sources):
+        raise ValueError("Duplicate drug identity source response")
+    return {"version": manifest["version"], "manifest": path.relative_to(root).as_posix(),
+            "manifest_sha256": manifest_hash, "outputs": outputs,
+            "inputs": inputs, "raw_responses": responses}
+
+
+def response_source_dependencies(root: Path, config: dict):
+    if "sciplex_source" not in config:
+        return None
+    source, bindings = config["sciplex_source"], {}
+    for key in ("extraction_manifest", "chemical_manifest", "base_training_manifest"):
+        path = inside(root, source[key])
+        digest = sha256(path)
+        if digest != source[key + "_sha256"]:
+            raise ValueError(f"sci-Plex dependency hash mismatch: {key}")
+        bindings[key] = {"path": path.relative_to(root).as_posix(), "sha256": digest}
+    extraction = inside(root, source["extraction_manifest"])
+    status = json.loads(extraction.read_text(encoding="utf-8"))
+    if status["status"] != "complete_expression_extraction_not_training_ready":
+        raise ValueError("sci-Plex extraction is incomplete")
+    bindings["tables"] = {name: sha256(extraction.parent / name)
+                           for name in ("a549_cells.parquet", "common_genes.parquet")}
+    path = inside(root, source["chemical_manifest"])
+    chemical = json.loads(path.read_text(encoding="utf-8"))
+    outputs = {}
+    if chemical.get("input_path_base") != "project_root" or chemical.get("input_base") != ".":
+        raise ValueError("sci-Plex chemical input path base must be explicit project_root")
+    for name, expected in chemical["outputs_sha256"].items():
+        file = inside(path.parent, name)
+        digest = sha256(file)
+        if digest != expected:
+            raise ValueError(f"sci-Plex chemical output hash mismatch: {name}")
+        outputs[name] = digest
+    bindings["chemical_outputs"] = outputs
+    for name, expected in chemical.get("inputs_sha256", {}).items():
+        if sha256(inside(root, name)) != expected:
+            raise ValueError(f"sci-Plex chemical input hash mismatch: {name}")
+    bindings["protocol_files"] = {}
+    for name, expected in source["protocol_files"].items():
+        path = inside(root, name)
+        if sha256(path) != expected:
+            raise ValueError(f"sci-Plex protocol dependency hash mismatch: {name}")
+        bindings["protocol_files"][name] = expected
+    if (source["planned_wells"] not in source["protocol_files"] or source["time_contract"] not in source["protocol_files"]
+            or source["planned_dose_unit"] != "nM"):
+        raise ValueError("sci-Plex planned wells require their pinned nM source table")
+    return bindings
+
+
+def training_contract(root: Path, config: dict):
+    """Preserve the exact schema-1 signature unless a reviewed identity is requested."""
+    source_hash = sha256(inside(root, config["bundle"]) / "manifest.json")
+    identity = identity_dependencies(root, config)
+    source = response_source_dependencies(root, config)
+    schema = 3 if source is not None else 2 if identity is not None else 1
+    value = {"config": config, "source_manifest": source_hash, "training_schema": schema}
+    if identity is not None:
+        value["drug_identity"] = identity
+    if source is not None:
+        value["sciplex_source"] = source
+    return digest_json(value), source_hash, identity, schema
 
 
 def source_shard_registry(prepared):

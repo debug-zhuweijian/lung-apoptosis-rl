@@ -24,6 +24,14 @@ class EngineData:
         self.neighbors = self.reader.neighbors
         self.n_genes = self.reader.n_genes
         self.assets_dir = self.reader.assets_path
+        self.context_sizes = {"n_sources": len(self.reader.context_vocabulary["source_id"]),
+                              "n_backgrounds": len(self.reader.context_vocabulary["background_id"]),
+                              "n_protocols": len(self.reader.context_vocabulary["protocol_id"])}
+        if "sciplex_source" in self.reader.config and "model" in config.get("response", {}):
+            from lung.models import ModelConfig
+            shape = ModelConfig(**config["response"]["model"])
+            if any(getattr(shape, key) < size for key, size in self.context_sizes.items()):
+                raise ValueError("MODEL_CONTEXT_CARDINALITY_MISMATCH: new source/protocol embeddings required")
         self.bandwidth = None
         if self.reader.bandwidths is not None:
             bandwidths = np.asarray(self.reader.bandwidths)

@@ -139,6 +139,10 @@ def _cache_training_rows(root, assets, genes, config, progress):
                 progress('verify_fit_cache', number, total_parts)
         return index
     columns = genes["tahoe_column"].to_numpy(dtype=np.int64)
+    routed = None
+    if "sciplex_source" in config:
+        from .reader import training_rows
+        routed = training_rows(root, assets, config, genes)
     train_path = assets / "train.parquet"
     parts, invalid_ids, counts = [], [], {}
     total = pq.ParquetFile(train_path).metadata.num_rows
@@ -151,14 +155,15 @@ def _cache_training_rows(root, assets, genes, config, progress):
         visited += len(rows)
         fit = rows.loc[rows["role"].eq("fit")]
         for matrix_path, subset in fit.groupby("matrix_path", sort=False):
-            if cached_path != matrix_path:
+            if routed is None and cached_path != matrix_path:
                 source_path = inside(root, matrix_path)
                 if registry and matrix_path not in registry:
                     raise ValueError("Matrix is not registered in the source audit")
                 check_shard(source_path, registry.get(matrix_path))
                 cached_matrix = sparse.load_npz(source_path).tocsr()
                 cached_path = matrix_path
-            raw = cached_matrix[subset["matrix_row"].to_numpy(dtype=np.int64)][:, columns]
+            raw = (routed.read(subset) if routed is not None else
+                   cached_matrix[subset["matrix_row"].to_numpy(dtype=np.int64)][:, columns])
             values, valid = log_normalize(raw)
             invalid_ids.extend(subset.loc[~valid, "cell_id"].to_list())
             subset = subset.loc[valid]

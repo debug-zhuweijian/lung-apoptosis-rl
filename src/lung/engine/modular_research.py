@@ -11,7 +11,6 @@ from .checkpoint import atomic_json, load_checkpoint, seed_all
 from .config import ROOT, StageUnavailable, file_hash, implementation_identity, project_path, verify_interpreter
 from .modular_config import (DEFAULT_STAGES, OUTPUT_KEYS, RESPONSE_STAGES, STAGE_DEPENDENCIES,
                              dependency_plan, load_modular_config, science_identity, stage_config)
-from .response_research import ResearchBudget
 
 
 def parser():
@@ -21,7 +20,6 @@ def parser():
     command.add_argument("--resume", metavar="RUN_ID")
     command.add_argument("--run-id")
     command.add_argument("--dry-run", action="store_true")
-    command.add_argument("--budget-seconds", type=float, help="Explicit new cumulative cap for --stage")
     command.add_argument("--no-dashboard", action="store_true")
     command.add_argument("--no-browser", action="store_true")
     command.add_argument("--no-progress", action="store_true")
@@ -135,37 +133,11 @@ def verify_artifact(stage, pipeline, data, config):
         del world
 
 
-class ModuleBudget:
-    def __init__(self, local, shared=None):
-        self.local, self.shared = local, shared
-
-    @property
-    def exhausted(self):
-        return self.local.exhausted or bool(self.shared and self.shared.exhausted)
-
-    def check(self, step, epoch):
-        a = self.local.check(step, epoch)
-        b = self.shared.check(step, epoch) if self.shared else False
-        # A hard IDE stop can lose only the current atomic unit, not the whole segment.
-        self.local.pause()
-        if self.shared:
-            self.shared.pause()
-        return a or b
-
-    def summary(self):
-        return {"module": self.local.summary(),
-                "response_chain": self.shared.summary() if self.shared else None,
-                "exhausted": self.exhausted}
-
-
-def execute_stage(stage, data, config, monitor, pipeline, budget, resume):
+def execute_stage(stage, data, config, monitor, pipeline, resume):
     if stage in RESPONSE_STAGES:
         from .latent_pipeline import run_latent_stage
         result = run_latent_stage({"ae": "latent_ae", "cache": "latent_cache", "response": "latent_cfm"}[stage],
-                                  config, monitor, data, budget)
-        if budget.exhausted:
-            from .modular_budget import StagePaused
-            raise StagePaused("budget_exhausted", result.get("weights"), stage=stage)
+                                  config, monitor, data)
         key = OUTPUT_KEYS.get(stage, stage)
         artifact = result["directory"] if stage == "cache" else result["weights"]
         return {**pipeline, key: [artifact] if stage == "response" else artifact}
@@ -234,41 +206,24 @@ def run_pipeline(config, monitor, pipeline, *, stage=None, state=None):
         resumable = (ROOT / "experiments" / run_id / "active_config.yaml").exists()
         training_resume = resumable
         if name == "daac":
-            cap = config["modular"]["stages"]["daac"].get("budget_seconds")
-            cfg["daac"]["max_seconds"] = cap
             if resumable:
                 last = ROOT / "checkpoints" / run_id / "daac" / f"seed_{config.get('policy_seeds', [0])[0]}" / "last.pt"
                 training_resume = last.is_file()
                 if training_resume:
                     cfg["daac"].pop("init_from", None)
-                if last.is_file() and cap is not None:
-                    runtime = load_checkpoint(last).get("extra", {}).get("decision_runtime", {})
-                    extension = cap - float(runtime.get("budget_seconds", cap))
-                    if extension > 0:
-                        cfg["daac"]["resume_budget_seconds"] = extension
-                    else:
-                        cfg["daac"].pop("resume_budget_seconds", None)
         child = RunMonitor(cfg, run_id=run_id, resume=resumable)
-        local = ResearchBudget(config["modular"]["stages"].get(name, {}).get("budget_seconds"),
-                               child.experiment / "module_budget.json")
-        shared = (ResearchBudget(config["modular"].get("response_budget_seconds"),
-                                 monitor.experiment / "response_budget.json") if name in RESPONSE_STAGES else None)
-        budget = ModuleBudget(local, shared)
-        setattr(child, "stop_check", budget.check)
+        # Keep incremental cache/checkpoint persistence without a timed stop.
+        setattr(child, "stop_check", lambda step, epoch: False)
         status, paused = "failed", None
         data = None
         state["stages"][name] = {**prior, "run_id": run_id, "status": "running", "task": cfg["task"]}
         atomic_json(state_path, state)
         try:
-            if budget.check(0, 0):
-                raise StagePaused("budget_exhausted", stage=name)
             data = open_data(cfg, cfg["stage"], prepare=False)
             if pipeline.get("_data_identity") not in (None, data.identity):
                 raise ValueError("MODULAR_DATA_IDENTITY_MISMATCH")
             atomic_json(child.experiment / "data_manifest.json", {"identity": data.identity, "manifest": data.manifest})
-            if budget.check(0, 0):
-                raise StagePaused("budget_exhausted", stage=name)
-            pipeline = execute_stage(name, data, cfg, child, pipeline, budget, training_resume)
+            pipeline = execute_stage(name, data, cfg, child, pipeline, training_resume)
             verify_artifact(name, pipeline, data, cfg)
             if name in {"ae", "response", "pool", "state", "backward", "correction", "uncertainty", "potential"}:
                 current = pipeline[key]
@@ -286,14 +241,10 @@ def run_pipeline(config, monitor, pipeline, *, stage=None, state=None):
             status = "interrupted"
             raise
         finally:
-            local.pause()
-            local.check(0, 0)
-            if shared:
-                shared.pause()
-                shared.check(0, 0)
-            record = {**state["stages"][name], "status": status,
+            record = {**{k: v for k, v in state["stages"][name].items()
+                         if k not in {"budget", "reason", "checkpoint"}}, "status": status,
                       "wall_seconds": prior.get("wall_seconds", 0.) + time.monotonic() - start,
-                      "budget": local.summary(), "reused": False}
+                      "reused": False}
             if status == "complete":
                 record["artifact"] = pipeline[key]
             if paused is not None:
@@ -308,7 +259,7 @@ def run_pipeline(config, monitor, pipeline, *, stage=None, state=None):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         if paused is not None:
-            monitor.say(f"{name} 已暂停；保留本模块进度和全部上游产物。调整该阶段累计预算后恢复。")
+            monitor.say(f"{name} 已暂停：{paused}；已保留进度和上游产物。")
             return {"status": "paused", "stage": name, "pipeline": pipeline, "state": state}
     state["status"] = "complete" if not stage else "stage_complete"
     atomic_json(state_path, state)
@@ -324,11 +275,6 @@ def main(argv=None):
             if flag:
                 config[key] = False
         selected = args.stage or (config["modular"].get("mode") if config["modular"].get("mode") != "modular_pipeline" else None)
-        if args.budget_seconds is not None:
-            import math
-            if not selected or not math.isfinite(args.budget_seconds) or args.budget_seconds <= 0:
-                raise ValueError("--budget-seconds requires --stage and a positive finite cumulative cap")
-            config["modular"]["stages"].setdefault(selected, {})["budget_seconds"] = args.budget_seconds
         identity = science_identity(config)
         latest = ROOT / "experiments" / "modular_latest.json"
         run_id, state = args.resume or args.run_id, None

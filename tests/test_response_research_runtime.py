@@ -1,4 +1,4 @@
-"""Tiny CUDA BF16 pipeline regression; synthetic cells only, no real training."""
+"""Tiny pipeline regressions; synthetic cells only, no real training."""
 
 import json
 from pathlib import Path
@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from lung.engine.checkpoint import load_checkpoint
 from lung.engine.latent_pipeline import (
-    load_latent_adapter, run_latent_ae, run_latent_cache, run_latent_members,
+    load_latent_adapter, run_latent_ae, run_latent_cache, run_latent_cfm, run_latent_members,
 )
 from lung.engine.representation_cache import load_representation_cache
 from lung.engine.response import condition_kwargs
@@ -121,6 +121,66 @@ def _equal(left, right):
                 and torch.equal(left.coalesce().indices(), right.coalesce().indices())
                 and torch.equal(left.coalesce().values(), right.coalesce().values()))
     return torch.equal(left, right)
+
+
+@pytest.mark.parametrize("stop_at", [1, 2], ids=["mid_epoch", "end_cursor"])
+def test_cpu_cfm_resume_keeps_complete_epoch_aggregate(tmp_path, stop_at):
+    config = {
+        "device": "cpu", "seed": 712, "epochs": 2, "early_stopping": False,
+        "research": {"precision": {"mode": "fp32"},
+                     "latent": {"d_model": 8, "latent_dim": 4, "coupling_space": "latent",
+                                "ae": {"batch": 4}, "refine": {"enabled": False}}},
+        "response": {"lr": 1e-3, "min_lr": 0., "weight_decay": 0.01, "grad_clip": 1.,
+                     "conditions_per_update": 1, "ot_samples": 4, "cfm_samples": 4,
+                     "microbatch": 2, "mmd_samples": 4, "train_ode_steps": 2,
+                     "inference_ode_steps": 2},
+    }
+
+    class CFMMonitor(Monitor):
+        def record(self, stage, epoch, metrics):
+            # B3 records no MMD loss until refinement is enabled.
+            super().record(stage, epoch, {key: value for key, value in metrics.items()
+                                         if value is not None})
+
+    previous_threads = torch.get_num_threads()
+    try:
+        torch.set_num_threads(1)
+        data, upstream = TinyData(), Monitor(tmp_path / "upstream")
+        ae = run_latent_ae(config, upstream, data)
+        cache = run_latent_cache(config, upstream, data)
+        cfm_config = {**config, "research": {**config["research"], "latent": {
+            **config["research"]["latent"], "ae_checkpoint": ae["weights"],
+            "cache_dir": cache["directory"]}}}
+        complete = CFMMonitor(tmp_path / "complete")
+        run_latent_cfm(cfm_config, complete, data)
+        expected = load_checkpoint(complete.weights / "latent_cfm" / "member_1" / "last.pt")
+
+        resumed = CFMMonitor(tmp_path / "resumed")
+        run_latent_cfm(cfm_config, resumed, data, Budget(stop_at))
+        path = resumed.weights / "latent_cfm" / "member_1" / "last.pt"
+        partial = load_checkpoint(path)
+        assert partial["epoch"] == 0
+        assert partial["extra"]["resume"]["next_group_start"] == stop_at
+        assert partial["extra"]["resume"]["aggregate"]["cfm_loss"] > 0
+        assert not resumed.records
+
+        run_latent_cfm(cfm_config, resumed, data)
+        actual = load_checkpoint(path)
+        assert len(resumed.records) == len(complete.records) == 2
+        for restored, full in zip(resumed.records, complete.records):
+            assert restored["epoch"] == full["epoch"]
+            for name in ("train/cfm_loss", "train/loss"):
+                assert restored["metrics"][name] == full["metrics"][name]
+        assert actual["counters"] == expected["counters"] == {"optimizer_step": 4}
+        assert actual["extra"]["early_stop"] == expected["extra"]["early_stop"]
+        for name in expected["model"]:
+            assert _equal(actual["model"][name], expected["model"][name])
+        for key, state in expected["optimizer"]["state"].items():
+            for name, value in state.items():
+                restored = actual["optimizer"]["state"][key][name]
+                assert _equal(restored, value) if torch.is_tensor(value) else restored == value
+    finally:
+        torch.set_num_threads(previous_threads)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")

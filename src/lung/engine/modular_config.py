@@ -1,6 +1,5 @@
 """Configuration and dependency graph for the independent modular entry."""
 
-import math
 from pathlib import Path
 
 from .config import ROOT, config_hash, load_config, merge, project_path
@@ -36,21 +35,13 @@ def load_modular_config(path="configs/modular_research.yaml"):
     for name, value in settings.get("stages", {}).items():
         if name not in STAGE_DEPENDENCIES or not isinstance(value, dict):
             raise ValueError(f"MODULAR_STAGE_UNKNOWN: {name}")
-        cap = value.get("budget_seconds")
-        if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float))
-                                or not math.isfinite(cap) or cap <= 0):
-            raise ValueError(f"MODULAR_BUDGET_INVALID: {name}")
         if "epochs" in value and (type(value["epochs"]) is not int or value["epochs"] < 1):
             raise ValueError(f"MODULAR_EPOCHS_INVALID: {name}")
-    cap = settings.get("response_budget_seconds")
-    if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float))
-                            or not math.isfinite(cap) or cap <= 0):
-        raise ValueError("MODULAR_RESPONSE_BUDGET_INVALID")
     return config
 
 
 def science_identity(config):
-    """Budget/UI adjustments do not discard completed compatible modules."""
+    """Ignore UI and retired time limits when identifying compatible modules."""
     settings = config.get("modular", {})
     stages = {name: {k: v for k, v in value.items() if k != "budget_seconds"}
               for name, value in settings.get("stages", {}).items()}
@@ -94,7 +85,6 @@ def dependency_plan(config, pipeline, records=None):
                      "missing_now": [k for k in STAGE_DEPENDENCIES[stage] if k not in available],
                      "provided_by_earlier_stages": [k for k in STAGE_DEPENDENCIES[stage] if k in planned and k not in available],
                      "action": "verify_reuse" if present else ("resume" if prior else "train"),
-                     "run_id": prior.get("run_id"),
-                     "budget_seconds": config["modular"]["stages"].get(stage, {}).get("budget_seconds")})
+                     "run_id": prior.get("run_id")})
         planned.add(key)
     return rows

@@ -15,15 +15,10 @@ from lung.engine.auxiliary import fit_epochs
 from lung.engine.checkpoint import load_checkpoint, seed_all
 from lung.engine.modular_budget import StagePaused
 from lung.engine.training_control import checkpoint_completion
+from conftest import assert_same
 
 
-@pytest.fixture(autouse=True)
-def cpu_only(monkeypatch):
-    threads = torch.get_num_threads()
-    torch.set_num_threads(1)
-    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
-    yield
-    torch.set_num_threads(threads)
+pytestmark = pytest.mark.usefixtures("cpu_only")
 
 
 class Monitor:
@@ -70,23 +65,6 @@ def validation(model):
 def run(model, rows, config, monitor, **kwargs):
     return fit_epochs("state", model, rows, scalar_loss, SimpleNamespace(identity="data"),
                       config, monitor, "fixture", {}, validation=validation, **kwargs)
-
-
-def assert_same(left, right):
-    if isinstance(left, torch.Tensor):
-        torch.testing.assert_close(left, right, rtol=0, atol=0)
-    elif isinstance(left, np.ndarray):
-        np.testing.assert_array_equal(left, right)
-    elif isinstance(left, dict):
-        assert left.keys() == right.keys()
-        for name in left:
-            assert_same(left[name], right[name])
-    elif isinstance(left, (list, tuple)):
-        assert len(left) == len(right)
-        for one, other in zip(left, right):
-            assert_same(one, other)
-    else:
-        assert left == right
 
 
 @pytest.mark.parametrize("stop_step", [1, 3, 4])

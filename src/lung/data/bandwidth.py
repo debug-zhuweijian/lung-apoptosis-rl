@@ -14,10 +14,8 @@ import pandas as pd
 import pyarrow.parquet as pq
 import torch
 
-from .reader import SparseRows
+from .reader import training_rows
 from .preprocess import standardized
-from .common import source_shard_registry
-from src.lung_data import PreparedLungData
 
 
 def _hash(value):
@@ -115,9 +113,7 @@ def build_bandwidths(root, assets, config, progress=None, *, device=None):
     genes = pd.read_parquet(assets / "genes.parquet")
     with np.load(assets / "normalization.npz", allow_pickle=False) as norm:
         mean, scale = norm["mean"], norm["scale"]
-    reader = SparseRows(root, genes["tahoe_column"],
-                        cache_size=1,
-                        registry=source_shard_registry(PreparedLungData(root, config["bundle"])))
+    reader = training_rows(root, assets, config, genes, cache_size=1)
     distances, pair_rows = [], []
     records = []
     for condition, pairs in sorted(selected.items()):

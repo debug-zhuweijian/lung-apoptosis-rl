@@ -1,4 +1,4 @@
-"""Matched population Annexin supervision; no cross-source pseudo-pairing."""
+"""Measured Annexin supervision with explicit observed/predicted feature contracts."""
 
 import copy
 import json
@@ -13,6 +13,8 @@ from .auxiliary import (fit_epochs, require_population_audit, dependency_record,
                         calibration_audit_binding, verify_auxiliary_dependencies)
 from .checkpoint import atomic_save, load_checkpoint, save_training, seed_all
 from .config import StageUnavailable, config_hash, file_hash, project_path
+from .endpoint_contract import (validate_manifest_v2, load_units_v2,
+                                dependency_files_v2)
 
 
 def frozen_feature_identity(pipeline):
@@ -28,9 +30,12 @@ def frozen_feature_identity(pipeline):
 def read_manifest(data, config, pipeline):
     value = config.get("endpoint_manifest")
     if not value:
-        raise StageUnavailable("ENDPOINT_UNAVAILABLE: no verified expression–Annexin pairing manifest; PROXY substitution forbidden")
+        raise StageUnavailable("ENDPOINT_UNAVAILABLE: no verified measured-Annexin supervision manifest; PROXY substitution forbidden")
     path = project_path(value)
     manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") == 2:
+        validate_manifest_v2(path, manifest, data.identity, pipeline)
+        return path, manifest
     required = (manifest.get("schema_version") == 1,
                 manifest.get("label_type") == "Annexin_positive_fraction",
                 bool(manifest.get("denominator")), bool(manifest.get("sampling_gate")),
@@ -44,6 +49,8 @@ def read_manifest(data, config, pipeline):
 
 def load_units(path, manifest, role, shape):
     """Role files keep C/E labels unopened during network fitting and G selection."""
+    if manifest.get("schema_version") == 2:
+        return load_units_v2(path, manifest, role, shape)
     entry = manifest.get("partitions", {}).get(role)
     if not entry:
         raise StageUnavailable(f"ENDPOINT_UNAVAILABLE: matched {role} partition missing")
@@ -85,8 +92,17 @@ class MatchedEndpointModel(nn.Module):
         self.head = EndpointHead(shape.state_dim, shape.d_model)
         self.calibrator = MonotoneEndpointCalibrator().requires_grad_(False)
         self.calibrated = False
+        self.endpoint_schema_version = 1
+        self.endpoint_protocol_ids = ()
+        self.endpoint_definition = None
+        self.feature_generation = None
 
     def raw(self, row):
+        if self.endpoint_schema_version == 2:
+            if row.get("protocol_id") not in self.endpoint_protocol_ids:
+                raise StageUnavailable("ENDPOINT_PROTOCOL_OUTSIDE_TRAINED_SCOPE")
+            if any(row.get(key) != value for key, value in self.endpoint_definition.items()):
+                raise StageUnavailable("ENDPOINT_OBSERVATION_DEFINITION_MISMATCH")
         device = next(self.parameters()).device
         def value(key):
             return torch.as_tensor(row[key], device=device, dtype=torch.float32)
@@ -99,10 +115,12 @@ class MatchedEndpointModel(nn.Module):
             raise ValueError("ENDPOINT_FEATURE_NONFINITE")
         return self.head(features)
 
-    def forward(self, row, history=None, lengths=None):
+    def forward(self, row, history=None, lengths=None, *, endpoint_protocol_id=None):
         if isinstance(row, dict):
             probability = self.raw(row)
         else:
+            if self.endpoint_schema_version == 2 and endpoint_protocol_id not in self.endpoint_protocol_ids:
+                raise StageUnavailable("ENDPOINT_PROTOCOL_OUTSIDE_TRAINED_SCOPE")
             if row.ndim != 2 or row.shape[-1] != self.shape.state_dim or history is None:
                 raise ValueError("Endpoint needs features [batch,state_dim] and raw ordered history.")
             hidden = self.history(history, lengths)
@@ -116,6 +134,8 @@ class MatchedEndpointModel(nn.Module):
 def train_endpoint(data, config, monitor, pipeline, resume=False):
     path, manifest = read_manifest(data, config, pipeline)
     shape = ModelConfig(**load_checkpoint(pipeline["response"][0])["metadata"]["model_config"])
+    if manifest["schema_version"] == 2:
+        return _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, shape, resume)
     units = {role: load_units(path, manifest, role, shape) for role in ("T", "V", "R", "G")}
     groups = {role: {row["group_id"] for row in rows} for role, rows in units.items()}
     for index, role in enumerate(groups):
@@ -159,6 +179,50 @@ def train_endpoint(data, config, monitor, pipeline, resume=False):
     return {**pipeline, "endpoint": str(selected)}
 
 
+def _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, shape, resume):
+    """Fit measured Y directly on frozen predicted features; select using V only."""
+    units = {role: load_units(path, manifest, role, shape) for role in ("T", "V")}
+    feature_identity = manifest["frozen_feature_identity"]
+    identity = config_hash({"manifest": file_hash(path), "features": feature_identity})
+    seed_all(config.get("seed", 20260923))
+    model = MatchedEndpointModel(shape).to(config["device"])
+    model.endpoint_schema_version = 2
+    model.endpoint_protocol_ids = tuple(sorted(manifest["protocols"]))
+    protocol = next(iter(manifest["protocols"].values()))
+    model.endpoint_definition = {key: protocol[key] for key in ("label_type", "denominator", "sampling_gate")}
+    model.feature_generation = manifest["feature_generation"]
+
+    def loss(network, row):
+        return (network.raw(row) - float(row["label_fraction"])).square()
+
+    def validation(network):
+        return {"val/loss": float(torch.stack([loss(network, row) for row in units["V"]]).mean())}
+
+    metadata = {"width": shape.d_model, "model_config": vars(shape), "train_role": "T",
+                "selection_role": "V", "endpoint_schema_version": 2,
+                "endpoint_protocol_ids": list(model.endpoint_protocol_ids),
+                "endpoint_definition": model.endpoint_definition,
+                "feature_generation": manifest["feature_generation"],
+                "supervision_kind": manifest["supervision_kind"],
+                "feature_kind": "predicted", "label_kind": "measured",
+                "label_type": manifest["label_type"], "protocols": manifest["protocols"],
+                "split_policy": manifest["split_policy"], "manifest_path": str(path),
+                "manifest_hash": file_hash(path), "frozen_feature_identity": feature_identity,
+                "calibrated": False,
+                "dependencies": dependency_record(pipeline,
+                    manifest["feature_dependencies"]["pipeline"], dependency_files_v2(path, manifest)),
+                "development_groups": sorted({row["group_id"] for rows in units.values() for row in rows})}
+    trained = fit_epochs("endpoint/predicted_measured", model, units["T"], loss, data, config,
+                         monitor, identity, metadata, validation, resume)
+    saved = load_checkpoint(trained)
+    selected = monitor.weights / "endpoint" / "selected.pt"
+    saved["metadata"] = {**saved["metadata"], "stage": "endpoint", "selected_by": "V",
+                         "selected_version": "schema2_T_predicted_measured",
+                         "calibration_status": "AWAITING_NUMERICAL_AUDIT"}
+    atomic_save(selected, saved)
+    return {**pipeline, "endpoint": str(selected)}
+
+
 def load_endpoint(path, data, device):
     saved = load_checkpoint(path)
     if saved["metadata"]["data_identity"] != data.identity or saved["epoch"] < 1:
@@ -166,6 +230,12 @@ def load_endpoint(path, data, device):
     model = MatchedEndpointModel(ModelConfig(**saved["metadata"]["model_config"]))
     model.load_state_dict(saved["model"])
     model.calibrated = saved["metadata"].get("calibrated", False)
+    model.endpoint_schema_version = saved["metadata"].get("endpoint_schema_version", 1)
+    if model.endpoint_schema_version == 2:
+        model.endpoint_protocol_ids = tuple(saved["metadata"]["endpoint_protocol_ids"])
+        model.endpoint_definition = saved["metadata"]["endpoint_definition"]
+        model.feature_generation = saved["metadata"]["feature_generation"]
+        model.feature_pipeline_stages = tuple(sorted(saved["metadata"]["dependencies"]["pipeline"]))
     return model.to(device).eval().requires_grad_(False)
 
 

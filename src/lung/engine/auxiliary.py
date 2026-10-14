@@ -29,11 +29,14 @@ def calibration_audit_binding(data, config, pipeline):
     protocol = config.get("protocol")
     protocol_hash = file_hash(project_path(protocol)) if protocol else config_hash(
         {"name": "single-exposure-24h", "horizon_hours": 24, "stop_tail": None})
+    endpoint_scope = ({"endpoint_protocol_id": config["endpoint_protocol_id"]}
+                      if "endpoint_protocol_id" in config else {})
     return {"data_identity": data.identity, "weights": weights, "protocol_hash": protocol_hash,
             "task": config.get("task"), "history_support": config.get("history_support", "single_exposure_only"),
             "population": config.get("population", 512),
             "inference_microbatch": config["response"].get("inference_microbatch", 1),
-            "inference_ode_steps": pipeline.get("inference_ode_steps", config["response"]["inference_ode_steps"])}
+            "inference_ode_steps": pipeline.get("inference_ode_steps", config["response"]["inference_ode_steps"]),
+            **endpoint_scope}
 
 
 def require_population_audit(data, config, pipeline):

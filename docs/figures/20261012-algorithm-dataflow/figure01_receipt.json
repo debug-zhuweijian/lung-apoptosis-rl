@@ -1,0 +1,39 @@
+{
+  "scientific_effect_claimed": false,
+  "validation": "Main-agent visual and source-flow review; one targeted correction removed auxiliary-source-to-Q connector",
+  "source_bindings": [
+    {
+      "path": "G:/研究生科研文件/毕业论文/研究架构.md",
+      "sha256": "34e08ddb0f48e035fc6b3ba4f6db4f9a172bb5e159a30bc9ca8c8ffff5fb188e"
+    },
+    {
+      "path": "I:/科研/肺癌细胞凋亡-强化学习/src/lung/engine/full_protocol_response.py",
+      "sha256": "af7aa029b98ca1e9e0b42d9001d6b49160884db04441727237d7c6eda50f13bf"
+    },
+    {
+      "path": "I:/科研/肺癌细胞凋亡-强化学习/src/lung/engine/raw_state_scoring.py",
+      "sha256": "6e613e1b50817f602df10b8eff4411c7664d8e72be8050cef3aea2efcbf756d5"
+    },
+    {
+      "path": "I:/科研/肺癌细胞凋亡-强化学习/src/lung/engine/joint_selection_learning.py",
+      "sha256": "5b05718d4c94d6d76c211ba735fa336a07fa5f240cbcd052e8a9e469c22004bc"
+    },
+    {
+      "path": "I:/科研/肺癌细胞凋亡-强化学习/src/lung/models/full_protocol.py",
+      "sha256": "c6bdce150ed8a0cc53e3e26d3f438597805f918c6a4a4e1fa4f6304e1aa64e27"
+    },
+    {
+      "path": "I:/科研/肺癌细胞凋亡-强化学习/src/lung/models/martin_source.py",
+      "sha256": "9f12316d25a5a395035442e20a50ad7d41e11257ec04edc06ca1a5b3bf185dcd"
+    }
+  ],
+  "figure": "I:\\科研\\肺癌细胞凋亡-强化学习\\docs\\figures\\20261012-algorithm-dataflow\\figure01_dataflow.png",
+  "width": 1586,
+  "height": 992,
+  "generator": "built-in image_gen",
+  "sha256": "073050b0eef0c70c7c7e2c741e126033fe953a73d24993f54f13572600ce38fd",
+  "schema": "algorithm-dataflow-figure-v1",
+  "data_jobs_started": 0,
+  "research_model_operations": 0,
+  "date": "2026-10-12"
+}

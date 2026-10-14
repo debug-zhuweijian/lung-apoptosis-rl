@@ -32,3 +32,19 @@ experiments/
 *.env
 .env.*
 !.env.example
+
+# Local agent state.
+.omc/
+
+# Source text and capture caches remain local.
+08-datasets/**/source_reviews/**/*.md
+!08-datasets/**/source_reviews/**/README.md
+!08-datasets/**/source_reviews/**/*_log.md
+!08-datasets/**/source_reviews/**/Hastings_FUCCI_availability.md
+!08-datasets/**/source_reviews/**/independent_review.md
+!08-datasets/**/source_reviews/**/independent_v2_acceptance.md
+!08-datasets/**/source_reviews/**/other_source_readback.md
+!08-datasets/**/source_reviews/**/source_evidence.md
+!08-datasets/**/source_reviews/**/Followup_leads_review.md
+!08-datasets/**/source_reviews/**/dose_protocol_readback.md
+!08-datasets/**/source_reviews/**/material_identity_readback.md

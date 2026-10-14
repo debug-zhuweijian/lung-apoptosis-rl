@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 import json
 import logging
 import os
 from pathlib import Path
 import shutil
+import stat as stat_module
 import tempfile
 import time
 
@@ -23,7 +25,31 @@ LOG = logging.getLogger(__name__)
 
 def file_identity(path):
     stat = path.stat()
-    return (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
+    return _stat_identity(stat)
+
+
+def _stat_identity(stat):
+    return (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino, stat.st_dev)
+
+
+def _mapping_identity(target):
+    """Cheap identity checks only for ordinary leaves of a freshly resolved target."""
+    stamps = []
+    for name in ("manifest.json", "data.npy", "indices.npy", "indptr.npy"):
+        stat = (target / name).lstat()
+        if (stat_module.S_ISLNK(stat.st_mode)
+                or getattr(stat, "st_file_attributes", 0) & 0x400):
+            return None  # Includes Windows junctions and other reparse points.
+        stamps.append(_stat_identity(stat))
+    return tuple(stamps)
+
+
+def _mapped_matrix(manifest, arrays):
+    # Give callers independent CSR wrappers sharing only read-only mapped arrays.
+    matrix = sparse.csr_matrix(tuple(manifest["shape"]), dtype=arrays["data"].dtype)
+    matrix.data, matrix.indices, matrix.indptr = (arrays[name]
+                                                 for name in ("data", "indices", "indptr"))
+    return matrix
 
 
 def _inside_resolved(parent, name):
@@ -40,15 +66,31 @@ class CSRCache:
     Cached arrays are hash-checked on first use and whenever their file identity
     changes. LRU eviction does not force another full scan. OS-backed read-only
     mappings avoid retaining decompressed shards in Python heap memory.
+    max_open_mappings enables bounded reuse; zero keeps the original reopen path.
+    Eviction drops references rather than closing mappings held by a caller.
     """
 
-    def __init__(self, root, directory=DEFAULT_CACHE):
+    def __init__(self, root, directory=DEFAULT_CACHE, *, max_open_mappings=0):
+        if type(max_open_mappings) is not int or max_open_mappings < 0:
+            raise ValueError("max_open_mappings must be a nonnegative integer")
         self.root = Path(root).resolve()
+        self._directory_path = self.root / directory
         self.directory = inside(self.root, directory)
+        self.max_open_mappings = max_open_mappings
+        self._mappings = OrderedDict()
         self._sources = {}
         self._validated = {}
         self._last_progress = float("-inf")
         self._built = 0
+
+    def clear(self):
+        """Drop owned references; caller-held mmap views remain valid until released."""
+        self._mappings.clear()
+        self._sources.clear()
+        self._validated.clear()
+
+    def close(self):
+        self.clear()
 
     def source(self, name, record=None):
         path = inside(self.root, name)
@@ -76,13 +118,17 @@ class CSRCache:
     def load(self, name, record=None):
         source, (stamp, digest, source_shape) = self.source(name, record)
         # Resolve again so a directory replaced with a symlink cannot escape.
-        directory = inside(self.root, self.directory)
+        directory = inside(self.root, self._directory_path)
         key = digest_json({"schema": SCHEMA, "source_sha256": digest})
         target = _inside_resolved(directory, key)
         if not target.exists():
             self._build(source, stamp, digest, target)
-            directory = inside(self.root, self.directory)
+            directory = inside(self.root, self._directory_path)
             target = _inside_resolved(directory, key)
+        cached = self._mappings.pop(target, None)
+        if cached is not None and _mapping_identity(target) == cached[0]:
+            self._mappings[target] = cached
+            return _mapped_matrix(cached[1], cached[2])
         manifest_path = _inside_resolved(target, "manifest.json")
         array_paths = {name: _inside_resolved(target, f"{name}.npy")
                        for name in ("data", "indices", "indptr")}
@@ -119,11 +165,17 @@ class CSRCache:
             if tuple(file_identity(path) for path in stamp_paths) != current:
                 raise ValueError("CSR cache changed during validation")
             self._validated[target] = current
+        if self.max_open_mappings:
+            mapping_stamp = _mapping_identity(target)
+            if mapping_stamp is not None:
+                if mapping_stamp != current:
+                    raise ValueError("CSR cache changed during validation")
+                self._mappings[target] = (current, manifest, arrays)
+                while len(self._mappings) > self.max_open_mappings:
+                    self._mappings.popitem(last=False)
         # Direct assignment preserves even int64 index arrays without scipy's
         # constructor silently downcasting/copying them into heap allocations.
-        matrix = sparse.csr_matrix(shape, dtype=data.dtype)
-        matrix.data, matrix.indices, matrix.indptr = data, indices, indptr
-        return matrix
+        return _mapped_matrix(manifest, arrays)
 
     def _build(self, source, stamp, digest, target):
         target.parent.mkdir(parents=True, exist_ok=True)

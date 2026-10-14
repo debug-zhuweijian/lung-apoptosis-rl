@@ -30,12 +30,14 @@ from lung.models import (ModelConfig, entropic_ot, rbf_mmd, sample_ot_pairs)
 from ..models.flow import heun_integrate
 from ..models.latent_staged import LatentMember, SharedAutoencoder
 from .async_checkpoint import BackgroundSaver, clone_snapshot
+from .ae_data import AEDataSupply
 from .checkpoint import atomic_save, load_checkpoint, rng_state
 from .config import config_hash
 from .numerics import PrecisionPolicy, apply_seed, policy_autocast
 from .representation_cache import (ensure_representation_cache, encoder_identity,
                                    load_representation_cache)
 from .response import condition_kwargs, projected, tensor
+from .response_training import batch_tensor
 
 LATENT_RNG_POLICY = "latent_cfm_numpy_torch_separate_v1"
 
@@ -227,7 +229,7 @@ def _payload(model_state, shared_state, optimizer_state, *, epoch, identity, met
             "extra": extra}
 
 
-def run_latent_ae(config, monitor, data, budget):
+def run_latent_ae(config, monitor, data, budget=None):
     settings = latent_settings(config)
     ae = settings["ae"]
     device = torch.device(config["device"])
@@ -269,102 +271,110 @@ def run_latent_ae(config, monitor, data, budget):
             policy.apply()
     shared_state = {key: value.detach().to("cpu", copy=True)
                     for key, value in shared.state_dict().items()}
-    for epoch in range(epoch0, config["epochs"]):
-        if budget.exhausted or (config.get("workflow") == "modular_stage" and budget.check(stop.steps, epoch)):
-            break
-        shared.train()
-        rng = np.random.default_rng(config["seed"] + 100000 + epoch)
-        keys = list(data.iter_response_epoch("T", config["seed"] + 100000 + epoch))
-        if resume_position is not None:
-            if resume_position["keys"] != keys:
-                raise ValueError("AE_RESUME_CONDITION_ORDER_MISMATCH")
-            rng.bit_generator.state = resume_position["numpy_rng"]
-            resume_position = None
-        group_size = cfg["conditions_per_update"]
-        if cursor > len(keys) or not (cursor == len(keys) or cursor % group_size == 0):
-            raise ValueError("AE_RESUME_CURSOR_MISMATCH")
-        aggregate = float(saved["extra"].get("resume", {}).get("aggregate", 0.)) if cursor and saved else 0.
-        exhausted = False
-        for start in range(cursor, len(keys), group_size):
-            group = keys[start:start + group_size]
-            optimizer.zero_grad(set_to_none=True)
-            for condition in group:
-                drawn = data.sample_response(condition, batch, rng, role="T")
-                x = tensor(np.concatenate([drawn["control"], drawn["target"]]), device)
-                with policy_autocast(shared, device):
-                    loss = shared.reconstruction_loss(x).float()
-                if not torch.isfinite(loss):
-                    raise FloatingPointError("NONFINITE_AE_RECONSTRUCTION")
-                (loss / len(group)).backward()
-                aggregate += float(loss.detach()) / len(keys)
-            torch.nn.utils.clip_grad_norm_(shared.parameters(), cfg["grad_clip"],
-                                           error_if_nonfinite=True)
-            optimizer.step()
-            stop.step_done()
-            exhausted = budget.check(stop.steps, epoch)
-            if exhausted or config.get("workflow") == "modular_stage":
-                # Persist every modular update so a manual stop preserves progress.
-                position = {"epoch": epoch, "next_group_start": start + len(group),
-                            "keys": keys, "numpy_rng": rng.bit_generator.state, "aggregate": aggregate}
-                payload = _payload(shared.state_dict(), shared_state,
-                                   optimizer.state_dict(), epoch=epoch, identity=identity,
-                                   metadata={"stage": "latent_ae", "model_config": asdict(shape),
-                                             "data_identity": data.identity,
-                                             "precision": policy.identity()},
-                                   counters={"epoch": epoch, "optimizer_step": stop.steps},
-                                   extra={"best": best, "resume": position,
-                                           "budget_exhausted": bool(exhausted),
-                                          "early_stop": stop.state_dict()})
-                atomic_save(folder / "last.pt", payload)
-            if exhausted:
+    with AEDataSupply(data, batch) as supply:
+        for epoch in range(epoch0, config["epochs"]):
+            if budget is not None and (budget.exhausted or (
+                    config.get("workflow") == "modular_stage" and budget.check(stop.steps, epoch))):
                 break
-        cursor = 0
-        if exhausted or (config.get("workflow") == "modular_stage" and budget.check(stop.steps, epoch)):
-            monitor.say("AE 预算在本轮中途耗尽：已保存组游标快照（不标记 epoch 完成）。")
-            break
-        validation = _ae_validation(shared, data, batch, device, policy)
-        improved = stop.observe(validation["loss"])
-        if improved:
-            best = validation["loss"]
-        extra = {"best": best, "validation": validation, "early_stop": stop.state_dict(),
-                  "budget_exhausted": False,
-                  "training_completion": {"status": "complete" if stop.stopped or epoch + 1 >= config["epochs"] else "running",
-                      "reason": "validation_plateau" if stop.stopped else "max_epochs",
-                      "target_epochs": config["epochs"], "actual_epochs": epoch + 1, "actual_updates": stop.steps}}
-        payload = _payload(shared.state_dict(), shared_state, optimizer.state_dict(),
-                           epoch=epoch + 1, identity=identity,
-                           metadata={"stage": "latent_ae", "model_config": asdict(shape),
-                                     "data_identity": data.identity,
-                                     "precision": policy.identity()},
-                           counters={"epoch": epoch + 1, "optimizer_step": stop.steps},
-                           extra=extra)
-        if improved:
-            atomic_save(folder / "best.pt", payload)
-        atomic_save(folder / "last.pt", payload)
-        monitor.record("latent_ae", epoch + 1,
-                       {"reconstruction_loss": aggregate,
-                        **{f"val/{key}": value for key, value in validation.items()}})
-        if stop.stopped:
-            break
+            shared.train()
+            rng = np.random.default_rng(config["seed"] + 100000 + epoch)
+            keys = list(data.iter_response_epoch("T", config["seed"] + 100000 + epoch))
+            if resume_position is not None:
+                if resume_position["keys"] != keys:
+                    raise ValueError("AE_RESUME_CONDITION_ORDER_MISMATCH")
+                rng.bit_generator.state = resume_position["numpy_rng"]
+                resume_position = None
+            group_size = cfg["conditions_per_update"]
+            if cursor > len(keys) or not (cursor == len(keys) or cursor % group_size == 0):
+                raise ValueError("AE_RESUME_CURSOR_MISMATCH")
+            aggregate = float(saved["extra"].get("resume", {}).get("aggregate", 0.)) if cursor and saved else 0.
+            exhausted = False
+            with supply.groups(enabled=supply.reader is not None) as prefetch:
+                for start in range(cursor, len(keys), group_size):
+                    group = keys[start:start + group_size]
+                    batches = prefetch.consume(group, rng)
+                    prefetch.queue(keys[start + len(group):start + len(group) + group_size], rng)
+                    optimizer.zero_grad(set_to_none=True)
+                    for drawn in batches:
+                        x = batch_tensor(np.concatenate([drawn["control"], drawn["target"]]), device,
+                                         pin_memory=supply.reader is not None)
+                        with policy_autocast(shared, device):
+                            loss = shared.reconstruction_loss(x).float()
+                        if not torch.isfinite(loss):
+                            raise FloatingPointError("NONFINITE_AE_RECONSTRUCTION")
+                        (loss / len(group)).backward()
+                        aggregate += float(loss.detach()) / len(keys)
+                    torch.nn.utils.clip_grad_norm_(shared.parameters(), cfg["grad_clip"],
+                                                   error_if_nonfinite=True)
+                    optimizer.step()
+                    stop.step_done()
+                    exhausted = budget.check(stop.steps, epoch) if budget is not None else False
+                    if exhausted or config.get("workflow") == "modular_stage":
+                        # Only the consumed group contributes its RNG and cursor.
+                        position = {"epoch": epoch, "next_group_start": start + len(group),
+                                    "keys": keys, "numpy_rng": rng.bit_generator.state, "aggregate": aggregate}
+                        payload = _payload(shared.state_dict(), shared_state,
+                                           optimizer.state_dict(), epoch=epoch, identity=identity,
+                                           metadata={"stage": "latent_ae", "model_config": asdict(shape),
+                                                     "data_identity": data.identity,
+                                                     "precision": policy.identity()},
+                                           counters={"epoch": epoch, "optimizer_step": stop.steps},
+                                           extra={"best": best, "resume": position,
+                                                  "budget_exhausted": bool(exhausted),
+                                                  "early_stop": stop.state_dict()})
+                        atomic_save(folder / "last.pt", payload)
+                    if exhausted:
+                        break
+            cursor = 0
+            if exhausted or (budget is not None and config.get("workflow") == "modular_stage"
+                             and budget.check(stop.steps, epoch)):
+                monitor.say("AE 预算在本轮中途耗尽：已保存组游标快照（不标记 epoch 完成）。")
+                break
+            validation = _ae_validation(shared, data, batch, device, policy, supply=supply)
+            improved = stop.observe(validation["loss"])
+            if improved:
+                best = validation["loss"]
+            extra = {"best": best, "validation": validation, "early_stop": stop.state_dict(),
+                     "budget_exhausted": False,
+                     "training_completion": {"status": "complete" if stop.stopped or epoch + 1 >= config["epochs"] else "running",
+                         "reason": "validation_plateau" if stop.stopped else "max_epochs",
+                         "target_epochs": config["epochs"], "actual_epochs": epoch + 1, "actual_updates": stop.steps}}
+            payload = _payload(shared.state_dict(), shared_state, optimizer.state_dict(),
+                               epoch=epoch + 1, identity=identity,
+                               metadata={"stage": "latent_ae", "model_config": asdict(shape),
+                                         "data_identity": data.identity,
+                                         "precision": policy.identity()},
+                               counters={"epoch": epoch + 1, "optimizer_step": stop.steps},
+                               extra=extra)
+            if improved:
+                atomic_save(folder / "best.pt", payload)
+            atomic_save(folder / "last.pt", payload)
+            monitor.record("latent_ae", epoch + 1,
+                           {"reconstruction_loss": aggregate,
+                            **{f"val/{key}": value for key, value in validation.items()}})
+            if stop.stopped:
+                break
     weights = folder / "best.pt" if (folder / "best.pt").exists() else folder / "last.pt"
     _write_stage_state(monitor, latent_ae={"weights": str(weights)})
     return {"weights": str(weights), "best": best, "identity": identity}
 
 
 @torch.no_grad()
-def _ae_validation(shared, data, batch, device, policy=None):
+def _ae_validation(shared, data, batch, device, policy=None, *, supply=None):
     apply_seed(20260923 + 998, policy)
     rng = np.random.default_rng(20260923 + 998)
     losses = []
     for condition in data.condition_ids("V"):
-        drawn = data.sample_response(condition, batch, rng, role="V")
-        x = tensor(np.concatenate([drawn["control"], drawn["target"]]), device)
+        drawn = (data.sample_response(condition, batch, rng, role="V") if supply is None
+                 else supply.sample_group([condition], rng, role="V")[0])
+        x = batch_tensor(np.concatenate([drawn["control"], drawn["target"]]), device,
+                         pin_memory=supply is not None and supply.reader is not None)
         with policy_autocast(shared, device):
             losses.append(float(shared.reconstruction_loss(x).float()))
     return {"loss": float(np.mean(losses))}
 
 
-def run_latent_cache(config, monitor, data, budget):
+def run_latent_cache(config, monitor, data, budget=None):
     device = torch.device(config["device"])
     ae_path = _resolve_ae_checkpoint(config, monitor)
     shared = _load_shared(config, data, device, ae_path)
@@ -375,7 +385,7 @@ def run_latent_cache(config, monitor, data, budget):
 
     directory, status = ensure_representation_cache(
         data, shared, _resolve_cache_dir(config, monitor), device, progress=progress,
-        stop_check=budget.check)
+        stop_check=budget.check if budget is not None else None)
     cache = load_representation_cache(directory, "cpu",
                                       expected_data_identity=data.identity,
                                       expected_encoder=encoder_identity(shared, shared.config))
@@ -390,14 +400,15 @@ def run_latent_cache(config, monitor, data, budget):
             "status": status, "encoder": manifest["encoder"]}
 
 
-def run_latent_cfm(config, monitor, data, budget):
+def run_latent_cfm(config, monitor, data, budget=None):
     settings = latent_settings(config)
     device = torch.device(config["device"])
     policy = PrecisionPolicy.from_config(config)
     shared = _load_shared(config, data, device,
                           ae_path=str(_resolve_ae_checkpoint(config, monitor)))
     directory, _ = ensure_representation_cache(
-        data, shared, _resolve_cache_dir(config, monitor), device, stop_check=budget.check)
+        data, shared, _resolve_cache_dir(config, monitor), device,
+        stop_check=budget.check if budget is not None else None)
     cache = load_representation_cache(directory, device,
                                       expected_data_identity=data.identity,
                                       expected_encoder=encoder_identity(shared, shared.config))
@@ -470,7 +481,8 @@ def run_latent_cfm(config, monitor, data, budget):
     saver = BackgroundSaver()
     try:
         for epoch in range(epoch0, config["epochs"]):
-            if budget.exhausted or (config.get("workflow") == "modular_stage" and budget.check(step, epoch)):
+            if budget is not None and (budget.exhausted or (
+                    config.get("workflow") == "modular_stage" and budget.check(step, epoch))):
                 break
             refine_active = refine_enabled and epoch + 1 > refine_epoch
             if refine_active and not member.decoder[0].weight.requires_grad:
@@ -494,6 +506,8 @@ def run_latent_cfm(config, monitor, data, budget):
             if cursor > len(keys) or not (cursor == len(keys) or cursor % group_size == 0):
                 raise ValueError("LATENT_RESUME_CURSOR_MISMATCH")
             aggregate = {"cfm_loss": 0., "mmd_loss": None, "loss": 0.}
+            if cursor and saved is not None:
+                aggregate = {**aggregate, **saved["extra"].get("resume", {}).get("aggregate", {})}
             for start in range(cursor, len(keys), cfg["conditions_per_update"]):
                 group = keys[start:start + cfg["conditions_per_update"]]
                 optimizer.zero_grad(set_to_none=True)
@@ -530,7 +544,7 @@ def run_latent_cfm(config, monitor, data, budget):
                             "keys": keys, "aggregate": aggregate,
                             "numpy_rng": rng.bit_generator.state,
                             "torch_rng": generator.get_state()}
-                exhausted = budget.check(step, epoch)
+                exhausted = budget.check(step, epoch) if budget is not None else False
                 snapshot = clone_snapshot(member, optimizer)
                 payload = _payload(snapshot["model"], shared_state, snapshot["optimizer"],
                                    epoch=epoch, identity=identity, metadata=metadata,
@@ -543,7 +557,8 @@ def run_latent_cfm(config, monitor, data, budget):
                     saver.flush()
                     break
             cursor = 0
-            if budget.exhausted or (config.get("workflow") == "modular_stage" and budget.check(step, epoch)):
+            if budget is not None and (budget.exhausted or (
+                    config.get("workflow") == "modular_stage" and budget.check(step, epoch))):
                 break
             saver.flush()
             validation = _cfm_validation(member, data, cache, cfg, device, policy)
@@ -688,7 +703,7 @@ def run_latent_members(config, monitor, data, budget):
     return train_latent_members(config, monitor, data, budget)
 
 
-def run_latent_stage(mode, config, monitor, data, budget):
+def run_latent_stage(mode, config, monitor, data, budget=None):
     if mode == "latent_ae":
         result = run_latent_ae(config, monitor, data, budget)
     elif mode == "latent_cache":
@@ -699,5 +714,5 @@ def run_latent_stage(mode, config, monitor, data, budget):
         result = run_latent_members(config, monitor, data, budget)
     else:
         raise ValueError(f"UNKNOWN_LATENT_STAGE: {mode}")
-    return {"stage": mode, **result, "budget": budget.summary(),
+    return {"stage": mode, **result, **({"budget": budget.summary()} if budget is not None else {}),
             "implementation_note": "static delivery; not executed in the writing session"}

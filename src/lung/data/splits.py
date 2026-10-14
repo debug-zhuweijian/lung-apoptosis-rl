@@ -21,12 +21,29 @@ def grouped_roles(groups, prefix="lung-v1|") -> dict[str, str]:
 
 def condition_roles(conditions: pd.DataFrame, chemical: pd.DataFrame):
     columns = ["drug_id", "chemical_or_experiment_group_id", "identity_status", "fingerprint_row"]
+    reviewed = "eligible_for_structural_features" in chemical.columns
+    if reviewed:
+        columns += ["eligible_for_structural_features", "is_vehicle", "identity_version"]
     result = conditions.merge(chemical[columns], on="drug_id", how="left", validate="many_to_one")
     treated = result["condition_type"].eq("treated")
-    valid = result["identity_status"].eq("parsed_full_form") & treated
+    if reviewed:
+        accepted_status = (result["identity_status"].eq("original_cid_structure_verified")
+                           | (result["identity_status"].eq("manufacturer_nominal_form_verified")
+                              & result["identity_version"].eq("identity-v3")))
+        valid = (accepted_status
+                 & result["eligible_for_structural_features"].eq(True) & treated
+                 & result["chemical_or_experiment_group_id"].notna())
+        controls = result["condition_type"].eq("control")
+        if not (result.loc[controls, "is_vehicle"].eq(True)
+                & result.loc[controls, "identity_status"].eq("vehicle_control")).all():
+            raise ValueError("Identity-v2 control conditions require a verified vehicle")
+    else:
+        valid = result["identity_status"].eq("parsed_full_form") & treated
     resolved = result.loc[valid].copy()
     role_map = grouped_roles(resolved["chemical_or_experiment_group_id"])
     result["role"] = result["chemical_or_experiment_group_id"].map(role_map)
+    if reviewed:
+        result["role"] = result["role"].where(valid)
     result["outer_split"] = result["role"].map(OUTER)
     result["eligible"] = valid | result["condition_type"].eq("control")
     result["source_id"] = result["source"]

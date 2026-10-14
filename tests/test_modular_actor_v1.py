@@ -1,15 +1,16 @@
 """Bounded synthetic checks of one Actor, stage ownership and exact continuation."""
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import fields, is_dataclass, replace
 from pathlib import Path
 import sys
 
+import numpy as np
 import pytest
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.engine import decision
-from lung.engine.checkpoint import load_checkpoint
+from lung.engine.checkpoint import atomic_json, atomic_save, load_checkpoint, rng_state
 from lung.rl import DAACConfig, DAACTrainer, CandidateRegistry
 from test_decision_engine_v1 import Monitor, synthetic_world
 from test_rl_v1 import complete_episode, system
@@ -138,7 +139,7 @@ def test_actor_initialization_imports_weights_only_and_rejects_identity_changes(
 
 def scheduled_config(config):
     return {**config, "epochs": 20, "daac": {**config["daac"], "actor_delay": 1,
-        "actor_schedule": {"drug": 1, "dose": 1, "joint": 2}, "max_seconds": 30.}}
+        "actor_schedule": {"drug": 1, "dose": 1, "joint": 2}}}
 
 
 def test_engine_stage_quota_complete_and_strict_resume(synthetic_world, tmp_path):
@@ -160,26 +161,39 @@ def test_engine_stage_quota_complete_and_strict_resume(synthetic_world, tmp_path
             "init_from": pipeline["daac"][0]}}, monitor, {}, resume=True)
 
 
-def test_engine_budget_exhaustion_can_resume_without_restarting_schedule(synthetic_world, tmp_path):
+def test_engine_ignores_legacy_time_budget_and_completes_schedule(synthetic_world, tmp_path):
     _, config, data, _ = synthetic_world
     config = scheduled_config(config)
-    config["daac"]["max_seconds"] = 1e-9
+    config["daac"].update(max_seconds=1e-9, resume_budget_seconds=1e-9)
     monitor = Monitor(tmp_path)
     pipeline = decision.train_decision("daac", data, config, monitor, {})
     last = load_checkpoint(pipeline["daac"][0])
-    paused = last["extra"]["decision_runtime"]
-    assert paused["status"] == "paused" and paused["reason"] == "budget_exhausted"
-    assert last["counters"]["actor_step"] == 0
-    result = decision.train_decision("daac", data, config, monitor, pipeline, resume=True)
-    assert load_checkpoint(result["daac"][0])["counters"]["actor_step"] == 0
-    extended = {**config, "daac": {**config["daac"], "max_seconds": 30. + 1e-9,
-                                "resume_budget_seconds": 30.}}
-    decision.train_decision("daac", data, extended, monitor, pipeline, resume=True)
-    resumed = load_checkpoint(monitor.weights / "daac/seed_0/last.pt")
-    assert resumed["counters"]["actor_step"] == 4
-    assert resumed["extra"]["decision_runtime"]["status"] == "complete"
-    assert resumed["extra"]["decision_runtime"]["elapsed_seconds"] >= paused["elapsed_seconds"]
-    assert resumed["extra"]["decision_runtime"]["budget_seconds"] == pytest.approx(30. + 1e-9)
+    runtime = last["extra"]["decision_runtime"]
+    assert runtime["status"] == "complete" and runtime["reason"] == "actor_schedule_complete"
+    assert last["counters"]["actor_step"] == 4
+    assert not any(key.startswith("budget") for key in runtime)
+    assert runtime["elapsed_seconds"] > config["daac"]["max_seconds"]
+
+
+def assert_same_state(left, right):
+    if isinstance(left, torch.Tensor):
+        assert torch.equal(left, right)
+    elif isinstance(left, np.ndarray):
+        np.testing.assert_array_equal(left, right)
+    elif isinstance(left, dict):
+        assert left.keys() == right.keys()
+        for key in left:
+            assert_same_state(left[key], right[key])
+    elif isinstance(left, (tuple, list)):
+        assert type(left) is type(right) and len(left) == len(right)
+        for a, b in zip(left, right):
+            assert_same_state(a, b)
+    elif is_dataclass(left):
+        assert type(left) is type(right)
+        for field in fields(left):
+            assert_same_state(getattr(left, field.name), getattr(right, field.name))
+    else:
+        assert left == right
 
 
 @pytest.mark.parametrize("boundary", [1, 2])
@@ -203,34 +217,43 @@ def test_engine_stage_boundary_interruption_matches_continuous_run(synthetic_wor
         decision.train_decision("daac", data, config, interrupted, {})
     committed = load_checkpoint(interrupted.weights / "daac/seed_0/last.pt")
     assert committed["counters"]["actor_step"] == boundary
+    atomic_save(tmp_path / "interrupted-boundary.pt", committed)
     monkeypatch.setattr(decision, "_boundary_save", original)
     decision.train_decision("daac", data, config, interrupted, {}, resume=True)
     continuous = load_checkpoint(full.weights / "daac/seed_0/last.pt")
     resumed = load_checkpoint(interrupted.weights / "daac/seed_0/last.pt")
     assert continuous["counters"] == resumed["counters"]
     assert continuous["learner"]["actor_stage_events"] == resumed["learner"]["actor_stage_events"]
-    for part in ("actor", "critics", "targets"):
-        assert all(torch.equal(value, resumed["learner"][part][key])
-                   for key, value in continuous["learner"][part].items())
+    assert_same_state(continuous["learner"], resumed["learner"])
+    assert_same_state(continuous["rng"], resumed["rng"])
 
 
-def test_engine_init_from_starts_fresh_and_then_resumes_its_own_experiment(synthetic_world, tmp_path):
+def test_engine_init_from_starts_fresh_and_then_resumes_its_own_experiment(synthetic_world, monkeypatch, tmp_path):
     _, config, data, _ = synthetic_world
     config = scheduled_config(config)
     source_monitor = Monitor(tmp_path / "source")
     source_path = decision.train_decision("daac", data, config, source_monitor, {})["daac"][0]
     source = load_checkpoint(source_path)
     new_monitor = Monitor(tmp_path / "new")
-    new_config = {**config, "daac": {**config["daac"], "max_seconds": 1e-9, "init_from": source_path}}
-    initialized_path = decision.train_decision("daac", data, new_config, new_monitor, {})["daac"][0]
-    initialized = load_checkpoint(initialized_path)
+    new_config = {**config, "daac": {**config["daac"], "init_from": source_path}}
+    original = decision._boundary_save
+
+    def interrupt_after_initial_save(*args, **kwargs):
+        original(*args, **kwargs)
+        raise KeyboardInterrupt("Test interruption after saving Actor-only initialization")
+
+    monkeypatch.setattr(decision, "_boundary_save", interrupt_after_initial_save)
+    with pytest.raises(KeyboardInterrupt):
+        decision.train_decision("daac", data, new_config, new_monitor, {})
+    monkeypatch.setattr(decision, "_boundary_save", original)
+    initialized = load_checkpoint(new_monitor.weights / "daac/seed_0/last.pt")
+    atomic_save(tmp_path / "actor-initialized.pt", initialized)
     assert initialized["counters"]["actor_step"] == 0
     assert initialized["learner"]["replay"]["records"] == []
     assert not initialized["learner"]["actor_optimizer"]["state"]
     assert initialized["metadata"]["initialization"]["components"] == ["actor"]
     assert all(torch.equal(value, source["model"][name]) for name, value in initialized["model"].items())
     continued = {**new_config, "daac": {key: value for key, value in new_config["daac"].items() if key != "init_from"}}
-    continued["daac"]["resume_budget_seconds"] = 30.
     decision.train_decision("daac", data, continued, new_monitor, {}, resume=True)
     complete = load_checkpoint(new_monitor.weights / "daac/seed_0/last.pt")
     assert complete["identity"] == initialized["identity"]
@@ -250,7 +273,7 @@ def test_resume_rejects_candidate_buffers_and_changed_schedule(system):
         same.load_state_dict(saved)
 
 
-def test_budget_pause_after_policy_update_preserves_exact_continuation(synthetic_world, monkeypatch, tmp_path):
+def test_legacy_budget_exhausted_checkpoint_preserves_exact_continuation(synthetic_world, monkeypatch, tmp_path):
     world, config, data, _ = synthetic_world
     world.adapter = replace(world.adapter, protocol=replace(world.adapter.protocol,
         horizon_ticks=1, stop_tails={("active", 0): "tail-1"}))
@@ -258,28 +281,59 @@ def test_budget_pause_after_policy_update_preserves_exact_continuation(synthetic
     full = Monitor(tmp_path / "full")
     decision.train_decision("daac", data, config, full, {})
     interrupted = Monitor(tmp_path / "paused")
-    original = decision._DecisionRuntime.exhausted
+    original = decision._boundary_save
 
-    def controlled_budget(runtime):
-        if runtime.values["environment_units"] >= 3:
-            runtime.budget.total = runtime.budget.summary()["consumed_seconds"]
-            runtime.budget.exhausted = True
-            return True
-        return original(runtime)
+    def interrupt_after_policy_update(*args, **kwargs):
+        original(*args, **kwargs)
+        if args[2].actor_step == 1:
+            raise KeyboardInterrupt("Test interruption after a committed policy update")
 
-    monkeypatch.setattr(decision._DecisionRuntime, "exhausted", controlled_budget)
-    path = decision.train_decision("daac", data, config, interrupted, {})["daac"][0]
+    monkeypatch.setattr(decision, "_boundary_save", interrupt_after_policy_update)
+    with pytest.raises(KeyboardInterrupt):
+        decision.train_decision("daac", data, config, interrupted, {})
+    monkeypatch.setattr(decision, "_boundary_save", original)
+    path = interrupted.weights / "daac/seed_0/last.pt"
     paused = load_checkpoint(path)
     assert paused["counters"]["actor_step"] == 1
     assert paused["learner"]["actor_stage"] == "dose"
-    assert paused["extra"]["decision_runtime"]["status"] == "paused"
-    assert paused["extra"]["decision_runtime"]["budget_exhausted"]
-    monkeypatch.setattr(decision._DecisionRuntime, "exhausted", original)
-    extended = {**config, "daac": {**config["daac"], "resume_budget_seconds": 30.}}
-    decision.train_decision("daac", data, extended, interrupted, {}, resume=True)
+    assert paused["learner"]["actor_optimizer"]["state"]
+    assert paused["learner"]["critic_optimizer"]["state"]
+    assert paused["learner"]["replay"]["records"]
+    legacy = {**paused["extra"]["decision_runtime"], "status": "paused", "reason": "budget_exhausted",
+              "elapsed_seconds": 100., "budget_seconds": 1e-9, "budget_exhausted": True,
+              "budget_extensions": [1e-9]}
+    assert decision._DecisionRuntime(legacy).values["status"] == "running"
+    paused["extra"]["decision_runtime"] = legacy
+    atomic_save(tmp_path / "legacy-budget-exhausted.pt", paused)
+    atomic_save(path, paused)
+    atomic_json(path.with_name("runtime.json"), {**legacy, "elapsed_seconds": 105.,
+        "identity": paused["identity"], "epoch": paused["epoch"], "counters": paused["counters"],
+        "cursor_phase": paused["extra"]["cursor"]["phase"],
+        "cursor_unit": paused["extra"]["cursor"]["unit"]})
+    collect = decision._collect_daac
+    restored = []
+
+    def check_restored_state(learner, *args, **kwargs):
+        if not restored:
+            assert_same_state(paused["learner"], learner.state_dict())
+            assert_same_state(paused["rng"], rng_state())
+            restored.append(True)
+        return collect(learner, *args, **kwargs)
+
+    monkeypatch.setattr(decision, "_collect_daac", check_restored_state)
+    legacy_config = {**config, "daac": {**config["daac"], "max_seconds": 1e-9,
+                                      "resume_budget_seconds": 1e-9}}
+    decision.train_decision("daac", data, legacy_config, interrupted, {}, resume=True)
+    assert restored == [True]
     continuous = load_checkpoint(full.weights / "daac/seed_0/last.pt")
-    resumed = load_checkpoint(interrupted.weights / "daac/seed_0/last.pt")
+    resumed = load_checkpoint(path)
+    assert continuous["identity"] == resumed["identity"]
     assert continuous["counters"] == resumed["counters"]
-    for part in ("actor", "critics", "targets"):
-        assert all(torch.equal(value, resumed["learner"][part][key])
-                   for key, value in continuous["learner"][part].items())
+    assert_same_state(continuous["learner"], resumed["learner"])
+    assert_same_state(continuous["rng"], resumed["rng"])
+    runtime = resumed["extra"]["decision_runtime"]
+    assert runtime["status"] == "complete" and runtime["elapsed_seconds"] >= 105.
+    assert not any(key.startswith("budget") for key in runtime)
+    for key in ("validation_seconds", "checkpoint_seconds"):
+        assert runtime[key] >= legacy[key]
+    assert all(runtime["stage_seconds"][stage] >= value for stage, value in legacy["stage_seconds"].items())

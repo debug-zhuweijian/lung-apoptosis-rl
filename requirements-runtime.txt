@@ -1,5 +1,8 @@
 # Verified installed study runtime, 2026-09-24. CUDA torch uses the official CUDA wheel index.
+--extra-index-url https://download.pytorch.org/whl/cu130
 torch==2.13.0+cu130
+filelock==3.31.2
+psutil==7.2.2
 numpy==2.5.1
 scipy==1.18.0
 pandas==3.0.3

@@ -1,8 +1,26 @@
 # 肺癌细胞凋亡—强化学习
 
-2026-10-07 模块化入口：PyCharm 使用 `F:/anaconda/envs/study/python.exe`，运行根目录 [train_modular_research.py](train_modular_research.py)，参数留空，读取 [configs/modular_research.yaml](configs/modular_research.yaml)。按独立 AE、h 缓存、潜空间响应、pool/state、必要审计、固定环境、势函数和同一个 Actor 的 drug→dose→joint 日程运行；默认单成员、单 seed、`run_ablations: false`。完整说明、预算续训及实际验收范围见[模块化实施回执](docs/modular_research_implementation.md)。旧的一次性训练路线已停止作为当前主线；下文旧入口说明保留作历史记录。
+2026-10-11 第二十二轮：21:41实读Bothe **12/12双端官方完整性闭合、5/12完整FASTQ配对检查、4/12真实计数**；四个闭合样本共同基因轴投影已逐值读回。22:19核对count/finalizer/storage/observation四个后台实例的实际PID、创建时刻、运行路径、命令和批准源码，下载支路已完成退出。全量计数、发布及bulk观察包尚待完成。用户最新要求“先做到这里”，随后明确“把这个阶段做完吧”：当前仅完成已启动Bothe数据阶段，其余新科研工作暂停，模型保持停止，阶段完成后收尾。见[接续与停止条件](experiments/20261011-data-alignment-round22/CONTINUATION_HANDOFF_2026-10-11.md)。
 
-当前已通过合成全链和有界真实全基因组件验证；**完整真实数值审计与受审计 World 中的 Actor/Critic 更新尚未完成，六项工程开训标准未全部通过**。新入口保留审计门禁，正式长时间训练由用户启动。代码仓库为 [GitHub 私有仓库](https://github.com/debug-zhuweijian/lung-apoptosis-rl)，数据、权重、缓存和实验运行产物留在本地。
+Martin双域真实表达与来源E/D/final、三独立P输入合同、原367条件native final/三结果比较、原C及联合G/Q已完成相应数据预检、工程验证和专项复审，真实模型效果未测。新GSE306207已读取8个A375序贯RNA样本并精确投影32,461基因，两药名义结构已核对；不能据此授予A549或凋亡功能资格。原划分只有化学实体留出；状态增量仍含板/重复混杂，独立剂量/时间方案停在未批准草稿。CellCage实际配对矩阵仍未取得。共享latent/bulk P、表达—实测功能连接、正式RL同链及序贯功能仍是完整目标缺口。最新依据见[第二十二轮综合验收](docs/DATA_ALIGNMENT_ROUND22_2026-10-11.md)、[待授权模型运行方案](docs/MODEL_EXECUTION_PLAN_ROUND22_2026-10-11.md)和[本轮实际证据](experiments/20261011-data-alignment-round22/)；下方保留原时点记录。
+
+2026-10-11 第二十一轮：Martin60个真实RNA双域2365440原值、joint mask与LOBO/cycle读取完成；16组/40名义RNA协议事件已与RNA/角色/FP/unknown联动。完整协议32身份保留Viel20/Nav8/Bothe4，Viel20实参可构造，24不同观测ID不代表24统计独立实验。88输入tests及四项独立审查通过；8fold bulk观测坐标已实际准备、root读回及独立关闭。pilot R1整端官方MD5/gzip已通过，23:49:05UTC root61714续传R2、73351恢复0296、5491remaining与10921countwaiter非终止；1277/92729/63888已终止，旧快照保留。真实counts仍0、训练停止；新FOXN3/GATOR1查证未补齐A549 RNA—Annexin关键矩阵。bulk出口/fullproducer/参数与A/B/C/D同链未验收。见[第二十一轮](docs/DATA_ALIGNMENT_ROUND21_2026-10-11.md)与[接续](experiments/20261011-data-alignment-round21/CONTINUATION_HANDOFF_2026-10-11.md)，下方旧轮次为当时快照。
+
+第二十轮最新恢复：先导28793达到声明长度但MD5及gzip CRC失败，已终止并保留错误副本；原登记路径从零重试54677已启动，5491剩余获取与10921计数等待继续，21:55:50 UTC root工具核三者非终止。真实counts/生产manifest/投影仍未完成，模型训练保持停止。[故障与恢复记录](experiments/20261011-data-alignment-round20/pilot_md5_diagnosis/README.md)保留官方复核、失败完整性和保留操作证据；不改校验值或将坏副本交给计数。
+
+第二十轮工程与受限数据补充：HM两条近似Annexin组均值已按来源与两个RNA group连接，未扩为六Y，角色未分配；Bothe官方ID桥17,107可测唯一映射及受控count→joint整数/mask消费接口已完成。131相关tests、源/metadata、文档链接与git diff-check通过。完整数据可行性与模型效果未验收。[完整第二十轮报告](docs/DATA_ALIGNMENT_ROUND20_2026-10-11.md)保留各阶段边界，下方101及十九轮进程描述是较早子阶段快照。
+
+2026-10-11 第二十轮：新增 HM97662 同来源 A549／1 μM／6天 RNA—Annexin 条件桥，真实六列表达已按 Ensembl 精确对齐 30,268／32,461 基因，缺失2,193保留NaN/mask；不补同细胞、逐重复或完整flow协议。功能metadata v2实际核28候选／24Y身份／14标准P请求／20完整物理候选及480角色记录，仍无P/G/Q产物。真实FASTQ与受控RNA→counts入口独立复审关闭，101项联测通过；root已启动12run顺序计数任务，等待各run正式下载回执和双完整gzip后才进入实际验证/比对/count。真实Bothe counts仍0，模型训练继续停止，完整A/B/C/D与同链可行性未验收。详见[第二十轮报告](docs/DATA_ALIGNMENT_ROUND20_2026-10-11.md)和[三个数据句柄接续](experiments/20261011-data-alignment-round20/CONTINUATION_HANDOFF_2026-10-11.md)。
+
+2026-10-11 数据对齐最新进展：新完整协议v3保持24候选/70事件，四Dex事件补齐名义结构，known FP20→24，旧v2仍可读。严格双端过滤与count矩阵接口独立复审关闭异常输入、文件发布及Windows注释编码问题；完整human hg19 index上10对参考DNA人工read实际跑通比对/filter/207,555-feature计数，预定坐标与count oracle一致。主代理138检查通过（127联测+11追加完成验收）；新增只读完成验收逐端重核文件/回执，旧下载协调器complete摘要不授独立完成资格。真实RNA先导与其余11run的两worker下载正在推进，真实counts尚未恢复；source出口/base kwargs/fullproducer、匹配权重、RNA—Annexin连接和整链科学评价仍pending，未恢复模型训练/真实推理。详见[第十九轮报告](docs/DATA_ALIGNMENT_ROUND19_2026-10-11.md)、[真实下载接续](experiments/20261011-data-alignment-round19/CONTINUATION_HANDOFF_2026-10-11.md)及[当前状态](docs/DATA_ALIGNMENT_STATUS_2026-10-10.md)。
+
+2026-10-07 模块化入口：PyCharm 使用 `F:/anaconda/envs/study/python.exe`，运行根目录 [train_modular_research.py](train_modular_research.py)，参数留空，读取 [configs/modular_research.yaml](configs/modular_research.yaml)。按独立 AE、h 缓存、潜空间响应、pool/state、必要审计、固定环境、势函数和同一个 Actor 的 drug→dose→joint 日程运行；默认单成员、单 seed、`run_ablations: false`。完整说明、断点续训及实际验收范围见[模块化实施回执](docs/modular_research_implementation.md)。正式训练不设墙钟时间上限。旧的一次性训练路线已停止作为当前主线；下文旧入口说明保留作历史记录。
+
+2026-10-08 AE 数据供给已接入逐细胞固定表达缓存、整组读取、只读映射复用和后台预取。118 项相关回归通过；真实完整16条件更新由13.42秒降至3.75秒，损失、参数、优化器和随机状态精确一致。已为原3431次更新、第84轮448/644进度登记保留断点的优化续训；缓存预建入口和验证范围见 [AE数据供给优化与续训](docs/AE数据供给优化与续训_2026-10-08.md)。
+
+2026-10-08 后续执行：CFM 续训指标恢复已修正，数值审计接入固定布局的批量推演。生产 AE 两完整轮包含验证和保存，实测约 4.57 分钟/轮；真实数据驱动的隔离 World/Actor/双 Critic 梯度先导已运行，正式审计资格仍未取得。测试模块整理为 66 个，当前续训登记为 `20261008-training-followup-continuation`。完整结果、留出基线比较及边界见 [训练验证与问题修复](docs/训练验证与问题修复_2026-10-08.md)。
+
+当前已通过合成全链和有界真实全基因组件验证；**完整真实数值审计与受审计 World 中的 Actor/Critic 更新尚未完成，六项工程开训标准未全部通过**。新入口保留审计门禁，正式长时间训练由用户启动。代码仓库为 [GitHub 公开仓库](https://github.com/debug-zhuweijian/lung-apoptosis-rl)，数据、权重、缓存和实验运行产物留在本地。
 
 2026-09-28 本轮并行调整：响应阶段默认使用两个独立进程同时训练成员，每成员四条件合批、每十六条件更新一次；同组表达请求合并读取。`member_workers` 可设为 5，计算合批数量也已取消固定八条件上限。按用户要求，本轮没有运行测试、性能基准或正式训练，速度和峰值内存尚未验证。源码与配置变化后，原入口会按版本规则新建套件，旧检查点保留。配置、日志和启动说明见 [响应成员并行训练](docs/response_parallel_2026-09-28.md)。
 
@@ -62,4 +80,12 @@ GPU预处理继续使用CUDA双精度统计、分块基因图及距离计算，�
 
 冻结的 TIDYI 基线重跑前会核对协议与脚本哈希。来源文件及历史结果中的原始路径、下载时间和执行时间保留为溯源信息，不表示新项目仍写入旧目录。
 
-数据本体、下载缓存、模型权重和日志不进入 Git/Git LFS。本目录尚未自动初始化 Git、提交或推送；后续版本管理另按用户指示执行。
+数据本体、下载缓存、模型权重和日志不进入 Git/Git LFS。本目录已纳入公开代码仓库；当前工作树的源码、配置与文档改动按实际范围审查，提交和推送分别按用户指示执行。
+
+## 环境重建与定向验证
+
+当前本机解释器为 `F:/anaconda/envs/study/python.exe`。直接依赖见 `requirements-runtime.txt`，Windows x64／Python 3.13.14 的 44 包依赖版本闭包见 [requirements-lock.txt](requirements-lock.txt)，包含 filelock 和性能测量使用的 psutil。安装使用官方 CUDA 13.0 wheel 索引；`configs/environment-study.lock.json` 保留为原环境快照。移机时在 `configs/runtime.json` 指向新解释器；版本锁尚未做干净环境安装和 wheel 哈希验证。
+
+现有环境不需要重装。新环境可用 `python -m pip install -r requirements-lock.txt`；固定版本安装的说明见 [pip 官方文档](https://pip.pypa.io/en/stable/topics/repeatable-installs/)。
+
+本轮测试整合后，AE 与表达缓存场景统一位于 `tests/test_ae_data_supply.py`；辅助预算和势函数预算共享局部启用的 CPU fixture。日常修改只运行相应子集，历史套件入口回归用于修改旧入口时；`test.py` 仍是冻结模型的独立评估入口。当前修复与真实运行记录见 [训练验证与问题修复](docs/训练验证与问题修复_2026-10-08.md)。

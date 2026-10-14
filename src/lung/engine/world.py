@@ -19,9 +19,30 @@ from .config import StageUnavailable, config_hash, file_hash, project_path, impl
 from .response import condition_kwargs, tensor, projected
 from .response_loader import load_response
 from .representation import load_representation, verify_response_representation
+from .endpoint_contract import FEATURE_KEYS
 
 
 INITIAL_STATE_VERSION = "fixed-observation-v2"
+
+
+def endpoint_inference_scope(endpoint, config, pipeline):
+    """Schema2 predictions are scoped to the recorded assay and generator."""
+    if getattr(endpoint, "endpoint_schema_version", 1) != 2:
+        return {}
+    actual_stages = {key for key in FEATURE_KEYS if pipeline.get(key)}
+    if actual_stages != set(getattr(endpoint, "feature_pipeline_stages", ())):
+        raise StageUnavailable("ENDPOINT_FEATURE_STAGE_SET_MISMATCH")
+    protocol_id = config.get("endpoint_protocol_id")
+    if protocol_id not in endpoint.endpoint_protocol_ids:
+        raise StageUnavailable("ENDPOINT_INFERENCE_PROTOCOL_REQUIRED_OR_UNSUPPORTED")
+    actual = {"population": config["population"],
+        "inference_ode_steps": pipeline.get("inference_ode_steps", config["response"]["inference_ode_steps"]),
+        "inference_microbatch": config["response"].get("inference_microbatch", 1),
+        "initial_state_interface": INITIAL_STATE_VERSION,
+        "history_support": config["history_support"]}
+    if (getattr(endpoint, "feature_generation", None) or {}).get("world_inference") != actual:
+        raise StageUnavailable("ENDPOINT_FEATURE_GENERATION_SCOPE_MISMATCH")
+    return {"endpoint_protocol_id": protocol_id, "endpoint_world_inference": actual}
 
 
 @dataclass(frozen=True)
@@ -103,6 +124,13 @@ class BiologicalWorld:
         self.steps = pipeline.get("inference_ode_steps", config["response"]["inference_ode_steps"])
         self.actions = self._action_metadata()
         self.registry, self.protocol = self._registry()
+        self.endpoint = None
+        endpoint_scope = {}
+        if config["task"] == "ANNEXIN-A549-V1":
+            self.endpoint = load_auxiliary(pipeline["endpoint"], data, self.device)
+            endpoint_scope = endpoint_inference_scope(self.endpoint, config, pipeline)
+        self.endpoint_call_kwargs = ({"endpoint_protocol_id": endpoint_scope["endpoint_protocol_id"]}
+                                     if endpoint_scope else {})
         biological_keys = ("representation", "response", "pool", "state", "backward", "correction", "correction_gate", "endpoint")
         weights = {key: [file_hash(path) for path in (pipeline[key] if isinstance(pipeline[key], list) else [pipeline[key]])]
                    for key in biological_keys if pipeline.get(key)}
@@ -112,7 +140,7 @@ class BiologicalWorld:
             "initial_state_interface": INITIAL_STATE_VERSION,
             "initial_state_seed": config.get("seed", 20260923),
             "inference_microbatch": self.inference_microbatch, "score_batch_size": self.score_batch_size,
-            "task": config["task"], "history_support": config["history_support"]})
+            "task": config["task"], "history_support": config["history_support"], **endpoint_scope})
         self.potential = None
         if pipeline.get("potential"):
             from lung.rl import PotentialNetwork
@@ -122,9 +150,6 @@ class BiologicalWorld:
             self.potential = PotentialNetwork(self.registry.spec).to(self.device)
             self.potential.load_state_dict(saved["model"])
             self.potential.eval().requires_grad_(False)
-        self.endpoint = None
-        if config["task"] == "ANNEXIN-A549-V1":
-            self.endpoint = load_auxiliary(pipeline["endpoint"], data, self.device)
         resolution_passed = bool(config.get("synthetic", False))
         if pipeline.get("numerical_audit"):
             audit = json.loads(Path(pipeline["numerical_audit"]).read_text(encoding="utf-8"))
@@ -161,7 +186,10 @@ class BiologicalWorld:
             ids = self.data.condition_ids("T")
         else:
             rows = self.data.reader.conditions
-            ids = sorted(rows.loc[rows.eligible & rows.condition_type.eq("treated"), "condition_id"])
+            eligible = rows.eligible & rows.condition_type.eq("treated")
+            if "decision_eligible" in rows:
+                eligible &= rows.decision_eligible.eq(True)
+            ids = sorted(rows.loc[eligible, "condition_id"])
         actions = {}
         for condition_id in ids:
             value = self.data.action_features(condition_id)
@@ -228,7 +256,11 @@ class BiologicalWorld:
         return registry, protocol
 
     def roots(self, role):
-        return [self.root(key, role) for key in self.data.condition_ids(role)]
+        keys = self.data.condition_ids(role)
+        if not self.data.synthetic and "decision_eligible" in self.data.reader.conditions:
+            allowed = self.data.reader.conditions.set_index("condition_id").decision_eligible
+            keys = [key for key in keys if bool(allowed.loc[key])]
+        return [self.root(key, role) for key in keys]
 
     def root(self, condition_id, role, *, expression=None, gene_ids=None, data_identity=None):
         """Freeze a reference draw, or supplied normalized expression (no resampling).
@@ -239,6 +271,10 @@ class BiologicalWorld:
         """
         if condition_id not in self.data.condition_ids(role):
             raise ValueError("ROOT_ROLE_MISMATCH")
+        if not self.data.synthetic and "decision_eligible" in self.data.reader.conditions:
+            row = self.data.reader.conditions.set_index("condition_id").loc[condition_id]
+            if not bool(row.decision_eligible):
+                raise ValueError("RESPONSE_ONLY_CONDITION_NOT_DECISION_ELIGIBLE")
         seed = stream_seed(self.config.get("seed", 20260923), INITIAL_STATE_VERSION,
                            self.data.identity, role, str(condition_id))
         count = max(self.n_pop, 16 if self.data.synthetic else 2048)
@@ -391,6 +427,8 @@ class BiologicalWorld:
 
     @torch.no_grad()
     def score_one(self, root, sequence, seed, *, n=None, ode_steps=None):
+        self._check_endpoint_resolution(self.n_pop if n is None else n,
+                                        self.steps if ode_steps is None else ode_steps)
         member = int(np.random.default_rng(stream_seed(seed, "member")).integers(len(self.members)))
         x, context = self.propagate(root, sequence, seed, n=n, scoring_member=member, ode_steps=ode_steps)
         z = encode_vectors(self.representation, x, self.device,
@@ -399,7 +437,8 @@ class BiologicalWorld:
             return float(self.classifier.population_proxy(z))
         features, history, elapsed = self._features(x, context, self._expanded(sequence))
         # Endpoint module owns its history encoder; it never borrows Actor states.
-        return float(self.endpoint(features[None], history[None], torch.tensor([len(history)], device=self.device))[0])
+        return float(self.endpoint(features[None], history[None], torch.tensor([len(history)], device=self.device),
+                                   **self.endpoint_call_kwargs)[0])
 
     @torch.no_grad()
     def _generate_requests(self, model, inputs, batch, seeds, step, member, elapsed, n, ode_steps):
@@ -469,27 +508,54 @@ class BiologicalWorld:
             else:
                 features, history, _ = self._features(x, context, self._expanded(sequence))
                 scores.append(float(self.endpoint(features[None], history[None],
-                    torch.tensor([len(history)], device=self.device))[0]))
+                    torch.tensor([len(history)], device=self.device), **self.endpoint_call_kwargs)[0]))
         return scores
 
-    def score(self, root, sequence, seeds):
-        return self.score_many(root, ((sequence, seeds),))[0]
+    def score(self, root, sequence, seeds, *, n=None, ode_steps=None):
+        return self.score_many(root, ((sequence, seeds),), n=n, ode_steps=ode_steps)[0]
 
-    def score_many(self, root, requests):
+    def score_many(self, root, requests, *, n=None, ode_steps=None):
+        return self._score_many(root, requests, n=n, ode_steps=ode_steps, diagnostic=False)
+
+    def score_diagnostic(self, root, sequence, seeds, *, n=None, ode_steps=None):
+        """V-only numerical sensitivity; these outputs are not formal rewards."""
+        if root.role != "V":
+            raise StageUnavailable("ENDPOINT_NUMERICAL_DIAGNOSTIC_REQUIRES_V")
+        return self._score_many(root, ((sequence, seeds),), n=n, ode_steps=ode_steps,
+                                diagnostic=True)[0]
+
+    def _check_endpoint_resolution(self, n, steps):
+        if getattr(self.endpoint, "endpoint_schema_version", 1) == 2:
+            recorded = self.endpoint.feature_generation["world_inference"]
+            if n != recorded["population"] or steps != recorded["inference_ode_steps"]:
+                raise StageUnavailable("ENDPOINT_SCORING_RESOLUTION_OUTSIDE_FROZEN_SCOPE")
+
+    def _score_many(self, root, requests, *, n, ode_steps, diagnostic):
+        n = self.n_pop if n is None else n
+        steps = self.steps if ode_steps is None else ode_steps
+        if isinstance(steps, bool) or not isinstance(steps, int) or steps < 1:
+            raise ValueError("SCORING_ODE_STEPS_INVALID")
+        if not diagnostic:
+            self._check_endpoint_resolution(n, steps)
         # Validate the immutable root even when all requested scalars are cached.
-        self._initial(root, self.n_pop)
+        self._initial(root, n)
         result = []
         for sequence, seeds in requests:
-            keys = [(root.root_id, root.role, root.payload.identity, self.adapter.versions,
+            seeds = tuple(seeds)
+            keys = [(('V_diagnostic',) if diagnostic else ()) +
+                    (root.root_id, root.role, root.payload.identity, self.adapter.versions,
                      self.biological_identity, self.protocol.version, tuple(sequence),
-                     self.n_pop, self.steps, int(seed)) for seed in seeds]
+                     n, steps, int(seed)) for seed in seeds]
             values = [self._score_cache.get(key) for key in keys]
-            missing = [i for i, value in enumerate(values) if value is None]
-            for start in range(0, len(missing), self.score_batch_size):
-                indices = missing[start:start+self.score_batch_size]
-                scores = self._score_seed_batch(root, sequence, [seeds[i] for i in indices], self.n_pop, self.steps)
+            for start in range(0, len(values), self.score_batch_size):
+                indices = list(range(start, min(start + self.score_batch_size, len(values))))
+                if all(values[i] is not None for i in indices):
+                    continue
+                # Preserve the declared request chunk if only part is cached.
+                scores = self._score_seed_batch(root, sequence, [seeds[i] for i in indices], n, steps)
                 for i, value in zip(indices, scores):
-                    values[i] = self._score_cache.put(keys[i], value)
+                    if values[i] is None:
+                        values[i] = self._score_cache.put(keys[i], value)
             result.append(torch.tensor(values, dtype=torch.float64))
         return tuple(result)
 

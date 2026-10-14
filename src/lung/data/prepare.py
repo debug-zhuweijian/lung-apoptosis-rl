@@ -16,7 +16,7 @@ import pyarrow.parquet as pq
 from src.lung_data import PreparedLungData
 
 from .chemistry import build_chemical_catalog
-from .common import OUTER, ROLES, atomic_json, dataset_config, digest_json, inside, sha256
+from .common import OUTER, ROLES, atomic_json, dataset_config, inside, sha256, training_contract, response_source_dependencies
 from .preprocess import build_preprocessing as _build_preprocessing
 from .splits import condition_roles, control_roles, tidyi_splits
 
@@ -34,14 +34,73 @@ def _verify_source_tables(data, names):
     return verified
 
 
-def _build_metadata(root, assets, config, progress):
+def _identity_catalog(root, verified, source_catalog, identity):
+    """Use the pinned reviewed full-form identities and their actual vectors."""
+    for name in ("drug_catalog", "tahoe_conditions"):
+        record = verified[name]
+        if identity["inputs"].get(record["path"]) != record["sha256"]:
+            raise ValueError(f"Drug identity was built for a different prepared table: {name}")
+    directory = inside(root, identity["manifest"]).parent
+    catalog = pd.read_parquet(directory / "drug_identity.parquet")
+    required = {"drug_id", "drug_name", "identity_id", "identity_status", "is_vehicle",
+                "eligible_for_structural_features", "fingerprint_row", "canonical_full_smiles"}
+    if not required.issubset(catalog.columns) or catalog["drug_id"].duplicated().any():
+        raise ValueError("Invalid drug identity catalog schema or duplicate drug_id")
+    if set(catalog["drug_id"]) != set(source_catalog["drug_id"]):
+        raise ValueError("Drug identity catalog does not cover the prepared source catalog exactly")
+    for name in ("eligible_for_structural_features", "is_vehicle"):
+        if catalog[name].isna().any() or not pd.api.types.is_bool_dtype(catalog[name]):
+            raise ValueError(f"Drug identity requires an explicit boolean {name}")
+    expected_vehicle = source_catalog.set_index("drug_id")["component_role"].isin(("vehicle", "vehicle_control"))
+    if not np.array_equal(catalog["is_vehicle"], catalog["drug_id"].map(expected_vehicle)):
+        raise ValueError("Drug identity vehicle labels differ from the prepared source")
+    usable = catalog["eligible_for_structural_features"]
+    statuses = ["original_cid_structure_verified"]
+    if identity["version"] == "identity-v3":
+        statuses.append("manufacturer_nominal_form_verified")
+    if (not catalog.loc[usable, "identity_status"].isin(statuses).all()
+            or catalog.loc[usable, "identity_id"].isna().any()
+            or catalog.loc[usable, "canonical_full_smiles"].isna().any()
+            or (usable & catalog["is_vehicle"]).any()):
+        raise ValueError("Drug identity feature mask conflicts with its review status")
+    if not catalog.loc[catalog["is_vehicle"], "identity_status"].eq("vehicle_control").all():
+        raise ValueError("Drug identity control status is not verified")
+    fp = np.load(directory / "morgan2048_chiral.npy", allow_pickle=False)
+    rows = catalog["fingerprint_row"].to_numpy()
+    if (fp.dtype != np.uint8 or fp.shape != (len(catalog), 2048) or not np.isin(fp, [0, 1]).all()
+            or not pd.api.types.is_integer_dtype(rows.dtype)
+            or sorted(rows.tolist()) != list(range(len(catalog)))):
+        raise ValueError("Drug identity requires one indexed binary 2048-bit fingerprint per drug")
+    nonzero = np.any(fp[rows], axis=1)
+    if not np.array_equal(nonzero, usable.to_numpy()):
+        raise ValueError("Drug identity fingerprints disagree with the usable mask")
+    catalog = catalog.assign(
+        chemical_or_experiment_group_id=catalog["identity_id"].where(usable | catalog["is_vehicle"]),
+        identity_version=identity["version"],
+    )
+    return catalog, fp, {
+        "identity_version": identity["version"], "canonicalization": "reviewed_isomeric_full_form_no_desalting",
+        "identity_limit": ("original_CID_reference_verified_not_vendor_material_or_cross_source_pairing"
+                           if identity["version"] == "identity-v2" else
+                           "nominal_reference_verified_not_experimental_lot_or_cross_source_pairing"),
+        "fingerprint": {"type": "Morgan_binary", "radius": 2, "bits": 2048, "includeChirality": True},
+        "eligible_drugs": int(usable.sum()),
+        "excluded_drugs": int((~usable & ~catalog["is_vehicle"]).sum()),
+    }
+
+
+def _build_metadata(root, assets, config, progress, identity=None):
     data = PreparedLungData(root, config["bundle"])
     verified = _verify_source_tables(data, ("gene_map", "drug_catalog", "tahoe_conditions",
                                            "tahoe_cells", "tahoe_control_links", "tidyi_cells"))
     genes = data.genes().sort_values("common_gene_index", kind="stable")
     if len(genes) != config["gene_count"]:
         raise ValueError(f"Expected {config['gene_count']} common genes, found {len(genes)}")
-    catalog, fp, chemistry = build_chemical_catalog(data.table("drug_catalog"))
+    source_catalog = data.table("drug_catalog")
+    if identity is None:
+        catalog, fp, chemistry = build_chemical_catalog(source_catalog)
+    else:
+        catalog, fp, chemistry = _identity_catalog(root, verified, source_catalog, identity)
     conditions = condition_roles(data.table("tahoe_conditions"), catalog)
     treated_roles = conditions.loc[conditions["condition_type"].eq("treated") & conditions["eligible"], "role"]
     if set(treated_roles) != set(ROLES):
@@ -144,7 +203,7 @@ def _asset_hashes(assets):
              "unresolved_conditions.parquet", "control_links.parquet", "train.parquet", "val.parquet",
              "test.parquet", "role_condition_counts.parquet", "tidyi_splits.parquet",
              "tidyi_split_report.json", "normalization.npz", "neighbors.npz", "bandwidths.npz",
-             "bandwidth_pairs.parquet"]
+             "bandwidth_pairs.parquet", "source_shards.parquet", "split_groups.parquet", "sciplex_source_summary.json"]
     return {name: {"sha256": sha256(assets / name), "bytes": (assets / name).stat().st_size}
             for name in names if (assets / name).exists()}
 
@@ -167,9 +226,7 @@ def prepare_training(project_root, config_path=None, *, build_preprocessing=True
     os.write(descriptor, str(os.getpid()).encode())
     os.close(descriptor)
     try:
-        source_hash = sha256(inside(root, config["bundle"]) / "manifest.json")
-        signature = digest_json({"config": config, "source_manifest": source_hash,
-                                 "training_schema": 1})
+        signature, source_hash, identity, schema = training_contract(root, config)
         path = assets / "manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
         if manifest is not None and manifest["signature"] != signature:
@@ -179,12 +236,21 @@ def prepare_training(project_root, config_path=None, *, build_preprocessing=True
                 if sha256(inside(assets, name)) != item["sha256"]:
                     raise ValueError(f"Frozen training asset changed: {name}")
         else:
-            manifest = {"schema_version": 1, "signature": signature, "config": config,
+            manifest = {"schema_version": schema, "signature": signature, "config": config,
                         "source_manifest_sha256": source_hash, "status": "building_metadata",
                         "created_utc": datetime.now(timezone.utc).isoformat(), "files": {}}
+            if identity is not None:
+                manifest["drug_identity"] = identity
+            if "sciplex_source" in config:
+                manifest["sciplex_source"] = response_source_dependencies(root, config)
             atomic_json(path, manifest)
         if manifest["status"] == "building_metadata":
-            manifest["metadata"] = _build_metadata(root, assets, config, progress)
+            manifest["metadata"] = _build_metadata(root, assets, config, progress, identity)
+            if "sciplex_source" in config:
+                from .sciplex_source import extend_with_sciplex
+                manifest["metadata"] = extend_with_sciplex(root, assets, config, manifest["metadata"])
+            if identity is not None and training_contract(root, config)[0] != signature:
+                raise ValueError("Drug identity dependencies changed during metadata preparation")
             manifest["status"] = "metadata_ready"
             manifest["files"] = _asset_hashes(assets)
             atomic_json(path, manifest)

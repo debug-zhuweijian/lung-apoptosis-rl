@@ -1,0 +1,17 @@
+{
+  "bundle": "08-datasets/LungCancer_A549_Integration/prepared/v1",
+  "assets": "08-datasets/LungCancer_A549_Integration/training-identity-v3",
+  "split_manifest": "08-datasets/LungCancer_A549_Integration/training-identity-v3/manifest.json",
+  "train": "08-datasets/LungCancer_A549_Integration/training-identity-v3/train.parquet",
+  "val": "08-datasets/LungCancer_A549_Integration/training-identity-v3/val.parquet",
+  "test": "08-datasets/LungCancer_A549_Integration/training-identity-v3/test.parquet",
+  "role_column": "role",
+  "group_column": "chemical_or_experiment_group_id",
+  "gene_count": 32461,
+  "graph_neighbors": 32,
+  "graph_block_size": 128,
+  "stream_batch_size": 512,
+  "state_fold": "1_to_8",
+  "drug_identity_manifest": "08-datasets/LungCancer_A549_Integration/identity-v3/manifest.json",
+  "drug_identity_manifest_sha256": "f7e2946ef2afb9a5a009818f239e7bf3305eefa0e2483d5743e9e0b37be8a400"
+}

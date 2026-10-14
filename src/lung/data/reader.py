@@ -12,7 +12,7 @@ from scipy import sparse
 
 from src.lung_data import PreparedLungData
 
-from .common import OUTER, ROLES, check_shard, dataset_config, digest_json, inside, sha256, source_shard_registry
+from .common import OUTER, ROLES, check_shard, dataset_config, inside, sha256, source_shard_registry, training_contract
 from .preprocess import standardized
 from .sparse_cache import CSRCache, DEFAULT_CACHE, file_identity
 
@@ -24,7 +24,8 @@ class SparseRows:
     """Read memmapped CSR shards with a bounded immutable heap LRU."""
 
     def __init__(self, project_root, columns, cache_size=2, registry=None, *,
-                 cache_dir=DEFAULT_CACHE, max_cache_bytes=0, use_disk_cache=True):
+                 cache_dir=DEFAULT_CACHE, max_cache_bytes=0, use_disk_cache=True,
+                 max_open_mappings=0):
         self.root = Path(project_root).resolve()
         self.columns = np.asarray(columns, dtype=np.int64)
         if self.columns.ndim != 1 or np.any(self.columns < 0):
@@ -36,7 +37,7 @@ class SparseRows:
         self.cache_bytes = 0
         self.cache = OrderedDict()
         self.registry = registry or {}
-        self.disk_cache = CSRCache(self.root, cache_dir) if use_disk_cache else None
+        self.disk_cache = CSRCache(self.root, cache_dir, max_open_mappings=max_open_mappings) if use_disk_cache else None
         self._source_stamps = {}
 
     def _matrix(self, name):
@@ -103,6 +104,60 @@ class SparseRows:
         return sparse.vstack(parts, format="csr")[np.argsort(order)]
 
 
+class RoutedSparseRows:
+    """Route registered source matrices without changing SparseRows semantics."""
+
+    def __init__(self, root, columns, registry, **options):
+        self.root, self.columns, self.registry = Path(root).resolve(), np.asarray(columns), registry
+        self.options = dict(options)
+        self.readers = {
+            "tahoe": SparseRows(root, columns, registry=registry, **options),
+            "common": SparseRows(root, np.arange(len(columns)), registry=registry, **options),
+        }
+        self.disk_cache = self.readers["tahoe"].disk_cache
+        self.cache_size = self.readers["tahoe"].cache_size
+        self.max_cache_bytes = self.readers["tahoe"].max_cache_bytes
+
+    def clone_for_ae(self, **options):
+        return RoutedSparseRows(self.root, self.columns, self.registry, **{**self.options, **options})
+
+    def read(self, rows):
+        rows = rows.reset_index(drop=True)
+        if rows.empty:
+            return sparse.csr_matrix((0, len(self.columns)), dtype=np.float64)
+        parts, order = [], []
+        for name, frame in rows.groupby("matrix_path", sort=False):
+            if name not in self.registry:
+                raise ValueError("Matrix is not registered in the mixed source audit")
+            axis = self.registry[name].get("gene_axis", "tahoe")
+            if axis not in self.readers:
+                raise ValueError("Unknown registered source gene axis")
+            parts.append(self.readers[axis].read(frame))
+            order.extend(frame.index.tolist())
+        return sparse.vstack(parts, format="csr")[np.argsort(order)]
+
+    def prepare_cache(self, names, progress=None):
+        names = list(dict.fromkeys(names))
+        for index, name in enumerate(names, 1):
+            self.readers[self.registry[name].get("gene_axis", "tahoe")].prepare_cache([name])
+            if progress:
+                progress(index, len(names), name)
+        return len(names)
+
+    def close(self):
+        for reader in self.readers.values():
+            if reader.disk_cache is not None:
+                reader.disk_cache.close()
+
+
+def training_rows(root, assets, config, genes, **options):
+    if "sciplex_source" in config:
+        table = pd.read_parquet(assets / "source_shards.parquet")
+        return RoutedSparseRows(root, genes["tahoe_column"], table.set_index("matrix_path").to_dict("index"), **options)
+    prepared = PreparedLungData(root, config["bundle"])
+    return SparseRows(root, genes["tahoe_column"], registry=source_shard_registry(prepared), **options)
+
+
 class TrainingData:
     """Default permissions are T/fit and V/selection only.
 
@@ -118,10 +173,12 @@ class TrainingData:
         self.config = dataset_config(self.project_root, config_path)
         self.assets_path = inside(self.project_root, self.config["assets"])
         self.manifest = json.loads((self.assets_path / "manifest.json").read_text(encoding="utf-8"))
-        source_hash = sha256(inside(self.project_root, self.config["bundle"]) / "manifest.json")
-        signature = digest_json({"config": self.config, "source_manifest": source_hash, "training_schema": 1})
+        signature, _, identity, schema = training_contract(self.project_root, self.config)
         if signature != self.manifest["signature"]:
             raise ValueError("Training configuration/source manifest differs from frozen assets")
+        if identity is not None and (self.manifest.get("schema_version") != schema
+                                     or self.manifest.get("drug_identity") != identity):
+            raise ValueError("Training drug identity dependency binding differs from frozen assets")
         if self.manifest["status"] not in ("metadata_ready", "complete"):
             raise ValueError("Training metadata preparation is incomplete")
         if require_preprocessing and self.manifest["status"] != "complete":
@@ -144,9 +201,8 @@ class TrainingData:
         self.fingerprints = np.load(self.assets_path / "fingerprints.npy", allow_pickle=False)
         self.role_counts = pd.read_parquet(self.assets_path / "role_condition_counts.parquet")
         self.controls = pd.read_parquet(self.assets_path / "control_links.parquet")
-        prepared = PreparedLungData(self.project_root, self.config["bundle"])
-        self.rows = SparseRows(self.project_root, self.genes["tahoe_column"],
-                               registry=source_shard_registry(prepared), **(row_cache_options or {}))
+        self.rows = training_rows(self.project_root, self.assets_path, self.config, self.genes,
+                                  **(row_cache_options or {}))
         self._metadata_cache = OrderedDict()
         self._metadata_cache_bytes = 0
         self._condition_cache = {}
@@ -305,6 +361,34 @@ class TrainingData:
         if use_mmd:
             return list(zip(results[::2], results[1::2]))
         return [(result, None) for result in results]
+
+    def sample_ae_group(self, keys, n, rng, role="fit", *, expression_cache=None):
+        """Draw in the original order, then coalesce reads without extra MMD draws."""
+        requests = [(key, *self._response_rows(key, n, rng, role)) for key in keys]
+        if not requests:
+            return []
+        counts = None
+        values = None
+        rows = [frame for _, control, target in requests for frame in (control, target)]
+        combined = pd.concat(rows, ignore_index=True)
+        if expression_cache is None:
+            counts = self.rows.read(combined)
+        else:
+            values = expression_cache.read(combined, role)
+        result, offset = [], 0
+        for key, control, target in requests:
+            middle, end = offset + len(control), offset + len(control) + len(target)
+            if counts is not None:
+                batch = self._response_result(key, role, control, target, counts[offset:middle], counts[middle:end])
+            else:
+                batch = {"control": values[offset:middle], "target": values[middle:end],
+                         "control_cell_ids": control["cell_id"].to_numpy(dtype=str),
+                         "target_cell_ids": target["cell_id"].to_numpy(dtype=str),
+                         "condition": self.action_features(key), "role": role,
+                         "coupling_type": "unpaired_independent_samples_for_explicit_OT_prior"}
+            result.append(batch)
+            offset = end
+        return result
 
     def _control_rows(self, condition_id, n, rng, role):
         self._check_role(role)

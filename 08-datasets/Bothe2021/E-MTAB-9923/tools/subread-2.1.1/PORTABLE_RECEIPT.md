@@ -1,0 +1,1 @@
+官方author-release Windows Subread 2.1.1本地portable工具。完整下载/执行回执：../../../../../experiments/20261011-data-alignment-round18/bothe_portable_runtime/README.md。原生exe在subread-2.1.1-Windows-x86_64/bin/；GPL v3与README保留在包内。未改PATH或全局安装。

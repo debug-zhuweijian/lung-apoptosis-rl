@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-import math
 import json
 from pathlib import Path
 import time
@@ -319,47 +318,29 @@ def _train_seed(stage, data, config, monitor, world, roots, seed, resume):
 
 
 class _DecisionRuntime:
-    """Serializable wall time; exhaustion pauses an unfinished Actor schedule."""
+    """Serializable cumulative wall time, independent of Actor stopping criteria."""
 
-    def __init__(self, config, saved=None, resume=False):
-        from .response_research import ResearchBudget
-        total, extension = config.get("max_seconds"), config.get("resume_budget_seconds")
-        for value in (total, extension):
-            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
-                                      or not math.isfinite(value) or value <= 0):
-                raise ValueError("DECISION_BUDGET_REQUIRES_POSITIVE_FINITE_SECONDS")
-        if extension is not None and not resume:
-            raise ValueError("DECISION_BUDGET_EXTENSION_REQUIRES_RESUME")
+    def __init__(self, saved=None):
         self.values = {"schema_version": 1, "status": "running", "reason": None,
-            "elapsed_seconds": 0., "budget_seconds": total, "budget_extensions": [],
+            "elapsed_seconds": 0.,
             "stage_seconds": {stage: 0. for stage in ("warmup", "drug", "dose", "joint")},
             "validation_seconds": 0., "checkpoint_seconds": 0., "environment_units": 0,
             "training_feedback_calls": 0, "training_mc_draws": 0}
         if saved is not None:
             if saved.get("schema_version") != 1:
                 raise ValueError("DECISION_RUNTIME_SCHEMA_MISMATCH")
-            self.values = {**self.values, **saved}
-            total = saved["budget_seconds"]
-        if extension is not None:
-            if total is None:
-                raise ValueError("DECISION_UNLIMITED_BUDGET_CANNOT_BE_EXTENDED")
-            total += extension
-            self.values["budget_extensions"] = [*self.values["budget_extensions"], float(extension)]
-        self.budget = ResearchBudget(total)
-        self.budget.consumed = self.values["elapsed_seconds"]
+            # Legacy budget fields are deliberately not carried into new checkpoints.
+            self.values.update({key: saved[key] for key in self.values if key in saved})
+        self.started = time.monotonic()
         if self.values["status"] != "complete":
             self.values.update(status="running", reason=None)
-
-    def exhausted(self):
-        return self.budget.check(0, 0)
 
     def stop(self, reason):
         self.values.update(status="complete" if reason == "actor_schedule_complete" else "paused", reason=reason)
 
     def state_dict(self):
-        summary = self.budget.summary()
-        return {**self.values, "elapsed_seconds": summary["consumed_seconds"],
-                "budget_seconds": summary["total_seconds"], "budget_exhausted": self.budget.exhausted}
+        return {**self.values, "elapsed_seconds": self.values["elapsed_seconds"]
+                + time.monotonic() - self.started}
 
 
 def _train_scheduled_daac(data, config, monitor, world, roots, seed, resume):
@@ -417,12 +398,12 @@ def _train_scheduled_daac(data, config, monitor, world, roots, seed, resume):
         expected = {"identity": identity, "epoch": saved["epoch"],
             "counters": saved["counters"], "cursor_phase": saved["extra"]["cursor"]["phase"],
             "cursor_unit": saved["extra"]["cursor"]["unit"],
-            **{key: runtime_state[key] for key in ("status", "reason", "budget_seconds")}}
+            **{key: runtime_state[key] for key in ("status", "reason")}}
         if (all(report.get(key) == value for key, value in expected.items())
                 and report.get("elapsed_seconds", -1) >= runtime_state["elapsed_seconds"]):
             # The matching sidecar includes the I/O cost of writing this checkpoint itself.
-            runtime_state = {key: report[key] for key in runtime_state}
-    runtime = _DecisionRuntime(c, runtime_state, resume)
+            runtime_state = {key: report.get(key, value) for key, value in runtime_state.items()}
+    runtime = _DecisionRuntime(runtime_state)
     if saved is not None:
         learner.load_state_dict(saved["learner"])
         epoch, cursor, best = saved["epoch"], saved["extra"]["cursor"], saved["extra"]["best"]
@@ -455,8 +436,6 @@ def _train_scheduled_daac(data, config, monitor, world, roots, seed, resume):
     if saved is None:
         save()
     while epoch < config["epochs"]:
-        if runtime.exhausted():
-            return pause("budget_exhausted")
         if cursor["phase"] == "collect":
             indices = np.random.default_rng(stream_seed(seed_base, epoch, "roots")).integers(len(roots), size=count)
             bar = monitor.progress(total=count, initial=cursor["unit"], desc=f"{name} epoch {epoch+1}")
@@ -464,8 +443,6 @@ def _train_scheduled_daac(data, config, monitor, world, roots, seed, resume):
                 for unit in range(cursor["unit"], count):
                     if schedule.complete:
                         break
-                    if runtime.exhausted():
-                        return pause("budget_exhausted")
                     phase = "warmup" if learner.total_transitions < learner.config.warmup_transitions else learner.actor_stage
                     started = time.monotonic()
                     _collect_daac(learner, world, roots[int(indices[unit])],
@@ -482,8 +459,6 @@ def _train_scheduled_daac(data, config, monitor, world, roots, seed, resume):
                 bar.close()
             cursor["phase"] = "validate"
             save()
-        if runtime.exhausted():
-            return pause("budget_exhausted")
         started = time.monotonic()
         validation = validate_decision("daac", learner, world, config, monitor, seed, epoch)
         runtime.values["validation_seconds"] += time.monotonic() - started

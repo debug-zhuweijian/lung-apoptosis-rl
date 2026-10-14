@@ -1,0 +1,39 @@
+{
+  "bundle": "08-datasets/LungCancer_A549_Integration/prepared/v1",
+  "assets": "08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1",
+  "split_manifest": "08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/manifest.json",
+  "train": "08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/train.parquet",
+  "val": "08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/val.parquet",
+  "test": "08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/test.parquet",
+  "role_column": "role",
+  "group_column": "chemical_or_experiment_group_id",
+  "gene_count": 32461,
+  "graph_neighbors": 32,
+  "graph_block_size": 128,
+  "stream_batch_size": 512,
+  "state_fold": "1_to_8",
+  "drug_identity_manifest": "08-datasets/LungCancer_A549_Integration/identity-v3/manifest.json",
+  "drug_identity_manifest_sha256": "f7e2946ef2afb9a5a009818f239e7bf3305eefa0e2483d5743e9e0b37be8a400",
+  "sciplex_source": {
+    "split_policy": "joint_full_and_parent_connectivity_components_v1",
+    "planned_wells": "08-datasets/LungCancer_A549_Integration/endpoint-alignment-v1/source_reviews/sciplex_round6/protocol/a549_planned_wells_with_hash_counts.csv",
+    "planned_dose_unit": "nM",
+    "time_contract": "08-datasets/LungCancer_A549_Integration/endpoint-alignment-v1/source_reviews/sciplex_round6/protocol/time_control_contract.json",
+    "protocol_files": {
+      "08-datasets/LungCancer_A549_Integration/endpoint-alignment-v1/source_reviews/sciplex_round6/protocol/time_control_contract.json": "f4400fcb190c2b51e2cff39e258c4a355e84c6ef38800d2f71ae156636d827be",
+      "08-datasets/LungCancer_A549_Integration/endpoint-alignment-v1/source_reviews/sciplex_round6/protocol/qc_protocol_audit.json": "f02561feb3c63c63ae8a88c70234b18057cb52ec04ce8a86701c7ecdf66cbdd6",
+      "08-datasets/LungCancer_A549_Integration/endpoint-alignment-v1/source_reviews/sciplex_round6/protocol/a549_planned_wells_with_hash_counts.csv": "0ef925344d2ccc7a59d661d02ceeeeb48856f784f1ce4e5d2c7a2a71c56dc265"
+    },
+    "extraction_manifest": "08-datasets/sciPlex3/GSM4150378/extracted/v1/extraction_status.json",
+    "extraction_manifest_sha256": "7455e6408089c84c7c68ce9dc8f70908e744ab90438fa1938a6f37f6e10a722e",
+    "chemical_manifest": "08-datasets/LungCancer_A549_Integration/endpoint-alignment-v1/source_reviews/sciplex_round6/chemical_inputs_v2/manifest.json",
+    "chemical_manifest_sha256": "c13e5a9be54692a7a708dbf8a82dea3000fafa0edbcdd92eeec12b48e87f5a05",
+    "base_training_manifest": "08-datasets/LungCancer_A549_Integration/training-identity-v3/manifest.json",
+    "base_training_manifest_sha256": "95e1c0cbc60bf9410ae699442d8d28f542af5de11f6bb6e68fc3545fba5df18a"
+  },
+  "required_context_sizes": {
+    "n_sources": 2,
+    "n_backgrounds": 1,
+    "n_protocols": 2
+  }
+}

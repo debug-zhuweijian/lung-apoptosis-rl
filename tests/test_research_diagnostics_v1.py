@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import subprocess
 
@@ -9,9 +10,15 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
+import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.research import audit
+from lung.engine import diagnostics
+from lung.engine.config import config_hash, file_hash, StageUnavailable
+from lung.engine.modular_budget import StagePaused
+from lung.rl import stream_seed
+from tests.test_world_execution_v1 import world_factory
 from lung.research.sciplex_diagnostics import accumulate_development, cycle_diagnostics, CYCLE, LAYOUT
 from lung.research.tidyi_diagnostics import (
     LABELS, MODELS, EXPRESSION_MODELS, binary_metrics, constrained_moment, mean_decomposition, mixtures, run_tidyi,
@@ -221,3 +228,203 @@ def test_all_five_historical_models_reported_but_only_expression_mixtures(tmp_pa
     assert {r["model"] for r in report["mixture_diagnostics"]} == set(EXPRESSION_MODELS)
     assert len(tables["tidyi_binary_metrics"]) == 10
     assert all(len(t) == 66 for k, t in tables.items() if k.startswith("tidyi_mixtures_"))
+
+
+def test_explicit_population_scoring_is_bounded_and_cached_by_n_and_steps(world_factory, monkeypatch):
+    owner, _, _, _ = world_factory(2)
+    root = owner.roots("T")[0]
+    sequence, seeds = (next(iter(owner.actions)),), (11, 7, 23, 7, 31)
+    calls, original = [], owner._score_seed_batch
+
+    def record(root, sequence, seeds, n, steps):
+        calls.append((tuple(seeds), n, steps))
+        return original(root, sequence, seeds, n, steps)
+
+    monkeypatch.setattr(owner, "_score_seed_batch", record)
+    threads = torch.get_num_threads()
+    torch.set_num_threads(1)
+    try:
+        expected = torch.tensor([owner.score_one(root, sequence, seed, n=3, ode_steps=3)
+                                 for seed in seeds], dtype=torch.float64)
+        actual = owner.score(root, sequence, seeds, n=3, ode_steps=3)
+        torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-6)
+        assert [len(row[0]) for row in calls] == [4, 1]
+        assert all(row[1:] == (3, 3) for row in calls)
+        owner.score(root, sequence, seeds, n=5, ode_steps=3)
+        owner.score(root, sequence, seeds, n=3, ode_steps=2)
+        assert {row[1:] for row in calls} == {(3, 3), (5, 3), (3, 2)}
+        previous = len(calls)
+        torch.testing.assert_close(owner.score(root, sequence, seeds, n=3, ode_steps=3),
+                                   actual, rtol=0, atol=0)
+        assert len(calls) == previous
+        key = next(key for key in owner._score_cache.values if key[-3:] == (3, 3, 23))
+        owner._score_cache.values.pop(key)
+        torch.testing.assert_close(owner.score(root, sequence, seeds, n=3, ode_steps=3),
+                                   actual, rtol=0, atol=0)
+        assert calls[previous:] == [(seeds[:4], 3, 3)]
+        for n, steps in ((0, 3), (True, 3), (3, 0), (3, True)):
+            with pytest.raises(ValueError):
+                owner.score(root, sequence, seeds, n=n, ode_steps=steps)
+    finally:
+        torch.set_num_threads(threads)
+
+
+class NumericalMonitor:
+    def __init__(self, directory, limit=None):
+        self.experiment, self.limit, self.calls = directory, limit, 0
+
+    def stop_check(self, *_):
+        self.calls += 1
+        return self.limit is not None and self.calls > self.limit
+
+    def progress(self, iterable, **_):
+        return iterable
+
+
+@pytest.mark.parametrize("factor,passed", [(1e-6, True), (1e-4, False)])
+def test_population_batches_keep_registration_seed_order_and_resume(tmp_path, monkeypatch, factor, passed):
+    from lung.engine import auxiliary
+    monkeypatch.setattr(auxiliary, "calibration_audit_binding", lambda *args: {"unit_test_only": True})
+    calls = []
+
+    class World:
+        config, data = {"synthetic": False}, SimpleNamespace()
+        biological_identity, score_batch_size = "unit-test-world", 4
+        registry = SimpleNamespace(candidates=[SimpleNamespace(action_id="a")])
+        protocol = SimpleNamespace(position=lambda registry, prefix: (None, None, bool(prefix)),
+                                   legal_mask=lambda registry, prefix: torch.tensor([True]))
+
+        def roots(self, role):
+            assert role == "V"
+            return [SimpleNamespace(root_id="V-root")]
+
+        def score(self, root, sequence, seeds, *, n):
+            assert (tmp_path / "population_preregistration.json").is_file()
+            assert sequence == ("a",)
+            calls.append((tuple(seeds), n))
+            return torch.tensor([.4 + (seed % 7) * 1e-5 + n * factor for seed in seeds],
+                                dtype=torch.float64)
+
+    with pytest.raises(StagePaused):
+        diagnostics.population_diagnostic(World(), NumericalMonitor(tmp_path, 5), {})
+    cache = tmp_path / f"population-{config_hash('V-root')[:16]}.json"
+    assert len(json.loads(cache.read_text())) == 5
+    calls.clear()
+    if passed:
+        diagnostics.population_diagnostic(World(), NumericalMonitor(tmp_path), {})
+    else:
+        with pytest.raises(StageUnavailable, match="POPULATION_RESOLUTION_UNRESOLVED"):
+            diagnostics.population_diagnostic(World(), NumericalMonitor(tmp_path), {})
+    expected_seeds = [stream_seed(20260923, "population-size", "V-root", repeat)
+                      for repeat in range(1024)]
+    expected = [[.4 + (seed % 7) * 1e-5 + n * factor for n in (512, 1024, 2048)]
+                for seed in expected_seeds]
+    np.testing.assert_array_equal(json.loads(cache.read_text()), expected)
+    for n in (512, 1024, 2048):
+        assert [seed for seeds, size in calls if size == n for seed in seeds] == expected_seeds[4:]
+    assert all(len(seeds) <= 4 for seeds, _ in calls)
+    report = json.loads((tmp_path / "population_resolution.json").read_text())
+    assert report["repeats"] == 1024 and report["sizes"] == [512, 1024, 2048]
+    assert report["adjacent_tolerance"] == .01 and report["passed"] is passed
+    assert json.loads((tmp_path / "population_batch_layout.json").read_text())["batch_size"] == 4
+
+
+class PointwiseAuditModel:
+    def __init__(self, mode="observed"):
+        self.config, self.calls = SimpleNamespace(reference_mode=mode), []
+
+    def encode_condition(self, **kwargs):
+        return kwargs["dose"][:, None]
+
+    def sample_noise(self, reference, generator):
+        return torch.randn((len(reference), 3), generator=generator)
+
+    def sample(self, reference, condition, *, noise, steps, checkpoint):
+        self.calls.append((reference.clone(), noise.clone(), steps))
+        if self.config.reference_mode == "population_mean":
+            reference = reference.mean(0, keepdim=True).expand_as(reference)
+        return reference + noise[:, :2].abs() * .01 + condition * .001
+
+
+def audit_sample(index):
+    return {"control": np.array([[.2 + index * .01, .4 + index * .01]], np.float32),
+            "fingerprint": np.array([1., index % 2], np.float32), "dose": float(index),
+            "duration": float(index % 3 + 1), "background_id": 0, "source_id": 0, "protocol_id": 0}
+
+
+@pytest.mark.parametrize("mode,batch_lengths", [("observed", [3, 2]), ("population_mean", [1] * 5)])
+def test_ode_audit_batch_keeps_each_noise_condition_and_sample_order(mode, batch_lengths):
+    data = SimpleNamespace(mu=np.zeros(2), scale=np.ones(2), n_genes=2)
+    samples = [(index, audit_sample(index)) for index in (6, 2, 6, 11, 13)]
+    scalar, batched = PointwiseAuditModel(mode), PointwiseAuditModel(mode)
+    expected = diagnostics.ode_audit_batch(scalar, data, samples, device="cpu", member=2,
+                                         steps=128, batch_size=1)
+    actual = diagnostics.ode_audit_batch(batched, data, samples, device="cpu", member=2,
+                                       steps=128, batch_size=3)
+    noises = torch.cat([torch.randn((1, 3), generator=torch.Generator().manual_seed(
+        stream_seed(20260923, "ODE", 2, index))) for index, _ in samples])
+    torch.testing.assert_close(torch.cat([row[1] for row in batched.calls]), noises, rtol=0, atol=0)
+    torch.testing.assert_close(torch.cat(actual), torch.cat(expected), rtol=0, atol=0)
+    assert [len(row[0]) for row in batched.calls] == batch_lengths
+    assert all(row[2] == 128 for row in batched.calls)
+    assert all(row.untyped_storage().nbytes() == row.numel() * row.element_size() for row in actual)
+    with pytest.raises(ValueError):
+        diagnostics.ode_audit_batch(batched, data, samples, device="cpu", member=2, steps=128, batch_size=0)
+
+
+def test_ode_audit_batches_resume_existing_per_sample_cache(tmp_path, monkeypatch):
+    weight = tmp_path / "weights.pt"
+    weight.write_bytes(b"unit-test-only")
+    data = SimpleNamespace(identity="unit-test", n_genes=2, mu=np.zeros(2), scale=np.ones(2),
+        condition_ids=lambda role: ["V-0", "V-1"],
+        sample_controls=lambda key, *_: audit_sample(int(key[-1])))
+    model = PointwiseAuditModel()
+    monkeypatch.setattr(diagnostics, "load_response", lambda *args: model)
+    config = {"device": "cpu", "synthetic": False,
+              "response": {"inference_ode_steps": 128, "inference_microbatch": 4}}
+    pipeline = {"response": [str(weight)]}
+    with pytest.raises(StagePaused):
+        diagnostics.resolve_ode_steps(data, config, NumericalMonitor(tmp_path, 3), pipeline)
+    assert len(list(tmp_path.glob("ode_progress-*/member-0/steps-128/sample-*.pt"))) == 3
+    assert not (tmp_path / "ode_audit.json").exists()
+    result = diagnostics.resolve_ode_steps(data, config, NumericalMonitor(tmp_path), pipeline)
+    report = json.loads(Path(result["ode_audit"]).read_text())
+    assert report["n_fixed_V_noise"] == 256 and report["tolerance"] == .001
+    assert report["selected_steps"] == 128 and report["passed"]
+    assert max(len(row[0]) for row in model.calls) == 4
+    assert len(model.calls) < 512
+    for steps in (128, 256):
+        paths = list(tmp_path.glob(f"ode_progress-*/member-0/steps-{steps}/sample-*.pt"))
+        assert len(paths) == 256
+        for path in paths:
+            record = torch.load(path, map_location="cpu", weights_only=False)
+            assert record["expression"].shape == (1, 2) and record["steps"] == steps
+
+
+def test_legacy_scalar_ode_cache_keeps_its_layout_and_rejects_changed_binding(tmp_path, monkeypatch):
+    weight = tmp_path / "weights.pt"
+    weight.write_bytes(b"unit-test-only")
+    data = SimpleNamespace(identity="unit-test", n_genes=2, mu=np.zeros(2), scale=np.ones(2),
+        condition_ids=lambda role: ["V-0"], sample_controls=lambda *_: audit_sample(0))
+    model = PointwiseAuditModel()
+    monkeypatch.setattr(diagnostics, "load_response", lambda *args: model)
+    identity = config_hash({"response": [file_hash(weight)], "data": data.identity})
+    folder = tmp_path / f"ode_progress-{identity[:20]}" / "member-0"
+    cached = folder / "steps-128/sample-0.pt"
+    cached.parent.mkdir(parents=True)
+    output = diagnostics.ode_audit_batch(model, data, [(0, audit_sample(0))],
+                                       device="cpu", member=0, steps=128)[0]
+    torch.save({"identity": identity, "index": 0, "steps": 128, "member": 0, "expression": output}, cached)
+    model.calls.clear()
+    config = {"device": "cpu", "synthetic": False,
+              "response": {"inference_ode_steps": 128, "inference_microbatch": 4}}
+    pipeline = {"response": [str(weight)]}
+    with pytest.raises(StagePaused):
+        diagnostics.resolve_ode_steps(data, config, NumericalMonitor(tmp_path, 2), pipeline)
+    assert [len(row[0]) for row in model.calls] == [1]
+    layout = folder / "batch_layout.json"
+    record = json.loads(layout.read_text())
+    assert record["batch_size"] == 1
+    layout.write_text(json.dumps({**record, "identity": "changed"}))
+    with pytest.raises(StageUnavailable, match="BATCH_LAYOUT_IDENTITY_MISMATCH"):
+        diagnostics.resolve_ode_steps(data, config, NumericalMonitor(tmp_path), pipeline)

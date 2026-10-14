@@ -13,11 +13,11 @@ W1–W5 的实现、W6 的测试与启动文档已交付。合成数据完整链
 | W1 | `engine/representation.py` 独立加载已更新 AE；pool/state 优先读取 `pipeline.representation`，消费 h，依赖及缓存绑定 AE 文件哈希。纯速度网络变化不使这些模块失效。 |
 | W2 | `engine/response_loader.py` 统一传统与潜空间响应加载；adapter 补齐 `encode_cells` 和 `condition_encoder`；World 核对所有潜空间成员的 AE 身份，再共享同一冻结表征。 |
 | W3 | `rl/actor_schedule.py` 与 `rl/daac.py` 接入同 Actor、同 Adam 的 drug/dose/joint 参数选择；双 Critic 持续学习，冻结头保留输入梯度，没有合法选择的头跳过，配额归 joint。 |
-| W4 | `engine/decision.py` 区分 Actor-only `init_from` 和严格 `resume`；保存完整阶段、计数、优化器、replay、随机流、累计预算和计时。 |
-| W5 | 根 `train_modular_research.py`、`engine/modular_config.py`、`engine/modular_research.py`、独立 YAML；每模块独立 run ID、预算、缓存与检查点，完成组件校验后复用。 |
+| W4 | `engine/decision.py` 区分 Actor-only `init_from` 和严格 `resume`；保存完整阶段、计数、优化器、replay、随机流和计时。 |
+| W5 | 根 `train_modular_research.py`、`engine/modular_config.py`、`engine/modular_research.py`、独立 YAML；每模块独立 run ID、缓存与检查点，完成组件校验后复用。 |
 | W6 | 新增模块化整链、身份拒绝、梯度、阶段恢复、辅助准备、缓存、数值审计恢复及真实视图测试；新增真实有界验证脚本和本回执。 |
 
-缓存分块持久化，`manifest.json` 只在全部完成后发布。pool 特征按条件保存抽样 RNG；state 的角色缓存和温度优化器可以恢复；potential 的参考目标按 prefix 保存。数值审计保留原协议，ODE 样本和人口重复完成后保存，可在预算边界暂停。
+缓存分块持久化，`manifest.json` 只在全部完成后发布。pool 特征按条件保存抽样 RNG；state 的角色缓存和温度优化器可以恢复；potential 的参考目标按 prefix 保存。数值审计保留原协议，ODE 样本和人口重复完成后保存，手动中断后可恢复。
 
 未完成 `last.pt` 不能作为完成组件登记。`modular_completion.py` 将最终训练完成证明绑定到选中的权重，生成独立不可变产物；即使选中的 best 早于最终 epoch，后续也不需要依赖可变的 `last.pt`。state 额外核对校准身份、有限正温度及模型 buffer 一致性。
 
@@ -42,7 +42,7 @@ ae → cache → response → pool → state → ode_audit
 
 pool/state 可在 AE 完成后单独启动，不必等待 CFM。`backward/correction/uncertainty` 保留独立阶段能力及依赖检查，不进入首轮最低必要图。五成员接口做了微型兼容验证，没有启动五成员正式训练。默认不运行消融、DLPA 对照或旧套件。
 
-仅读依赖与预算预览：
+仅读依赖与恢复状态预览：
 
 ```powershell
 F:/anaconda/envs/study/python.exe train_modular_research.py --dry-run
@@ -57,9 +57,9 @@ F:/anaconda/envs/study/python.exe train_modular_research.py --stage pool
 
 `modular.artifacts` 可显式指定已有组件，或用顶层 `pipeline` 指向已有 `pipeline.json`。这些路径都会核验数据、表征、候选、依赖、训练完成及校准状态；路径存在不代表可以复用。真实有界验证产物绑定不同视图身份，不能作为正式全量训练产物导入。
 
-## 保存、预算与恢复
+## 保存与恢复
 
-根实验保存 `modular_state.json`、`pipeline.json`、`modular_report.json` 和 `response_budget.json`。每个阶段另有 `<root-run-id>-<stage>` 实验目录、权重目录及 `module_budget.json`。暂停时记录当前模块和恢复位置；已完成上游产物继续保留。
+根实验保存 `modular_state.json`、`pipeline.json` 和 `modular_report.json`。每个阶段另有 `<root-run-id>-<stage>` 实验目录和权重目录。中断时保留当前模块的检查点和恢复位置；已完成上游产物继续保留。
 
 默认自动恢复科学配置和源码身份相同的最近模块化实验。也可显式指定根 run ID：
 
@@ -67,15 +67,15 @@ F:/anaconda/envs/study/python.exe train_modular_research.py --stage pool
 F:/anaconda/envs/study/python.exe train_modular_research.py --resume <root-run-id>
 ```
 
-默认响应链累计上限 10,800 秒，AE 子上限 2,700 秒；DA-AC 初始累计上限 3,600 秒。预算在安全边界检查，当前不可分割更新、评分或保存可能跨过上限；实际耗时完整记录，完成产物不会因最后保存跨限而被丢弃。IDE 强制终止最多丢失尚未持久化的当前原子单元；正常中断会结算本次计时。
+2026-10-07 按用户要求移除正式模块化训练的时间预算控制。AE、响应模型、辅助模块、缓存、审计、势函数及分阶段 DA-AC 均不因墙钟时间自动暂停；训练沿用早停、最大 epoch 和 Actor 更新日程。计时仅用于记录耗时。旧 `response_budget.json`、`module_budget.json` 和检查点中的旧预算字段不再限制续训，无需清零或删除权重。
 
-预算耗尽后不会自动加倍。修改 YAML 的相应 `modular.stages.<stage>.budget_seconds` **累计上限**后重新启动；响应链总预算耗尽时还要显式调整 `modular.response_budget_seconds`。临时只恢复某阶段也可：
+单独恢复 AE：
 
 ```powershell
-F:/anaconda/envs/study/python.exe train_modular_research.py --resume <root-run-id> --stage ae --budget-seconds 5400
+F:/anaconda/envs/study/python.exe train_modular_research.py --resume <root-run-id> --stage ae
 ```
 
-CLI 上限只适用于该次调用；后续无参数运行仍读取 YAML。增加预算保留累计已花时间。数据、模型坐标、候选、奖励或已登记日程变化必须新建实验；新实验可明确复用兼容上游产物。
+`--budget-seconds` 已从此入口移除。PyCharm 无参数启动自动恢复兼容的原实验。IDE 强制终止可能丢失尚未持久化的当前更新；已经保存的模型、优化器、随机流和组游标继续使用。数据、模型坐标、候选、奖励或已登记日程变化必须新建实验；新实验可明确复用兼容上游产物。
 
 `daac.init_from` 只在新策略实验导入同一冻结环境下的兼容 Actor，重建 Critic/targets、优化器、replay、随机流和计数。严格恢复继续旧实验全部状态。两者互斥；阶段切换不会调用 `init_from`。增加已完成 Actor 日程的更新配额属于新日程版本，不静默改变旧实验身份。
 

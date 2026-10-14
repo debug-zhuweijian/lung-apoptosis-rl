@@ -63,7 +63,6 @@ daac:
   warmup_transitions: 256
   batch_size: 256
   actor_schedule: {drug: 20, dose: 20, joint: 160}
-  max_seconds: 3600
   init_from: null
 modular:
   mode: modular_pipeline
@@ -71,15 +70,14 @@ modular:
   run_ablations: false
   # Existing immutable artifacts can be declared here, e.g. representation: .../selected-....pt
   artifacts: {}
-  # All caps are cumulative across resumes; raise explicitly to grant more time.
-  response_budget_seconds: 10800
+  # Local training has no wall-clock limit; use early stopping / training targets.
   stages:
-    ae: {epochs: 1000, budget_seconds: 2700}
-    cache: {budget_seconds: 10800}
-    response: {epochs: 1000, budget_seconds: 10800}
-    pool: {epochs: 1000, budget_seconds: 1800}
-    state: {epochs: 1000, budget_seconds: 1800}
-    ode_audit: {budget_seconds: 1800}
-    assemble: {budget_seconds: 3600}
-    potential: {epochs: 1000, budget_seconds: 3600}
-    daac: {budget_seconds: 3600}
+    ae: {epochs: 1000}
+    cache: {}
+    response: {epochs: 1000}
+    pool: {epochs: 1000}
+    state: {epochs: 1000}
+    ode_audit: {}
+    assemble: {}
+    potential: {epochs: 1000}
+    daac: {}

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import gc
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -196,6 +197,11 @@ def parser():
     command.add_argument("--cells-per-condition", type=int, default=128)
     command.add_argument("--ode-samples", type=int, choices=(0, 1, 2), default=2)
     command.add_argument("--no-progress", action="store_true")
+    command.add_argument("--world-actor-probe", action="store_true",
+                         help="Isolated real-data World/DAAC gradient probe; never grants formal readiness")
+    command.add_argument("--component-run", help="Reuse a prior bounded component run, without retraining")
+    command.add_argument("--probe-population", type=int, choices=(16, 32, 64, 128), default=16)
+    command.add_argument("--probe-repeats", type=int, choices=(1, 2, 4), default=2)
     return command
 
 
@@ -257,6 +263,264 @@ def _cuda_memory(device):
             "peak_reserved": torch.cuda.max_memory_reserved(device), "free": free, "total": total}
 
 
+def existing_components(run_id, config):
+    if Path(run_id).name != run_id or not run_id.startswith("modular-real-verification-"):
+        raise ValueError("BOUNDED_COMPONENT_RUN_ID_INVALID")
+    directory = ROOT / "experiments" / run_id
+    directory = directory.resolve()
+    if not directory.is_relative_to(ROOT):
+        raise ValueError("BOUNDED_COMPONENT_RUN_PATH_ESCAPE")
+    report_path, view_path = directory / "verification_report.json", directory / "bounded_real_view.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    view = json.loads(view_path.read_text(encoding="utf-8"))
+    prior = json.loads((directory / "bounded_pipeline.json").read_text(encoding="utf-8"))
+    if (report.get("synthetic") is not False or not report.get("is_bounded_real_view")
+            or report.get("bounded_component_chain_passed") is not True or report.get("n_genes") != 32461):
+        raise ValueError("BOUNDED_COMPONENT_CHAIN_NOT_VERIFIED")
+    for key in ("task", "history_support", "state_fold", "reward"):
+        if report["config"].get(key) != config.get(key):
+            raise ValueError(f"BOUNDED_COMPONENT_SCIENTIFIC_CONFIG_CHANGED: {key}")
+    if report["config"].get("research", {}).get("precision") != config.get("research", {}).get("precision"):
+        raise ValueError("BOUNDED_COMPONENT_PRECISION_CHANGED")
+    artifacts = {name: prior["artifacts"][name]
+                 for name in ("representation", "representation_cache", "response", "pool", "state")}
+    by_stage = {row["stage"]: row.get("result", {}) for row in report["stages"]}
+    for name, stage in (("representation", "ae"), ("response", "response"), ("pool", "pool"), ("state", "state")):
+        paths = artifacts[name] if isinstance(artifacts[name], list) else [artifacts[name]]
+        if len(paths) != 1:
+            raise ValueError("BOUNDED_COMPONENT_PROBE_REQUIRES_SINGLE_MEMBER")
+        path = Path(paths[0]).resolve()
+        if not path.is_relative_to(ROOT) or file_hash(path) != by_stage[stage].get("sha256"):
+            raise ValueError("BOUNDED_COMPONENT_HASH_OR_PATH_MISMATCH")
+    cache = Path(artifacts["representation_cache"]).resolve()
+    if not cache.is_relative_to(ROOT) or not (cache / "manifest.json").is_file():
+        raise ValueError("BOUNDED_COMPONENT_CACHE_MISSING")
+    return artifacts, view, {"run_id": run_id, "report_sha256": file_hash(report_path),
+        "source_identity": prior["source_identity"], "view_identity": prior["view_identity"],
+        "checkpoint_hashes": {stage: by_stage[stage]["sha256"] for stage in ("ae", "response", "pool", "state")}}
+
+
+def module_hash(module):
+    digest = hashlib.sha256()
+    for name, value in module.state_dict().items():
+        digest.update(repr((name, tuple(value.shape), value.dtype, value.layout)).encode())
+        arrays = (value,) if value.layout == torch.strided else (
+            value.to_sparse_coo().coalesce().indices(), value.to_sparse_coo().coalesce().values())
+        for array in arrays:
+            digest.update(array.detach().cpu().contiguous().reshape(-1).view(torch.uint8).numpy().tobytes())
+    return digest.hexdigest()
+
+
+def world_actor_probe(data, config, pipeline, monitor, arguments, budget):
+    """No adapter readiness override: isolated interfaces and one private update."""
+    from contextlib import nullcontext
+    from dataclasses import asdict, replace
+    from lung.engine.decision import daac_settings
+    from lung.engine.potential import uniform_completion
+    from lung.engine.world import BiologicalWorld
+    from lung.engine.diagnostics import ode_audit_batch
+    from lung.engine.numerics import PrecisionPolicy
+    from lung.models import rbf_mmd
+    from lung.rl import DAACTrainer, RLUnavailable, Transition, stream_seed
+    from lung.rl.environment import shape_reward
+    from lung.engine.response import tensor
+
+    probe_config = {**config, "population": arguments.probe_population}
+    if config["reward"].get("gamma") != 1. or config["reward"].get("shaping") != "frozen_reference_potential_difference":
+        raise ValueError("BOUNDED_PROBE_REWARD_NOT_SUPPORTED")
+    world = BiologicalWorld(data, probe_config, pipeline, require_resolution=False)
+    try:
+        world.adapter.validate_ready(require_potential=True)
+    except RLUnavailable as unavailable:
+        if unavailable.code != "POPULATION_RESOLUTION_UNRESOLVED":
+            raise
+        production_gate = unavailable.as_dict()
+    else:
+        raise ValueError("BOUNDED_PROBE_MUST_REMAIN_FORMALLY_UNAVAILABLE")
+    frozen = {"representation": getattr(world.representation, "shared", world.representation),
+              "pool": world.pool, "state": world.classifier,
+              **{f"response_{i}": getattr(member, "member", member) for i, member in enumerate(world.members)}}
+    if any(parameter.requires_grad for model in frozen.values() for parameter in model.parameters()):
+        raise ValueError("BOUNDED_PROBE_WORLD_NOT_FROZEN")
+    frozen_hashes = {name: module_hash(model) for name, model in frozen.items()}
+    n, seed = arguments.probe_population, config["seed"]
+
+    def expression(condition, role, controls=False):
+        keys = data.reader._control_ids[condition] if controls else (condition,)
+        rows = pd.concat([data.reader.role_cells(key, role) for key in keys], ignore_index=True)
+        rows = rows.drop_duplicates("cell_id")
+        available = len(rows)
+        rows = rows.head(n)
+        if rows.empty or (controls and len(rows) != n):
+            raise ValueError("BOUNDED_PROBE_UNIQUE_POPULATION_UNAVAILABLE")
+        return data.reader.normalize(data.reader.rows.read(rows)), rows.cell_id.astype(str).tolist(), available
+
+    def fixed_root(condition, role):
+        values, ids, _ = expression(condition, {"T": "fit", "V": "selection"}[role], controls=True)
+        return world.root(condition, role, expression=values, gene_ids=data.reader.gene_ids,
+                          data_identity=data.identity), values, ids
+
+    def check():
+        if budget.check(0, 0):
+            raise StagePaused("budget_exhausted", stage="world_actor_probe")
+
+    check()
+    train_condition = data.condition_ids("T")[0]
+    root, _, control_ids = fixed_root(train_condition, "T")
+    planning_seed = stream_seed(seed, "isolated-real-probe", "planning")
+    state = world.observe(root, (), planning_seed)
+    mask = world.protocol.legal_mask(world.registry, ())
+    if int(mask.sum()) < 2:
+        raise ValueError("BOUNDED_PROBE_REQUIRES_TWO_LEGAL_ACTIONS")
+    reference_requests = []
+    for repeat in range(arguments.probe_repeats):
+        reference_seed = stream_seed(seed, "isolated-real-probe", "reference-policy", repeat)
+        sequence = uniform_completion(world.adapter, (), torch.Generator().manual_seed(reference_seed))
+        score_seed = stream_seed(seed, "isolated-real-probe", "reference-score", repeat)
+        reference_requests.append((sequence, (score_seed,)))
+    reference_scores = world.score_many(root, reference_requests)
+    phi_current = float(torch.cat(reference_scores).mean())
+    learner = DAACTrainer(world.registry, world.adapter.versions,
+        replace(daac_settings(config), capacity=2, batch_size=2, warmup_transitions=1, actor_delay=1),
+        config["device"], stream_seed(seed, "isolated-real-probe", "learner"))
+    actor_before = module_hash(learner.actor)
+    critic_before = [module_hash(model) for model in learner.critics]
+    remaining, records, metrics = mask.clone(), [], {}
+    generator = torch.Generator().manual_seed(stream_seed(seed, "isolated-real-probe", "behavior"))
+    for index in range(2):
+        check()
+        behavior = remaining.float() / remaining.sum()
+        action = int(torch.multinomial(behavior, 1, generator=generator))
+        remaining[action] = False
+        sequence = (world.registry.candidates[action].action_id,)
+        world.protocol.validate_complete(world.registry, sequence)
+        score_seeds = tuple(stream_seed(seed, "isolated-real-probe", "feedback", index, repeat)
+                            for repeat in range(arguments.probe_repeats))
+        scores = world.score(root, sequence, score_seeds)
+        base = float(scores.mean())
+        transition = Transition(state, mask, behavior, action, base, phi_current, 0.,
+            shape_reward(base, phi_current, 0., True), None, None, True, world.adapter.versions,
+            f"isolated-real-probe-{index}", config["task"], planning_seed, score_seeds, 0,
+            evidence={**data.evidence, "formal_world_ready": False,
+                      "response_is_model_simulation": True, "reference_phi_is_fixed_single_root_mc": True})
+        metrics = learner.observe(transition)
+        records.append({"sequence": sequence, "scoring_seeds": score_seeds,
+                        "base_reward": base, "shaped_reward": transition.reward})
+    changed = {"actor": module_hash(learner.actor) != actor_before,
+               "critics": [module_hash(model) != old for model, old in zip(learner.critics, critic_before)]}
+    if (learner.actor_step != 1 or learner.critic_step != 1 or not changed["actor"]
+            or not all(changed["critics"]) or not all(math.isfinite(float(value)) for value in metrics.values())
+            or not _finite_tensors(learner.state_dict())):
+        raise ValueError("BOUNDED_PROBE_ACTOR_CRITIC_UPDATE_FAILED")
+    check()
+    val_condition = data.condition_ids("V")[0]
+    val_root, control, val_control_ids = fixed_root(val_condition, "V")
+    features = data.action_features(val_condition)
+    action_id = "a-" + config_hash((features["group_id"], str(features["dose"]), str(features["duration"])))[:24]
+    sequence, val_seed = (action_id,), stream_seed(seed, "isolated-real-probe", "heldout-response")
+    world.protocol.validate_complete(world.registry, sequence)
+    predicted, _ = world.propagate(val_root, sequence, val_seed)
+    target, target_ids, target_available = expression(val_condition, "selection")
+    target = tensor(target, world.device)
+    indexed = [(index, {**features, "control": control[index:index + 1]}) for index in range(2)]
+    numeric_seeds = tuple(stream_seed(seed, "isolated-real-probe", "batch-score", index) for index in range(2))
+    numeric_checks = {}
+    for mode, policy in (("production", None), ("explicit_bf16", PrecisionPolicy("bf16"))):
+        check()
+        dtypes = {}
+
+        def observe_dtype(module, inputs, output):
+            if torch.is_tensor(output):
+                key = str(output.dtype)
+                dtypes[key] = dtypes.get(key, 0) + 1
+
+        hooks = [module.register_forward_hook(observe_dtype) for model in frozen.values()
+                 for module in model.modules() if isinstance(module, torch.nn.Linear)]
+
+        def timed(action):
+            if world.device.type == "cuda":
+                torch.cuda.synchronize(world.device)
+            before = time.perf_counter()
+            with policy.autocast(world.device) if policy is not None else nullcontext():
+                result = action()
+            if world.device.type == "cuda":
+                torch.cuda.synchronize(world.device)
+            return result, time.perf_counter() - before
+
+        score_one = lambda: sum((world._score_seed_batch(val_root, sequence, [value], n, world.steps)
+                                 for value in numeric_seeds), [])
+        score_batch = lambda: world._score_seed_batch(val_root, sequence, list(numeric_seeds), n, world.steps)
+        ode_one = lambda: ode_audit_batch(world.reference, data, indexed, device=world.device,
+                                          member=0, steps=world.steps, batch_size=1)
+        ode_batch = lambda: ode_audit_batch(world.reference, data, indexed, device=world.device,
+                                            member=0, steps=world.steps, batch_size=2)
+        try:
+            for action in (score_one, score_batch, ode_one, ode_batch):
+                timed(action)  # Same-layout warmup; no scalar score-cache lookup.
+            scalar, scalar_seconds = timed(score_one)
+            batched, batched_seconds = timed(score_batch)
+            single_y, single_seconds = timed(ode_one)
+            batch_y, batch_seconds = timed(ode_batch)
+        finally:
+            for hook in hooks:
+                hook.remove()
+        difference = np.abs(np.asarray(scalar) - np.asarray(batched))
+        maes = [float((one - grouped).abs().mean()) for one, grouped in zip(single_y, batch_y)]
+        numeric_checks[mode] = {"scope": "two_fixed_V_samples_two_fixed_seeds_not_formal_audit",
+            "dense_output_dtypes": dtypes, "manual_bf16_autocast": policy is not None,
+            "bf16_active": bool(policy and policy.bf16_active(world.device)), "score_cache_bypassed": True,
+            "tf32_matmul_enabled": torch.backends.cuda.matmul.allow_tf32,
+            "score": {"seeds": numeric_seeds, "single": scalar, "batch": batched,
+                "max_abs_difference": float(difference.max()), "mean_abs_difference": float(difference.mean()),
+                "tolerance": .01, "within_tolerance": bool(difference.max() <= .01),
+                "single_seconds": scalar_seconds, "batch_seconds": batched_seconds},
+            "ode": {"sample_indices": [0, 1], "sample_mae": maes, "tolerance": .001,
+                "within_tolerance": bool(max(maes) <= .001),
+                "single_seconds": single_seconds, "batch_seconds": batch_seconds}}
+    train_mean = np.zeros(data.n_genes, dtype=np.float64)
+    train_conditions, train_cell_counts = data.condition_ids("T"), {}
+    for condition in train_conditions:
+        check()
+        values, ids, available = expression(condition, "fit")
+        train_cell_counts[condition] = {"available_unique": available, "used_unique": len(ids)}
+        train_mean += values.mean(0) / len(train_conditions)
+    mean_baseline = tensor(train_mean, world.device)[None].expand(n, -1)
+    comparison = {name: {"mean_mse": float((values.mean(0) - target.mean(0)).square().mean()),
+        "mmd_biased": float(rbf_mmd(values, target, bandwidth=data.bandwidth, unbiased=False))}
+        for name, values in (("world", predicted), ("same_plate_control", tensor(control, world.device)),
+                             ("T_treated_mean", mean_baseline))}
+    if not all(math.isfinite(value) for row in comparison.values() for value in row.values()):
+        raise ValueError("BOUNDED_PROBE_HELDOUT_METRICS_NONFINITE")
+    after = {name: module_hash(model) for name, model in frozen.items()}
+    if after != frozen_hashes or any(parameter.grad is not None for model in frozen.values() for parameter in model.parameters()):
+        raise ValueError("BOUNDED_PROBE_FROZEN_WORLD_CHANGED")
+    path = monitor.weights / "engineering_probe" / "actor_critic_update.pt"
+    atomic_save(path, {"schema_version": 1, "metadata": {**data.evidence,
+        "stage": "engineering_daac_gradient_probe", "formal_world_ready": False,
+        "biological_identity": world.biological_identity, "formal_pipeline_reusable": False},
+        "learner": learner.state_dict(), "reference_phi": phi_current, "frozen_parameter_hashes": frozen_hashes})
+    return {**data.evidence, "status": "complete", "formal_world_ready": False,
+        "formal_pipeline_reusable": False, "production_gate": production_gate,
+        "protocol": {"name": "single_T_root_real_model_gradient_probe_v1", "population": n,
+            "ode_steps": world.steps, "scoring_repeats": arguments.probe_repeats, "n_genes": data.n_genes,
+            "independent_experimental_roots": 1, "simulated_transitions": 2, "reward": config["reward"],
+            "precision": config["research"]["precision"], "reference_policy": "uniform_complete_legal_actions"},
+        "learner_config": asdict(learner.config), "batch_numeric_checks": numeric_checks,
+        "train_condition": train_condition, "control_cell_ids": control_ids, "planning_seed": planning_seed,
+        "reference_requests": reference_requests, "reference_scores": [row.tolist() for row in reference_scores],
+        "fixed_single_root_MC_phi": phi_current, "production_phi_network_trained": False,
+        "transitions": records, "optimizer_steps": {"actor": learner.actor_step, "critic": learner.critic_step},
+        "parameter_changes": changed, "finite_losses": metrics, "checkpoint": str(path),
+        "frozen_parameter_hashes_before": frozen_hashes, "frozen_parameter_hashes_after": after,
+        "tidyi_label_counts": {role: data.reader.state_rows.loc[data.reader.state_rows.role.eq(role), "state_class"].value_counts().to_dict()
+                               for role in ("fit", "selection", "calibration")},
+        "heldout_response": {"condition": val_condition, "role": "V", "target_cell_ids": target_ids,
+            "target_cell_count": len(target_ids), "target_available_unique": target_available,
+            "control_cell_ids": val_control_ids, "generation_seed": val_seed, "metrics": comparison,
+            "mean_fit_role": "T", "mean_fit_cell_counts": train_cell_counts,
+            "mean_condition_weighting": "equal", "scope": "one_bounded_condition_not_generalization_or_apoptosis_efficacy"}}
+
+
 def execute_verification(arguments):
     from lung.engine.modular_config import load_modular_config
     from lung.engine.latent_pipeline import run_latent_ae, run_latent_cache, run_latent_cfm
@@ -276,9 +540,14 @@ def execute_verification(arguments):
         raise FileExistsError("Verification run exists; choose a new run_id without overwriting it")
     started = time.perf_counter()
     config = verification_config(load_modular_config(arguments.config), arguments)
+    reused = existing_components(arguments.component_run, config) if arguments.component_run else None
     source = EngineData(config, roles=("T", "V", "C"))
-    data = BoundedRealData(source, arguments.train_conditions, arguments.val_conditions,
-                           arguments.cells_per_condition, config["state_fold"])
+    limits = reused[1]["limits"] if reused else {
+        "T": arguments.train_conditions, "V": arguments.val_conditions, "cells": arguments.cells_per_condition}
+    data = BoundedRealData(source, limits["T"], limits["V"], limits["cells"], config["state_fold"])
+    if reused and (data.identity != reused[2]["view_identity"]
+                   or any(data.selection[key] != reused[1].get(key) for key in data.selection)):
+        raise ValueError("BOUNDED_COMPONENT_VIEW_CHANGED: source, normalization, genes or selected cells differ")
     config = {**config, "verification": data.evidence}
     monitor = RunMonitor(config, run_id=run_id)
     monitor.update_status("running", **data.evidence)
@@ -293,6 +562,14 @@ def execute_verification(arguments):
         "gates": {"1": {"passed": False, "reason": "No audited World or Actor/Critic update in this script"},
                   "6": {"passed": False, "reason": "Full real numerical audit and World scoring remain unverified"}},
         "formal_dataset_reusable": False, "population_audit_run": False, "world_or_rl_started": False}
+    if arguments.world_actor_probe:
+        report.update(formal_world_ready=False, formal_rl_started=False)
+        report["gates"]["1"] = {"passed": False,
+            "reason": "Isolated unaudited World/gradient probe cannot grant formal World or Actor/Critic readiness"}
+    if reused:
+        pipeline = dict(reused[0])
+        report["component_lineage"] = {**reused[2], "current_source_identity": source.identity,
+            "current_view_identity": data.identity, "existing_components_rewritten": False}
 
     def persist():
         atomic_json(report_path, {**report, "stages": stages, "pipeline": pipeline,
@@ -371,17 +648,25 @@ def execute_verification(arguments):
 
     status, code = "bounded_components_verified_audit_pending", 0
     try:
-        pipeline["representation"] = run_stage("ae", train_ae)["path"]
-        cached = run_stage("cache", cache_h)
-        pipeline["representation_cache"] = cached["directory"]
-        config["research"]["latent"] = {**config["research"]["latent"],
-            "ae_checkpoint": pipeline["representation"], "cache_dir": cached["directory"]}
-        pipeline["response"] = [run_stage("response", train_cfm)["path"]]
-        pipeline["pool"] = run_stage("pool", lambda: auxiliary("pool", train_pool))["path"]
-        pipeline["state"] = run_stage("state", lambda: auxiliary("state", train_state))["path"]
-        if arguments.ode_samples:
-            run_stage("ode_audit_partial", partial_ode)
+        if reused:
+            run_stage("components_reused", lambda: {**data.evidence, "status": "reused", **report["component_lineage"]})
+        else:
+            pipeline["representation"] = run_stage("ae", train_ae)["path"]
+            cached = run_stage("cache", cache_h)
+            pipeline["representation_cache"] = cached["directory"]
+            config["research"]["latent"] = {**config["research"]["latent"],
+                "ae_checkpoint": pipeline["representation"], "cache_dir": cached["directory"]}
+            pipeline["response"] = [run_stage("response", train_cfm)["path"]]
+            pipeline["pool"] = run_stage("pool", lambda: auxiliary("pool", train_pool))["path"]
+            pipeline["state"] = run_stage("state", lambda: auxiliary("state", train_state))["path"]
+            if arguments.ode_samples:
+                run_stage("ode_audit_partial", partial_ode)
         report["bounded_component_chain_passed"] = True
+        if arguments.world_actor_probe:
+            report.update(world_or_rl_started=True, engineering_gradient_probe_started=True)
+            report["engineering_probe"] = run_stage("world_actor_probe",
+                lambda: world_actor_probe(data, config, pipeline, monitor, arguments, budget))
+            status = "bounded_world_actor_probe_verified_formal_audit_pending"
     except StagePaused as pause:
         status, code = "budget_exhausted", 2
         report["pause"] = {**data.evidence, "reason": pause.reason, "stage": pause.stage,
@@ -410,12 +695,17 @@ def main(argv=None):
         raise ValueError("View limits must be positive")
     if arguments.cells_per_condition > 128:
         raise ValueError("--cells-per-condition may not exceed 128")
+    if arguments.component_run and not arguments.world_actor_probe:
+        raise ValueError("--component-run requires --world-actor-probe")
     if not arguments.run:
         print(json.dumps({"status": "dry_run", "requires": "--run", "synthetic": False,
             "is_bounded_real_view": True, "n_genes": 32461, "T_conditions": arguments.train_conditions,
             "V_conditions": arguments.val_conditions, "max_cells_per_condition": arguments.cells_per_condition,
             "samples_per_update_condition": 128, "AE_CFM_updates": 1,
             "max_ode_samples": arguments.ode_samples, "full_audit_or_rl": False,
+             "world_actor_probe": arguments.world_actor_probe, "component_run": arguments.component_run,
+             "probe_population": arguments.probe_population, "probe_repeats": arguments.probe_repeats,
+             "formal_world_ready": False,
             "max_seconds": arguments.max_seconds, "formal_training": False}, ensure_ascii=False))
         return 0
     return execute_verification(arguments)

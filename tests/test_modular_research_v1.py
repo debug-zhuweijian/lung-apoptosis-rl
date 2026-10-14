@@ -15,7 +15,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.engine import data as data_module
 from lung.engine import modular_config, modular_research, train, world
-from lung.engine.checkpoint import atomic_save, load_checkpoint, seed_all
+from lung.engine.checkpoint import atomic_json, atomic_save, load_checkpoint, seed_all
 from lung.engine.config import ROOT as PROJECT_ROOT, StageUnavailable, file_hash, merge
 from lung.engine.representation_cache import load_representation_cache
 from lung.engine.synthetic import SyntheticData, smoke_config
@@ -85,8 +85,8 @@ def tiny_config():
                      "latent": {"d_model": 8, "latent_dim": 4, "ae": {"batch": 2}}},
         "daac": {"actor_delay": 1, "warmup_transitions": 2, "batch_size": 2,
                  "actor_schedule": {"drug": 1, "dose": 1, "joint": 1}},
-        "modular": {"response_budget_seconds": 120.,
-            "stages": {name: {"epochs": 1, "budget_seconds": 120.} for name in modular_config.DEFAULT_STAGES}}})
+        "modular": {
+            "stages": {name: {"epochs": 1} for name in modular_config.DEFAULT_STAGES}}})
 
 
 @pytest.fixture
@@ -112,8 +112,12 @@ def run(config, run_id, pipeline=None, state=None, stage=None, resume=False):
         monitor.close("synthetic_test_finished")
 
 
-def test_synthetic_full_chain_trains_all_modules_and_reuses_completed_artifacts(integration_environment):
+def test_synthetic_full_chain_trains_all_modules_and_reuses_completed_artifacts(integration_environment, monkeypatch):
     root, data, config = integration_environment
+    # Retired limits in older configurations must not stop any pipeline stage.
+    config = merge(config, {"daac": {"max_seconds": 1e-9},
+        "modular": {"response_budget_seconds": 1e-9,
+            "stages": {name: {"budget_seconds": 1e-9} for name in modular_config.DEFAULT_STAGES}}})
     result = run(config, "modular-full")
     assert result["status"] == "complete"
     pipeline, state = result["pipeline"], result["state"]
@@ -121,6 +125,8 @@ def test_synthetic_full_chain_trains_all_modules_and_reuses_completed_artifacts(
     ids = [row["run_id"] for row in state["stages"].values()]
     assert len(set(ids)) == len(ids) == 9
     assert all(row["status"] == "complete" for row in state["stages"].values())
+    assert all("budget" not in row for row in state["stages"].values())
+    assert not list((root / "experiments").rglob("*budget*.json"))
     for key in ("representation", "pool", "state", "potential"):
         saved = load_checkpoint(pipeline[key])
         assert saved["counters"]["optimizer_step"] > 0
@@ -174,14 +180,21 @@ def test_synthetic_full_chain_trains_all_modules_and_reuses_completed_artifacts(
 
     # A child directory alone is not a resumable learner: retain explicit Actor initialization.
     upstream = {key: value for key, value in pipeline.items() if key not in {"daac", "daac_best"}}
-    initialize = merge(config, {"daac": {"init_from": pipeline["daac"][0]},
-        "modular": {"stages": {"daac": {"budget_seconds": 1e-9}}}})
-    paused = run(initialize, "initialize-paused", upstream, stage="daac")
-    assert paused["status"] == "paused" and "daac" not in paused["pipeline"]
+    initialize = merge(config, {"daac": {"init_from": pipeline["daac"][0]}})
+    execute = modular_research.execute_stage
+
+    def interrupt_before_training(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(modular_research, "execute_stage", interrupt_before_training)
+    with pytest.raises(KeyboardInterrupt):
+        run(initialize, "initialize-paused", upstream, stage="daac")
+    paused = json.loads((root / "experiments/initialize-paused/modular_state.json").read_text(encoding="utf-8"))
+    assert paused["status"] == "interrupted"
     assert (root / "experiments/initialize-paused-daac/active_config.yaml").is_file()
     assert not (root / "checkpoints/initialize-paused-daac/daac/seed_0/last.pt").exists()
-    initialize = merge(initialize, {"modular": {"stages": {"daac": {"budget_seconds": 240.}}}})
-    resumed = run(initialize, "initialize-paused", paused["pipeline"], paused["state"], stage="daac", resume=True)
+    monkeypatch.setattr(modular_research, "execute_stage", execute)
+    resumed = run(initialize, "initialize-paused", upstream, paused, stage="daac", resume=True)
     assert resumed["status"] == "stage_complete"
     initialized = load_checkpoint(resumed["pipeline"]["daac"][0])
     assert initialized["metadata"]["initialization"]["source_sha256"] == file_hash(pipeline["daac"][0])
@@ -197,22 +210,27 @@ def test_default_config_is_single_actor_modular_route():
     assert config["daac"]["actor_schedule"] == {"drug": 20, "dose": 20, "joint": 160}
     assert config["response"]["members"] == 1 and "suite" not in config
     assert "dlpa" not in modular_config.DEFAULT_STAGES
+    assert "max_seconds" not in config["daac"]
+    assert "response_budget_seconds" not in config["modular"]
+    assert all("budget_seconds" not in stage for stage in config["modular"]["stages"].values())
 
 
-def test_paused_ae_is_not_published_and_resume_preserves_updates(integration_environment, monkeypatch):
+def test_legacy_budget_paused_ae_resumes_without_time_limit_and_preserves_updates(integration_environment, monkeypatch):
+    from lung.engine import latent_pipeline
+    from lung.engine.modular_budget import StagePaused
+
     root, _, config = integration_environment
     complete = run(config, "ae-continuous", stage="ae")
     expected = load_checkpoint(complete["pipeline"]["representation"])
-    original = modular_research.ResearchBudget.check
+    original = latent_pipeline.atomic_save
 
-    def exhaust_after_one_update(budget, step, epoch):
-        if budget.state_path and budget.state_path.name == "module_budget.json" and step >= 1:
-            budget.total = budget.summary()["consumed_seconds"]
-            budget.exhausted = True
-            return True
-        return original(budget, step, epoch)
+    def save_legacy_pause(path, payload):
+        if Path(path).name == "last.pt" and payload["counters"]["optimizer_step"] == 1:
+            original(path, {**payload, "extra": {**payload["extra"], "budget_exhausted": True}})
+            raise StagePaused("budget_exhausted", path, stage="ae")
+        original(path, payload)
 
-    monkeypatch.setattr(modular_research.ResearchBudget, "check", exhaust_after_one_update)
+    monkeypatch.setattr(latent_pipeline, "atomic_save", save_legacy_pause)
     first = run(config, "ae-paused", stage="ae")
     assert first["status"] == "paused" and first["stage"] == "ae"
     assert "representation" not in first["pipeline"]
@@ -222,14 +240,25 @@ def test_paused_ae_is_not_published_and_resume_preserves_updates(integration_env
     assert interrupted["extra"]["budget_exhausted"]
     assert not list(folder.glob("selected-*.pt"))
     assert not (root / "experiments" / "ae-paused" / "pipeline.json").exists()
-    monkeypatch.setattr(modular_research.ResearchBudget, "check", original)
-    increased = merge(config, {"modular": {"stages": {"ae": {"budget_seconds": 240.}}}})
-    final = run(increased, "ae-paused", first["pipeline"], first["state"], stage="ae", resume=True)
+    monkeypatch.setattr(latent_pipeline, "atomic_save", original)
+    legacy_config = merge(config, {"modular": {"response_budget_seconds": 1.,
+        "stages": {"ae": {"budget_seconds": 1.}}}})
+    assert modular_config.science_identity(legacy_config) == modular_config.science_identity(config)
+    old_limits = {"schema_version": 1, "budget_total_seconds": 1.,
+                  "budget_consumed_seconds": 2707., "branches": {}}
+    paths = [root / "experiments/ae-paused/response_budget.json",
+             root / "experiments/ae-paused-ae/module_budget.json"]
+    for path in paths:
+        atomic_json(path, old_limits)
+    before = {path: path.read_bytes() for path in paths}
+    final = run(config, "ae-paused", first["pipeline"], first["state"], stage="ae", resume=True)
     assert final["status"] == "stage_complete"
     actual = load_checkpoint(final["pipeline"]["representation"])
     assert actual["counters"]["optimizer_step"] == expected["counters"]["optimizer_step"] == 3
     assert all(_equal(value, expected["model"][key]) for key, value in actual["model"].items())
     assert final["state"]["stages"]["ae"]["run_id"] == "ae-paused-ae"
+    assert before == {path: path.read_bytes() for path in paths}
+    assert not actual["extra"]["budget_exhausted"]
 
 
 def test_dry_run_only_reads_and_prints_the_dependency_plan(integration_environment, monkeypatch, capsys):
