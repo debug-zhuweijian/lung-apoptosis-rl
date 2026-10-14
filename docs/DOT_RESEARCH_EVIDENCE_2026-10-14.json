@@ -2707,5 +2707,65 @@
     },
     "actual_feature_eligible_treated_rows": 83,
     "stereo_missing_not_opposite_isomer": true
+  },
+  "tidyi_within_plate_conditional_diagnostic": {
+    "cells": 368,
+    "metrics": {
+      "position": {
+        "accuracy": 0.8940217391304348,
+        "balanced_accuracy": 0.9221556886227544,
+        "mean_log_loss": 0.3736077798595079,
+        "per_state_recall": {
+          "PI+APC+": 1.0,
+          "PI-APC+": 1.0,
+          "PI-APC-": 0.7664670658682635
+        }
+      },
+      "position_QC": {
+        "accuracy": 0.8885869565217391,
+        "balanced_accuracy": 0.9154850394789871,
+        "mean_log_loss": 0.37002506709943755,
+        "per_state_recall": {
+          "PI+APC+": 0.9907407407407407,
+          "PI-APC+": 0.989247311827957,
+          "PI-APC-": 0.7664670658682635
+        }
+      },
+      "position_QC_RNA": {
+        "accuracy": 0.8722826086956522,
+        "balanced_accuracy": 0.8848533518387359,
+        "mean_log_loss": 0.36125980540745317,
+        "per_state_recall": {
+          "PI+APC+": 0.9537037037037037,
+          "PI-APC+": 0.8924731182795699,
+          "PI-APC-": 0.8083832335329342
+        }
+      }
+    },
+    "labels": [
+      "PI+APC+",
+      "PI-APC+",
+      "PI-APC-"
+    ],
+    "column_plus_state_design_rank": 26,
+    "column_plus_state_design_columns": 26,
+    "features": {
+      "HVG": 200,
+      "PCA": 10,
+      "QC": [
+        "log1p_total_counts",
+        "pct_counts_mt",
+        "log1p_n_genes_by_counts"
+      ]
+    },
+    "independent_culture_validation": false,
+    "future_fate_prediction": false,
+    "causal_state_effect_identified": false,
+    "formal_project_model_training": false,
+    "held_out_unit": "well_row",
+    "hyperparameter_selection": "fixed before this run; no tuning",
+    "limitation": "single sorted plate; QC can be biological and technical; conditional prediction is not transport or future fate",
+    "source_manifest_sha256": "4b147ed6291b796d2968b4db586a275dc9e8300d3d076f2f063494edd773aea7",
+    "script_sha256": "b1271e4d152e78923652f28f9fec4fd6c08f84aef6b94e8cd2f0fa5e175c2304"
   }
 }
