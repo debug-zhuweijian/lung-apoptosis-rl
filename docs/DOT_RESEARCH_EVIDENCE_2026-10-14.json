@@ -208,5 +208,163 @@
     "DBKERO_A549_download_type": "histogram_not_gene_by_condition_matrix",
     "DBKERO_catalog_unit": "nM",
     "Sakuma_supplement_S1A_unit": "μM"
+  },
+  "second_stage": {
+    "base_commit": "a8aa1b480512abd780a291205cda6ca24fcc293a",
+    "self_review": "Dot 自审，未使用独立代理",
+    "targeted_tests": 59,
+    "full_feasibility_passed": false,
+    "manifests": {
+      "damtc-v2": {
+        "validation": {
+          "feature_count": 48803,
+          "sample_count": 6,
+          "measurement_values": 292818,
+          "minimum": -36.4319,
+          "maximum": 60811.07,
+          "noninteger_values": 292759,
+          "roundtrip_exact": true,
+          "scale": "Illumina_Beadstudio_average_normalized_VALUE",
+          "endpoint_conditions": 5,
+          "matched_treated_RNA_conditions": 1,
+          "full_research_feasibility_proven": false,
+          "training_performed": false,
+          "model_input_ready": false
+        },
+        "sources": [
+          {
+            "path": "/workspace/shared/lung-review-20261014/followup/GSE29698.soft.gz",
+            "sha256": "6a551cb8b1e5d00731d31b0a448409c0d01a3776ebedd2fb5c02e808bd71a010"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/followup/DAMTC.xml",
+            "sha256": "27a2d2b4d2165a7eb1654554c1553a9452a5445c1caa330be0e0fea03584b37d"
+          }
+        ],
+        "script_sha256": "44dc0dd54e5fa7c2bf59021d011d56bfda4dea7e0234f44b26fb187789b74ca8",
+        "outputs": {
+          "endpoint_references.csv": "6c2332391c9589d12f1004ab8f5a44019d5207180a54693771afc921e4721dc2",
+          "condition_link.json": "0d434b59b45e3696d79fac199c74831a89afcd05fba96c19288c9edf1ae6e16d",
+          "samples.csv": "96394c296a208a3acda5b8d35470886b5e0f4948185518eb8bfb423642041613",
+          "source_expression.npz": "effc1a6bcb452b4b99ed6c7114a8a7699fa2ac6b0944d6583ee37ac4a5a06654"
+        }
+      },
+      "wave": {
+        "sources": [
+          {
+            "name": "WAVE_Figure5.xlsx",
+            "sha256": "0fae814a57d188d2c4f5a0377127c081f700d0b8f6ef659a82178278a3bd2c88",
+            "bytes": 422248
+          },
+          {
+            "name": "WAVE_41467_2026_77645_MOESM1_ESM.pdf",
+            "sha256": "7f3f7e9d5390e981f64dde2198a8561ba7203f6a4ad0138800eff626cba102ae",
+            "bytes": 1302164
+          },
+          {
+            "name": "WAVE_41467_2026_77645_MOESM4_ESM.zip",
+            "sha256": "4ca39eadec1ac8558a1a824de2a114cbae1eaf41a5a4d1b90e1696ed001ad89b",
+            "bytes": 23635080
+          },
+          {
+            "name": "WAVE.pdf",
+            "sha256": "1b871598c5cd3b9618e659543926afdd5568acb2340e86ada989649944146115",
+            "bytes": 2727571
+          }
+        ],
+        "published_annexin_conditions": 5,
+        "drug_conditions": 4,
+        "source_RNA_conditions_newly_generated": 0,
+        "source_data_zip_FCS_count": 0,
+        "raw_Annexin_replicates_recovered": 0,
+        "source_code_commit": "e27e453beb48d0ff912585060b5a09cb04335262",
+        "source_units_conflict": "Fig5e sheet header Log[Drug], M; published plot log[Drug], uM; original A549 values fractional-like vs H1299 percent-like. Preserved without conversion.",
+        "structure_issues": [
+          "Camptothecin CAS is 2114454, retained raw; not treated as verified CAS",
+          "Baccatin III source SMILES lacks chirality; structure completeness unverified"
+        ],
+        "scope": "selected-hit external functional reference only; no independent population ranking claim, no paired RNA, no sequential data",
+        "outputs": {
+          "representative_annexin.json": "d594cf2019435e2096195b15e2baf09d1be271f3afdabd52c6303687f1d8bf23",
+          "5e_(NCI-H1299).csv": "1e98ede717bd043df1ba9a33fed1f3497eb439e7db0a8992c7d434dc0c8c1db9",
+          "5e_(A549).csv": "708ba88d645b2875ec21feca3159d6d2cfd813cea0137851f7df0c3acbb9b31e"
+        }
+      },
+      "sciplex2-dose-v2": {
+        "cells_source": 24262,
+        "cells_hash_qc": 12345,
+        "source_genes": 58347,
+        "triplet_entries": 60135001,
+        "source_UMI_totals_exact": true,
+        "condition_count": 32,
+        "malformed_well_cells": 44,
+        "CTG_rows": 192,
+        "CTG_endpoint": "relative_ATP_viability_not_Annexin",
+        "CTG_to_RNA_replicate_pairing": false,
+        "diagnostic_fitting": true,
+        "formal_training": false,
+        "state_increment_tested": false,
+        "true_sequence_tested": false,
+        "full_research_feasibility_proven": false,
+        "dependence": "Both plate prefixes aggregated per condition; no biological repeat count inferred from hashing",
+        "sources": [
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/GSM4150377_sciPlex2_A549_Transcription_Modulators_UMI.count.matrix.gz",
+            "sha256": "d295e38924d7b4cab0b9be1087c0ac7aeca2a3dac634359919e85bcc57696685"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/GSM4150377_sciPlex2_A549_Transcription_Modulators_cell.annotations.txt.gz",
+            "sha256": "bd3a14187c2d56c87717f74811aad93bf971938adf941ab4d0b30af1645206a4"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/GSM4150377_sciPlex2_A549_Transcription_Modulators_gene.annotations.txt.gz",
+            "sha256": "fb60559c1e17fe2d0c8b903f8ae273aedfb8fd2440f649a432fc2812bce69363"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/GSM4150377_sciPlex2_pData.txt.gz",
+            "sha256": "47d6d2a72c907e11b4ebb30ceadf8fd3e7b8fa6ab2a6206550c3b877cefa267f"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/GSM4150377_sciPlex2_hashSampleSheet.txt.gz",
+            "sha256": "1a3a925cbd59e256f19c286d9a0f7dff42289900951b72f754f022a64adc355f"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/sciPlex2_CTG_results.csv",
+            "sha256": "f2d0eb6ea1e949e7c65ae5396b4fc7ba594647b026a5fc9d8d973bd66da12b6d"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/Notebook_1_small_screen_analysis.R",
+            "sha256": "4d918ef9ed50aeaf755d0ff8f539af579ac2fafe50faf569237cd7f1043b111f"
+          },
+          {
+            "path": "/workspace/shared/lung-review-20261014/sciplex2/figure2.jpg",
+            "sha256": "91aec835620b6abea6305aa8e280f6523b7d76b3470bac4fd65de8211ee89247"
+          }
+        ],
+        "script_sha256": "610e4cad91afb5d3edbd006c0b4c0190a73c05b4461c51b764413f4165b57a90",
+        "outputs": {
+          "dose_diagnostics.csv": "43d2bc5571145a5b88dc64b3bf6ebfb2a18ab11a080da01a4cc0e9cbed55ffec",
+          "protocol.json": "ca4c683ea46f71f53bffee5a8f56771889e1713fc102601ac2c1e1eee2e1556f",
+          "CTG_condition_references.csv": "06120a550fb2d873e7b0fe20b3a35f0f27ecdab46fccd0ad4fddf2245aba7f6a",
+          "CTG_source_values.csv": "4fff0297379d8fca35a60428e4fb5378136e598a974ff502e05f09438ced26d0",
+          "retained_cells.csv.gz": "abffcee3132240fb0c284ecb1b068be72700fa1a99399d610a5ae92e9cc0b4bd",
+          "condition_counts.npz": "dbca646a6fba89a189653d9f537ad484224f132faf26b3b3e91cfabb594eff15",
+          "conditions.csv": "5d1a017acb6a979054622ac2b882fddc6a933ed58d92625f01b53f8bc9832b28"
+        }
+      }
+    },
+    "primary_sources": {
+      "DAMTC": "https://doi.org/10.1038/cddis.2012.141",
+      "DAMTC_GEO": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE29nnn/GSE29698/soft/GSE29698_family.soft.gz",
+      "WAVE": "https://www.nature.com/articles/s41467-026-77645-3_reference.pdf",
+      "WAVE_SI": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-026-77645-3/MediaObjects/41467_2026_77645_MOESM1_ESM.pdf",
+      "WAVE_source_data": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-026-77645-3/MediaObjects/41467_2026_77645_MOESM4_ESM.zip",
+      "sciPlex2": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM4150377",
+      "sciPlex2_CTG": "https://raw.githubusercontent.com/cole-trapnell-lab/sci-plex/079639c50811dd43a206a779ab2f0199a147c98f/small_screen/sciPlex2_CTG_results.csv"
+    },
+    "negative_triage": {
+      "GSE75960": "Official SOFT verified DV90, not A549; not admitted as A549 RNA",
+      "GSE196835": "A549 siDDX17 RNA and Annexin described; source treatment metadata copies CCK8 timing; exact RNA-function clock not established, not admitted"
+    }
   }
 }
