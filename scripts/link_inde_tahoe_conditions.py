@@ -11,7 +11,7 @@ from rdkit import Chem
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT),str(ROOT/'src')]
 from scripts.link_endpoint_chemical_identities import normalize_name
 from scripts.recover_public_expression import digest
-from lung.data.drug_identity import describe_structure,compare_structures,material_form_review_reason
+from lung.data.drug_identity import describe_structure,compare_structures,material_form_review_reason,review_stereo_omission
 from lung.data.chemistry import build_chemical_catalog
 
 
@@ -33,7 +33,10 @@ def validate_name_resolution(candidates,resolutions):
             raise ValueError('Independent source-name CID is unresolved or conflicting')
 
 
-def resolve(candidates,synonyms,properties,tahoe):
+def resolve(candidates,synonyms,properties,tahoe,complete_omitted_stereo=False,independent_name_resolution=None):
+    if complete_omitted_stereo:
+        if independent_name_resolution is None:raise ValueError('Independent name evidence required for nominal completion')
+        validate_name_resolution(candidates,independent_name_resolution)
     syn={r['CID']:r['Synonym'] for r in synonyms['InformationList']['Information']}
     props={r['CID']:r for r in properties['PropertyTable']['Properties']}
     if len(props)!=len(properties['PropertyTable']['Properties']) or tahoe.drug.duplicated().any():raise ValueError('Duplicate identities')
@@ -50,13 +53,22 @@ def resolve(candidates,synonyms,properties,tahoe):
         relation=compare_structures(sm,t.iloc[0].canonical_smiles)
         metal=any(x.GetAtomicNum()==78 for x in Chem.MolFromSmiles(sm).GetAtoms())
         reason=material_form_review_reason(name,a) or material_form_review_reason(row['tahoe_name'],b)
+        review=review_stereo_omission(t.iloc[0].canonical_smiles,sm)
+        repaired=bool(complete_omitted_stereo and review['eligible'] and reason is None and not metal and not unverified_aliases)
+        original_eligible=relation=='same_full_form' and reason is None and not metal and not unverified_aliases
         result.append(dict(source_compound_name=name,tahoe_drug=row['tahoe_name'],drug_id=f'pubchem:{cid}',
             source_compound_id='Inde2020:'+name,drug_name=name,component_role='drug',canonical_smiles=a['canonical_full_smiles'],
             nominal_primary_name_verified=True,full_source_label_verified=not unverified_aliases,
             unverified_parenthetical_aliases=json.dumps(unverified_aliases),source_primary_name=primary_name(name),structure_relation=relation,
             source_unspecified_stereo=a['unspecified_stereo_count'],tahoe_unspecified_stereo=b['unspecified_stereo_count'],
             material_review_reason=reason,coordination_review_required=metal,
-            strict_structure_link_eligible=relation=='same_full_form' and reason is None and not metal and not unverified_aliases,
+            strict_structure_link_eligible=original_eligible,
+            nominal_reference_link_eligible=bool(original_eligible or repaired),
+            tahoe_original_smiles=t.iloc[0].canonical_smiles,
+            tahoe_derived_reference_smiles=a['canonical_full_smiles'] if repaired else t.iloc[0].canonical_smiles,
+            omitted_stereo_reference_completion_used=repaired,stereo_completion_review=review['reason'],
+            remaining_reference_unspecified_stereo=a['unspecified_stereo_count'],
+            original_Tahoe_source_record_modified=False,experimental_stereochemistry_verified=False,
             historical_reagent_form_verified=False,**a))
     out=pd.DataFrame(result)
     if out.source_compound_name.duplicated().any() or out.drug_id.duplicated().any():raise ValueError('Ambiguous source candidate')
@@ -92,6 +104,7 @@ def bind(catalog,samples,observations):
                 tahoe_sample=t['sample'],tahoe_plate=t['plate'],dose_uM=dose,
                 functional_group_id=v.functional_group_id.iloc[0],functional_observation_count=len(v),
                 strict_structure_link_eligible=c['strict_structure_link_eligible'],
+                nominal_reference_link_eligible=c.get('nominal_reference_link_eligible',c['strict_structure_link_eligible']),
                 a549_cells_in_sample_verified=False,paired_RNA_functional_replicates=False,
                 matched_culture=False,functional_background='A549 nuclear-mKate2 reporter',
                 RNA_background='Tahoe pooled 3D cell villages; A549 membership requires row verification',
@@ -104,6 +117,7 @@ def bind(catalog,samples,observations):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for n in ['source','tahoe','functional','output']:p.add_argument('--'+n,type=Path,required=True)
+    p.add_argument('--complete-omitted-stereo',action='store_true')
     a=p.parse_args()
     if a.output.exists():raise FileExistsError('New output directory required')
     for rec in json.loads((a.source/'sources_with_names.json').read_text()):
@@ -118,12 +132,14 @@ def main():
         if r['cids']!=actual:raise ValueError('Name-query result differs from cached response')
     validate_name_resolution(candidates,resolutions)
     t=pd.read_parquet(a.tahoe/'drug_metadata.parquet');s=pd.read_parquet(a.tahoe/'sample_metadata.parquet')
-    c=resolve(candidates,json.loads((a.source/'synonyms.json').read_text()),json.loads((a.source/'properties.json').read_text()),t)
+    c=resolve(candidates,json.loads((a.source/'synonyms.json').read_text()),json.loads((a.source/'properties.json').read_text()),t,a.complete_omitted_stereo,resolutions)
     links,f=bind(c,s,pd.read_csv(a.functional/'single_agent_24h.csv'))
     chem,fp,meta=build_chemical_catalog(c);a.output.mkdir(parents=True)
     c.to_csv(a.output/'nominal_structures.csv',index=False);links.to_csv(a.output/'condition_links.csv',index=False)
     f.to_csv(a.output/'functional_observations.csv',index=False);chem.to_csv(a.output/'chemical_catalog.csv',index=False);np.save(a.output/'fingerprints.npy',fp)
-    report=dict(nominal_drugs=len(c),strict_structure_drugs=int(c.strict_structure_link_eligible.sum()),candidate_sample_links=len(links),
+    report=dict(nominal_reference_drugs=int(c.nominal_reference_link_eligible.sum()),
+        derived_stereo_completions=int(c.omitted_stereo_reference_completion_used.sum()),
+        original_Tahoe_records_modified=0,nominal_drugs=len(c),strict_structure_drugs=int(c.strict_structure_link_eligible.sum()),candidate_sample_links=len(links),
         strict_structure_sample_links=int(links.strict_structure_link_eligible.sum()),functional_values=len(f),
         preserved_independent_experiments=3,no_replicate_cross_product=True,full_protocol_matches=0,
         actual_RNA_rows_recovered_by_this_script=0,complete_scientific_qualification=False,

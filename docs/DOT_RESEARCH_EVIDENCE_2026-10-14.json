@@ -3991,5 +3991,100 @@
       "predictions.csv": "3804ebe80698bf7b9e7d8d549772165d181bc665b465fadee109bbb98a6fa12a",
       "identity_order.csv": "3fb59ccdc5a3a71af3347b249cb6190343872cb670f896017ba57ba17649a32b"
     }
+  },
+  "nominal_stereo_completion_20261014": {
+    "actual_manifest": {
+      "nominal_reference_drugs": 34,
+      "derived_stereo_completions": 20,
+      "original_Tahoe_records_modified": 0,
+      "nominal_drugs": 36,
+      "strict_structure_drugs": 14,
+      "candidate_sample_links": 45,
+      "strict_structure_sample_links": 15,
+      "functional_values": 108,
+      "preserved_independent_experiments": 3,
+      "no_replicate_cross_product": true,
+      "full_protocol_matches": 0,
+      "actual_RNA_rows_recovered_by_this_script": 0,
+      "complete_scientific_qualification": false,
+      "unmatched_library_names_are_not_proven_absent": true,
+      "all_library_drugs_resolved": false,
+      "fingerprint": {
+        "rdkit": "2026.09.1",
+        "canonicalization": "isomeric_full_form_no_desalting",
+        "identity_limit": "source_structure_parsed_not_independently_vendor_verified",
+        "fingerprint": {
+          "type": "Morgan_binary",
+          "radius": 2,
+          "bits": 2048,
+          "includeChirality": true,
+          "useBondTypes": true,
+          "includeRedundantEnvironments": false
+        }
+      },
+      "independent_source_name_queries_verified": true,
+      "source_cache_manifest_sha256": "c67254991da404e1724be29c362dde88e7e6a97dce8c6813f7b21cdd377ab253",
+      "source_hashes": {
+        "/workspace/shared/lung-review-20261014/inde-tahoe/name_resolution.json": "3c3510edbcaafe2fc34eed15f21c1aeec43ca40d7286447dd8aa35f9be6215f1",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/name_candidates.json": "a1f14093be7f3fbb8d90846267e92e1723bfa5a3bd578f0608b0a3bcb8b7732a",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/synonyms.json": "65c33c507d2b36d99b58001e607c8037b5f6bd293527c9c8b91e331e9bff1d84",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/properties.json": "8afc3d5d04f937e0ab98811236a2886cfbf32e3054852de03ce7e9dac692889b",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/current_metadata/sample_metadata.parquet": "33167f0ce28cff8357c503cda67d1c7fea200bff6918ee1de3c4f3549175b9d3",
+        "/workspace/shared/lung-review-20261014/inde-tahoe/current_metadata/drug_metadata.parquet": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28",
+        "experiments/dot-20261014-inde-functional-v2/single_agent_24h.csv": "5a54128199ef34984cc9f94271c3b3c22c7ea84f793b728f1bd35189b27cb9ff"
+      },
+      "script_sha256": "82d07ed8ac3ed2f09671ed88baa9ab76f354f31108e9826afe23eb9e7203e610",
+      "outputs": {
+        "nominal_structures.csv": "860d15893bf5200320d33742b53230b69b1bca483bfa811155a6718bed73045a",
+        "condition_links.csv": "5253ab3e71a7d0f47c78e3fb0e07fa4ef3625cc85fb685d564eab9894e5ac890",
+        "fingerprints.npy": "00f2236c754f802093054421055694e3bebcbd3a098f32d8a63bc54f92474274",
+        "chemical_catalog.csv": "8e3be84cef62180185852f1b1972978d862592e01f76b1778a9575010f0b8b0a",
+        "functional_observations.csv": "f7efdfdb42c60ba9f75f1065e746b238047d34110cbde2b94303bf27378a48b5"
+      }
+    },
+    "tests": {
+      "files": 7,
+      "passed": 54,
+      "full_suite_run": false,
+      "log_sha256": "0f3853fd3beb1d0f5af0e767fd06e54d799304ad10954acb73409b4f3b1aea29"
+    },
+    "expanded_RNA": {
+      "completed": false,
+      "needed_groups": 33,
+      "needed_range_bytes": 157951353,
+      "cached_groups": 21,
+      "cached_bytes": 100494210,
+      "remaining_bytes": 57457143,
+      "blocker": "network approval cancelled; explicit user retry permission pending",
+      "fixed_34_drug_diagnostic_executed": false
+    },
+    "dexamethasone_review": {
+      "source_receipts": [
+        {
+          "path": "literal_name.json",
+          "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Dexamethasone%20%28DHAP%29/cids/JSON",
+          "sha256": "898596010088aff6126a4f60a01e5cb288382287bd8dbb62178479c9ca3cb601"
+        },
+        {
+          "path": "two_CID_properties.json",
+          "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/5743,40467075/property/CanonicalSMILES,IsomericSMILES,InChIKey/JSON",
+          "sha256": "0dbeda96512693b125d7f42a10abee238e2d1e9b774c5c4fbe622ef37c01b398"
+        },
+        {
+          "path": "CAS_name.json",
+          "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/50-02-2/cids/JSON",
+          "sha256": "c99aefd4501314eb59b680a78e839e8c9662f84034d311fcd5856f2d7e34b875"
+        }
+      ],
+      "primary_CID": 5743,
+      "literal_label_CID": 40467075,
+      "relation": "same_connectivity_different_stereochemistry",
+      "supplier_current_CAS": "50-02-2",
+      "supplier_current_InChIKey": "UREBDLICKHMUKA-CXSFZGCWSA-N",
+      "supplier_url": "https://www.selleckchem.com/products/dexamethasone-glucocorticoid-receptor-agonist/cas-number.html",
+      "historical_lot_verified": false,
+      "included_in_34": false
+    },
+    "independent_agent_review": false
   }
 }

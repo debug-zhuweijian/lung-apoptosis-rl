@@ -40,3 +40,9 @@ def test_invalid_abundance_or_population_rejected(column,value):
 def test_duplicated_gene_is_not_summed_into_a_new_measurement():
     f,a,m=fixture();f.loc[1,'feature']='A'
     with pytest.raises(ValueError,match='Duplicate tested'):align_means(f,a,m)
+
+
+def test_range_budget_cannot_be_silently_unbounded():
+    from scripts.recover_pie_a549_functional_reference import selected_ranges
+    for b in [0,-1,160000001]:
+        with pytest.raises(ValueError,match='resource budget'):selected_ranges(None,[],b)

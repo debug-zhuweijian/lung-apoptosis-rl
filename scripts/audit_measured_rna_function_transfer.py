@@ -72,6 +72,7 @@ def evaluate(x,fp,y,names,genes=200):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for k in ['expression','chemistry','output']:p.add_argument('--'+k,type=Path,required=True)
+    p.add_argument('--eligibility-column',choices=['strict_structure_link_eligible','nominal_reference_link_eligible'],default='strict_structure_link_eligible')
     a=p.parse_args()
     if a.output.exists():raise FileExistsError('New output directory required')
     for directory in [a.expression,a.chemistry]:
@@ -83,7 +84,7 @@ def main():
     names=[];fps=[];targets=[]
     for t in z['targets']:
         drug,dose,unit=ast.literal_eval(str(t))[0]
-        row=c[c.tahoe_drug.eq(drug)&c.strict_structure_link_eligible.eq(True)]
+        row=c[c.tahoe_drug.eq(drug)&c[a.eligibility_column].eq(True)]
         if len(row)!=1 or dose!=5 or unit!='uM':raise ValueError('RNA condition identity differs')
         r=row.iloc[0];obs=f[f.source_compound_name.eq(r.source_compound_name)].sort_values('replicate')
         if obs.replicate.tolist()!=[1,2,3] or not obs.valid_measured_fraction.all() or obs.author_autofluorescence_exclusion.any():raise ValueError('Assay coverage or QC differs')
@@ -94,7 +95,7 @@ def main():
     report,pred=evaluate(x,np.array(fps),np.array(targets),names)
     a.output.mkdir(parents=True);pred.to_csv(a.output/'predictions.csv',index=False)
     pd.DataFrame(dict(drug=names,expression_target=z['targets'])).to_csv(a.output/'identity_order.csv',index=False)
-    report.update(source_manifests={str(d/'manifest.json'):digest(d/'manifest.json') for d in [a.expression,a.chemistry]},
+    report.update(eligibility_column=a.eligibility_column,source_manifests={str(d/'manifest.json'):digest(d/'manifest.json') for d in [a.expression,a.chemistry]},
         script_sha256=digest(__file__),outputs={q.name:digest(q) for q in a.output.iterdir()})
     (a.output/'manifest.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report['metrics'],indent=2))
 

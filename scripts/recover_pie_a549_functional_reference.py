@@ -53,7 +53,8 @@ def download_range(start,end):
     return b''.join(chunks)
 
 
-def selected_ranges(metadata,targets):
+def selected_ranges(metadata,targets,max_source_bytes=80_000_000):
+    if not 0<max_source_bytes<=160_000_000:raise ValueError('Bounded resource budget must be <=160MB')
     groups=[]
     for i in range(metadata.num_row_groups):
         g=metadata.row_group(i);s=g.column(0).statistics
@@ -62,11 +63,11 @@ def selected_ranges(metadata,targets):
         offsets=[min(x for x in [g.column(j).dictionary_page_offset,g.column(j).data_page_offset] if x is not None) for j in range(g.num_columns)]
         lo=min(offsets);hi=max(offsets[j]+g.column(j).total_compressed_size for j in range(g.num_columns))
         groups.append(dict(group=i,start=lo,end_exclusive=hi,bytes=hi-lo))
-    if not groups or sum(g['bytes'] for g in groups)>80_000_000:raise ValueError('Requested subset exceeds 80MB bound')
+    if not groups or sum(g['bytes'] for g in groups)>max_source_bytes:raise ValueError('Requested subset exceeds explicit byte bound')
     return groups
 
 
-def recover_rows(source,targets,fetch=False):
+def recover_rows(source,targets,fetch=False,max_source_bytes=80_000_000):
     source.mkdir(parents=True,exist_ok=True);cache=source/'PIE_ranges';cache.mkdir(exist_ok=True)
     path=source/'PIE_A549_footer.bin'
     if not path.exists():
@@ -79,7 +80,7 @@ def recover_rows(source,targets,fetch=False):
     footer=path.read_bytes()
     if digest(path)!=FOOTER_HASH:raise ValueError('Pinned footer changed')
     metadata=pq.ParquetFile(io.BytesIO(b'PAR1'+footer)).metadata
-    groups=selected_ranges(metadata,targets);prior={}
+    groups=selected_ranges(metadata,targets,max_source_bytes);prior={}
     if (cache/'receipt.json').exists():
         receipt=json.loads((cache/'receipt.json').read_text())
         if receipt['url']!=URL:raise ValueError('Source URL changed')
@@ -130,18 +131,21 @@ def align_means(frame,axis,metadata):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for n in ['source','catalog','gene-axis','gene-metadata','output']:p.add_argument('--'+n,type=Path,required=True)
-    p.add_argument('--fetch',action='store_true');a=p.parse_args()
+    p.add_argument('--fetch',action='store_true')
+    p.add_argument('--eligibility-column',choices=['strict_structure_link_eligible','nominal_reference_link_eligible'],default='strict_structure_link_eligible')
+    p.add_argument('--max-source-bytes',type=int,default=80_000_000)
+    a=p.parse_args()
     if a.output.exists():raise FileExistsError('New output directory required')
-    c=pd.read_csv(a.catalog);c=c[c.strict_structure_link_eligible.eq(True)]
+    c=pd.read_csv(a.catalog);c=c[c[a.eligibility_column].eq(True)]
     if c.empty or c.tahoe_drug.duplicated().any():raise ValueError('Unique qualified drug names required')
     names=[str([(n,5.0,'uM')]) for n in c.tahoe_drug]
-    raw,ranges=recover_rows(a.source,names,a.fetch);axis=pd.read_csv(a.gene_axis);meta=pd.read_parquet(a.gene_metadata)
+    raw,ranges=recover_rows(a.source,names,a.fetch,a.max_source_bytes);axis=pd.read_csv(a.gene_axis);meta=pd.read_parquet(a.gene_metadata)
     values,refs,mask,ledger,conditions=align_means(raw,axis,meta)
     a.output.mkdir(parents=True);raw.to_parquet(a.output/'source_group_means.parquet',index=False)
     np.savez_compressed(a.output/'aligned_group_means.npz',target_mean=values,reference_mean=refs,observed_mask=mask,
         gene_ids=axis.sort_values('common_gene_index').ensembl_id.to_numpy(dtype=str),targets=conditions.target.to_numpy(dtype=str))
     ledger.to_csv(a.output/'gene_mapping.csv.gz',index=False);conditions.to_csv(a.output/'conditions.csv',index=False)
-    report=dict(source_url=URL,source_revision='aa919261564cfd63155f734760cf38d79e089b6c',
+    report=dict(eligibility_column=a.eligibility_column,max_source_bytes=a.max_source_bytes,source_url=URL,source_revision='aa919261564cfd63155f734760cf38d79e089b6c',
         source_file_bytes=SIZE,full_source_file_downloaded=False,full_file_sha256_verified=False,
         downloaded_row_groups=len(ranges),selected_range_bytes=sum(x['bytes'] for x in ranges),ranges=ranges,
         actual_mean_records=len(raw),conditions=len(conditions),reported_target_cells=int(conditions.author_reported_target_cells.sum()),
