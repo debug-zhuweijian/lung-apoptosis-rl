@@ -4507,5 +4507,142 @@
       "bytes": 1181899,
       "KRAS": "p.Gly12Ser (c.34G>A)"
     }
+  },
+  "chembl_primary_review_actual": {
+    "version": "ChEMBL_37",
+    "assays": 2513,
+    "24h_assays": 1023,
+    "activities": 1364,
+    "unique_activity_ids": 1364,
+    "molecules": 241,
+    "documents": 131,
+    "full_graph_Tahoe_matched_activity_rows": 25,
+    "matched_molecules": [
+      "5-Fluorouracil",
+      "Erlotinib",
+      "Gallic acid",
+      "Gefitinib",
+      "Ligustrazine"
+    ],
+    "matched_documents": 8,
+    "new_primary_documents_read": 2,
+    "complete_primary_curation": false,
+    "training_qualified": false,
+    "source_hashes": {
+      "source_status.json": "f4d07ed4cb29cf7042056fddb87fc8dc0da391afb75087727f57da95f424489e",
+      "activities_24h_0600.json": "e0f4110cbe55245f54911c3f7f91caf536e3e1ab279ff17bd74df444f14f6753",
+      "activities_24h_0420.json": "5a528a5c29e6888187b9c91aa238f6d8d4ba40d2a63a342d9a57de01c6eaadaf",
+      "document_CHEMBL5608203.json": "8bad08245e6c085ec80a0d0ef0031d5d20180204f392f019f3175992b1f13d14",
+      "activities_24h_1020.json": "86e7e8ebb3c7774b821202cbc45fac532e60aee00db52067ebb0f479837d7fe2",
+      "complete_tahoe_structure_matches.json": "38a59b350a30aad607d54fec30d4e1dcca0632d933d7307884ebc3c6ef485625",
+      "assays_all.json": "2aac30721bd93249ff478083b5f58980f4e5b56f14d54396eef6d0d170aeae61",
+      "activities_24h_0180.json": "8ec5066897c9d006de2ec015b8ba79977a796e1ae7898d0e1db72ef0574542db",
+      "activities_24h_0840.json": "3b3950f39f6343f918c0d2c3bc463cb74699ba359e433097df703b2ad8c85766",
+      "activities_24h_0480.json": "06e04e9cd1842e1a65c1f95e0e2b9a41e7740b1b3d63a4c557d16bdf097cb783",
+      "activities_24h_0660.json": "8aebd7fdcab463b9f737a17bcdc26d8331c7cb1d4fddfad56e54f12afb958074",
+      "activities_24h_0960.json": "ef883b8c256a616f01e0ee789473be05ddbbdd4c5e3dcf3941eb631b93e32207",
+      "activities_24h_0900.json": "480dce4ac51552da62d49f50d6bb7f363acf1f833b602ef32eee443c714c5775",
+      "activities_24h_0000.json": "fce1b602232ade0e6919152579428ad7f5d27418a961a63d64b410ca4895d716",
+      "activities_24h_0300.json": "c5a6b5415e0b2b6b81e67fd356e359d9f5a4990a18bff2d26e32a6e97aa47903",
+      "activities_all.json": "39297fcfd4737d0e38c56f8f181a257071d87e5787d7f11e3a95cb70839069ab",
+      "activities_24h_0780.json": "a3b31ad7cb395b1ddfe246ed90dd841a8045eb38f783c310fc31e339ac40adca",
+      "activities_24h_0720.json": "ffba78be7ce346b2a347a0d9ce8ec505bced625562324b0dd971e38eeafe2a5f",
+      "activities_24h_0360.json": "7f4f0cb1ae3d0953c4ae28bc4d68646f80c46dd5c74075666759b39101617b02",
+      "activities_24h_0240.json": "7863757e452b434a4d40ebbb600cb4d81fa00eb08a6005f0c92d0a72ad41d1c9",
+      "activities_24h_0120.json": "fb33cac1dd5b5d52fc91c589dbd30af079f7d0a7e1e68b8ee194c8b51ebb9b4b",
+      "matched_documents.json": "838bb7afb86329f8f7bfd576e7875c66bf674135ec9e39217ab846cdf15f39d7",
+      "activities_24h_0060.json": "643d88e19a6cac445bd2b562f11372e366046a02948e392dfef6f30169990bbf",
+      "activities_24h_0540.json": "44812c1fc92cebcc659184a248ce00982d3128ca3985a58d1f95cdd6ca5a1d0d",
+      "partial_tahoe_structure_matches.json": "24d76a5792100f301f1edc0644ef0d0a9c3c8bbd8b5ddb6496c3af4c1791b043"
+    },
+    "primary_pdf_hashes": {
+      "triazoles2020.pdf": "7a8c5882c7cbf4360384b78f240d37aa1c0400be3de29fa5d7f4398fdd900590",
+      "thiazolyl2019.pdf": "df4e8ac0549bc732949c8c350ee529a0aa97bbb2e4f5ae71252c825a959e700b"
+    },
+    "outputs": {
+      "matched_activity_records.json": "906437e9fd091798f4c41462cbce04856a115a2ab44dd0cc7c9b868868e71702",
+      "primary_reviews.json": "42a1b1db20a27d4dae990a1c6e937ae9e2498f884d02f6958ab3eecd160cc771"
+    }
+  },
+  "public_erlotinib_transfer_actual": {
+    "A_source": "GSE116436 NCI-TPW",
+    "B_source": "GSE57422",
+    "nominal_drug": "erlotinib",
+    "dose_uM": 1,
+    "shared_observed_genes": 10597,
+    "pairs": [
+      {
+        "time_hours": 6,
+        "A_treatment": "GSM3234147",
+        "A_reference": "GSM3234141",
+        "B_treatment": "GSM1382372",
+        "B_reference": "GSM1382371",
+        "A_reference_hours": 6,
+        "B_reference_hours": 0,
+        "expression_level_spearman": 0.6979951620456063,
+        "effect_comparison": {
+          "genes": 10597,
+          "spearman": 0.024623032146594444,
+          "sign_agreement": 0.4924035104274795,
+          "A_zero_effect_MSE": 0.0468997618997162,
+          "B_zero_effect_MSE": 0.06994088844458742,
+          "cross_source_copy_MSE": 0.11503407674063852,
+          "independent_sample_count": null,
+          "gene_level_pvalue_computed": false
+        },
+        "reference_estimands_equal": false
+      },
+      {
+        "time_hours": 24,
+        "A_treatment": "GSM3234145",
+        "A_reference": "GSM3234139",
+        "B_treatment": "GSM1382374",
+        "B_reference": "GSM1382371",
+        "A_reference_hours": 24,
+        "B_reference_hours": 0,
+        "expression_level_spearman": 0.6938067059864539,
+        "effect_comparison": {
+          "genes": 10597,
+          "spearman": 0.07150527658815226,
+          "sign_agreement": 0.5159950929508351,
+          "A_zero_effect_MSE": 0.06234969023959799,
+          "B_zero_effect_MSE": 0.09940027392202767,
+          "cross_source_copy_MSE": 0.15209493023804183,
+          "independent_sample_count": null,
+          "gene_level_pvalue_computed": false
+        },
+        "reference_estimands_equal": false
+      }
+    ],
+    "treated_temporal_increment": {
+      "genes": 10597,
+      "spearman": 0.08624986232805537,
+      "sign_agreement": 0.5203359441351326,
+      "A_zero_effect_MSE": 0.11422414125424031,
+      "B_zero_effect_MSE": 0.06263777371349954,
+      "cross_source_copy_MSE": 0.15951307815338808,
+      "independent_sample_count": null,
+      "gene_level_pvalue_computed": false,
+      "definition": "24h_minus_6h_treated_RNA; includes untreated growth/time drift in both sources",
+      "unobserved_control_imputed": false
+    },
+    "protocol": "fixed all-common-observed gene panel; no variable-gene selection, alignment fitting or tuning",
+    "source_background_conflict": true,
+    "experimental_material_and_culture_equivalence_verified": false,
+    "gene_level_independent_replication": false,
+    "unseen_drug_generalization_test": false,
+    "calibrated_endpoint_test": false,
+    "complete_cross_source_qualification": false,
+    "raw_array_normalization_refitted": false,
+    "formal_training": false,
+    "source_manifest_hashes": {
+      "NCI": "c0536333dfe015b0e70a22e7c69dacd160d18b53b1c84d77699cdd0bf032b9c7",
+      "Dermawan": "9edaca48a7382628f20e3a61321408698842b20ff4ac3f75fc5e0d5c070d79ed"
+    },
+    "ordered_gene_axis_hash": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "919e2b1f3429e62d31c359aec412fd84aadef6ee904ab5002f7f1a7a50fdba93",
+    "outputs": {
+      "observed_comparison_vectors.npz": "9d489597d9713b39740a8d2a687f31d12a5b391aebeee65fc6e9a56042c8cd77"
+    }
   }
 }
