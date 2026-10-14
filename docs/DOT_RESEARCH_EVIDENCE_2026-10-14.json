@@ -4298,6 +4298,35 @@
     "directly_related_tests_passed": 37,
     "new_42_drug_RNA_recovered": false,
     "new_42_drug_predictive_diagnostic_executed": false,
-    "original_14_drug_negative_result_preserved": true
+    "original_14_drug_negative_result_preserved": true,
+    "whitespace_repair_v2": {
+      "library_names": 261,
+      "query_responses": 261,
+      "unique_primary_CIDs": 258,
+      "exact_CID_Tahoe_candidates": 45,
+      "unique_candidates_for_existing_review": 45,
+      "duplicate_source_CID_names": [],
+      "unresolved_names": [
+        "Tunicamycin",
+        "Vaquinol-1",
+        "NSC 23766"
+      ],
+      "structure_and_alias_review_complete": false,
+      "experimental_form_verified": false,
+      "RNA_recovery_performed": false,
+      "complete_scientific_qualification": false,
+      "source_hashes": {
+        "name_resolution": "38f488d2ed1978e97db1155ce60f84a1b683f3e2ee0f3a4d750b8946c4029ab1",
+        "receipts": "9145d04f4041acd41e9a86f23b8b641ee7d4e7ce0e836649d806e7127d66ac77",
+        "functional": "5a54128199ef34984cc9f94271c3b3c22c7ea84f793b728f1bd35189b27cb9ff",
+        "tahoe": "7a04c7a6611e74c92253163b994ff0a47191928ee7511f1c2ca508cee0e79f28"
+      },
+      "script_sha256": "ae647daeddf8e16874629f55b443faafc6c32c342be2fa42fa8e5c5725fd5adc",
+      "outputs": {
+        "library_CID_audit.csv": "44c85646630e2289843229e321e23b1066d1a7fceeeed895c89d8957dfc93412",
+        "name_candidates.json": "236f78233387aa7ef7fa9a67ca0f553b422aec11b9f29a5c56c5201ad4b2661c"
+      }
+    },
+    "whitespace_repair_targeted_tests_passed": 23
   }
 }

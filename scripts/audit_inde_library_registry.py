@@ -19,7 +19,7 @@ def audit(names,responses,tahoe):
     if tahoe.drug.duplicated().any():raise ValueError('Duplicate Tahoe record labels')
     rows=[]
     for r in responses:
-        if r['queried_primary_name']!=primary_name(r['source_name']):raise ValueError('Query differs from preserved primary material name')
+        if ' '.join(r['queried_primary_name'].split())!=primary_name(r['source_name']):raise ValueError('Query differs from preserved primary material name')
         ids=r['cids'];hits=tahoe[tahoe.pubchem_cid.eq(ids[0])] if r['status']==200 and len(ids)==1 else tahoe.iloc[:0]
         selected=None;reason='no_unique_primary_CID'
         if r['status']==200 and len(ids)==1:

@@ -20,7 +20,7 @@ def primary_name(name):
     parts=re.findall(r'\(([^)]*)\)',name)
     if any(re.search(r'hydrat|chloride|bromide|sulfate|acetate|citrate|maleate|mesylate|salt|solvat|sodium|potassium|calcium|%',p,re.I) for p in parts) or any(re.fullmatch(r'[RSrs+−-]+|HCl|HBr|cis|trans|rac|racemate',p.strip(),re.I) for p in parts):
         return name.strip()
-    return re.sub(r'\([^)]*\)','',name).strip()
+    return ' '.join(re.sub(r'\([^)]*\)', '', name).split())
 
 
 def validate_name_resolution(candidates,resolutions):

@@ -56,3 +56,9 @@ def test_identity_match_cannot_remove_author_assay_exclusion():
     assert qualify_functional_catalog(c,obs).nominal_functional_transfer_eligible.all()
     obs.loc[0,'lethal_fraction']=1.1
     assert not qualify_functional_catalog(c,obs).nominal_functional_transfer_eligible.any()
+
+
+def test_removing_alias_preserves_salt_and_normalizes_separator_whitespace():
+    assert primary_name('Palbociclib (PD-0332991) HCl')=='Palbociclib HCl'
+    assert primary_name('Vatalanib (PTK787) 2HCl')=='Vatalanib 2HCl'
+    assert primary_name('17-DMAG (Alvespimycin) HCl')=='17-DMAG HCl'
