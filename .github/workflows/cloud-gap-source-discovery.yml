@@ -12,49 +12,53 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Read author-documented processed A549 assets and original sequential supplements
+      - name: Recover processed UMI matrix, not FASTQ or training data jobs
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install requests h5py numpy
           python - <<'PY'
-          import hashlib,json,re
+          import hashlib,json
           from pathlib import Path
           from datetime import datetime,timezone
-          import requests
+          import requests,h5py,numpy as np
           out=Path('gap-sources');out.mkdir();rows=[]
-          def get(url,name,limit=40000000,head_only=False):
+          def get(url,name,limit=40000000,expected_bytes=None,kind=None):
               p=out/name;p.parent.mkdir(parents=True,exist_ok=True)
               row=dict(url=url,path=name,retrieved_utc=datetime.now(timezone.utc).isoformat())
               try:
-                  with requests.get(url,stream=True,timeout=(20,90)) as r:
+                  with requests.get(url,stream=True,timeout=(20,120)) as r:
                       r.raise_for_status();row.update(resolved_url=r.url,http_status=r.status_code,etag=r.headers.get('ETag'),last_modified=r.headers.get('Last-Modified'),content_type=r.headers.get('Content-Type'),declared_bytes=r.headers.get('Content-Length'))
-                      if head_only:
-                          row['status']='headers_only_no_matrix_read'
-                      else:
-                          if int(r.headers.get('Content-Length','0'))>limit:raise ValueError('outside selected processed-file scope')
-                          n=0
-                          with p.with_suffix(p.suffix+'.part').open('xb') as h:
-                              for c in r.iter_content(65536):
-                                  n+=len(c)
-                                  if n>limit:raise ValueError('outside selected processed-file scope')
-                                  h.write(c)
-                          part=p.with_suffix(p.suffix+'.part');row.update(bytes=n,sha256=hashlib.sha256(part.read_bytes()).hexdigest(),status='downloaded_unpinned_snapshot');part.rename(p)
+                      if int(r.headers.get('Content-Length','0'))>limit:raise ValueError('outside selected processed-file scope')
+                      n=0;sha=hashlib.sha256();prefix=b''
+                      part=p.with_suffix(p.suffix+'.part')
+                      with part.open('xb') as h:
+                          for c in r.iter_content(1048576):
+                              if not prefix:prefix=c[:512]
+                              n+=len(c)
+                              if n>limit:raise ValueError('outside selected processed-file scope')
+                              h.write(c);sha.update(c)
+                  if expected_bytes is not None and n!=expected_bytes:raise ValueError('source length changed')
+                  if kind=='hdf5' and not prefix.startswith(b'\x89HDF\r\n\x1a\n'):raise ValueError('not HDF5')
+                  if kind=='pdf' and not prefix.startswith(b'%PDF'):raise ValueError('not PDF')
+                  if kind in ('csv','xml') and (b'<html' in prefix.lower() or b'<!doctype html' in prefix.lower()):raise ValueError('HTML response is not source data')
+                  row.update(bytes=n,sha256=sha.hexdigest(),status='downloaded_content_checked_snapshot');part.rename(p)
               except Exception as e:row.update(status='failed',error=str(e))
               rows.append(row);(out/'retrieval_receipt.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)
               return p if row['status'].startswith('downloaded') else None
           name='SC3_v3_NextGem_DI_CellPlex_CRISPR_A549_30K_Multiplex'
           base='https://cf.10xgenomics.com/samples/cell-exp/6.0.0/'+name+'/'+name
-          for suffix in ['_config.csv','_count_web_summary.html','_count_sample_barcodes.csv','_count_sample_barcodes.json','_count_guide_assignments.csv','_count_feature_reference.csv']:
-              get(base+suffix,'tenx/'+name+suffix)
-          get(base+'_count_raw_feature_bc_matrix.h5','tenx/raw_matrix_header.json',head_only=True)
-          for root,label in [('https://pmc.ncbi.nlm.nih.gov/articles/PMC3501264/bin/','pmc'),('https://europepmc.org/articles/PMC3501264/bin/','epmc')]:
-              for suffix in ['01.pdf','02.csv']:
-                  get(root+'NIHMS370678-supplement-'+suffix,'lee/'+label+'_'+suffix)
-          get('https://pmc.ncbi.nlm.nih.gov/articles/PMC3501264/?report=xml','lee/pmc_full.xml')
-          get('https://pmc.ncbi.nlm.nih.gov/articles/PMC3501264/pdf/nihms370678.pdf','lee/nihms370678.pdf')
-          get('https://scar-tutorials.readthedocs.io/en/v0.6.0/tutorials/scAR_tutorial_sgRNA_assignment.html','tenx/scar_sgrna.html')
-          get('https://scar-tutorials.readthedocs.io/en/v0.6.0/tutorials/scAR_tutorial_identity_barcode.html','tenx/scar_cmo.html')
+          get(base+'_config.csv','tenx/config.csv',expected_bytes=1360,kind='csv')
+          get(base+'_count_feature_reference.csv','tenx/feature_reference.csv',expected_bytes=10833,kind='csv')
+          p=get(base+'_count_raw_feature_bc_matrix.h5','tenx/raw_feature_bc_matrix.h5',limit=260000000,expected_bytes=254540120,kind='hdf5')
+          if p:
+              with h5py.File(p,'r') as f:
+                  m=f['matrix'];feat=m['features']
+                  meta={'shape':m['shape'][:].tolist(),'matrix_keys':list(m.keys()),'feature_keys':list(feat.keys()),'nnz':len(m['data']),'feature_types':dict(zip(*[a.tolist() for a in np.unique(feat['feature_type'].asstr()[:],return_counts=True)])),'file_attributes':{k:str(v) for k,v in f.attrs.items()}}
+                  (out/'tenx/hdf5_metadata.json').write_text(json.dumps(meta,indent=2));print(json.dumps(meta),flush=True)
+          for drug in ['3-deazaneplanocin A','Trichostatin A','Valproic acid','Kinetin','Resveratrol']:
+              from urllib.parse import quote
+              get('https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/'+quote(drug,safe='')+'/property/CanonicalSMILES,IsomericSMILES,InChI,InChIKey,MolecularFormula,MolecularWeight/JSON','chemicals/'+drug.replace(' ','_')+'.json')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
@@ -63,4 +67,4 @@ jobs:
           path: gap-sources/
           if-no-files-found: error
           retention-days: 14
-          compression-level: 6
+          compression-level: 0
