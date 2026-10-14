@@ -806,5 +806,33 @@
       }
     },
     "direct_tests": "75 passed"
+  },
+  "macaya_cloud_core_recovery": {
+    "known_core_source_reconstituted": true,
+    "new_independent_dataset": false,
+    "observation_slots": 24,
+    "numeric_observations": 22,
+    "missing_observations": 2,
+    "source_condition_blocks": 8,
+    "distinct_intervention_sets": 6,
+    "existing_endpoint_reader_readback": true,
+    "formal_training": false,
+    "full_research_qualified": false,
+    "script_sha256": "6b2b9d762e5dc2cc27b87bf14a047d713193d7b0ede9b090093cb68f6a1ffe0a",
+    "source_hashes": {
+      "source_data.xlsx": "3160a2b9c91d2b3eafaba8de055a752556145445220d1cbc135b8609b8d630b4",
+      "supplement.pdf": "902297818c2e6335961b762807141cba6171a9354df7980180f8c7fe9427c3c9",
+      "paper.xml": "aa7a9fa576c2e8ad14f51b3991974ca27760db8c13fdc85d6151a8978c0aa032",
+      "geo.soft.gz": "3ecd680c238ed60eaa2f323a8869b309d17dfa964c01b0284eddd97fb82027a4"
+    },
+    "alignment_manifest_sha256": "1a726f6e17cc28550fcdf202a9791531b0d0a85c2a1587c8db76bba693f8a789",
+    "output": "experiments/dot-20261014-macaya-core-v3",
+    "doi": "10.1038/s41467-023-41828-z",
+    "actual_targeted_tests": 69,
+    "test_files": 13,
+    "not_entire_repository_suite": true,
+    "RNA_background": "H1792",
+    "RNA_exposure_h": 16,
+    "A549_endpoint_exposure_h": 24
   }
 }
