@@ -4844,5 +4844,62 @@
     "actual_full_cohort_evaluation_rejected": true,
     "related_tests_passed": 20,
     "independent_agent_review": false
+  },
+  "abraxane_state_reference": {
+    "accession": "GSE56742",
+    "doi": "10.1371/journal.pone.0131429",
+    "source_feature_count": 23694,
+    "actual_libraries": 5,
+    "actual_source_values": 118470,
+    "source_feature_unit": "author_RefSeq_feature_FPKM",
+    "GEO_processing_calls_RPKM_four_samples_but_actual_table_has_five": true,
+    "common_axis_observed_proxy_features": 11456,
+    "common_axis_missing": 21005,
+    "proxy_not_gene_total_FPKM": true,
+    "transcript_summing_performed": false,
+    "author_suffix_rows": 425,
+    "mapped_many_to_one_rows_rejected": 9080,
+    "full_production_model_input_qualified": false,
+    "qualified_Annexin_observations": 0,
+    "functional_group_IC50_summaries": 14,
+    "matched_RNA_endpoint_dose_time_pairs": 0,
+    "complete_two_state_by_Abraxane_treated_control_reference_grid": true,
+    "independent_state_replicates_or_RNA_increment_verified": false,
+    "retrospective_descriptive_only": true,
+    "formal_training": false,
+    "full_research_feasibility": false,
+    "source_hashes": {
+      "GSE56742_5samples.fpkm.txt.gz": "d9cc4f629de8beb926b7441c46b5da28b3ca23b190e608b324c19f0f26760209",
+      "GSE56742_family.soft.gz": "3985d3c4938c5fd00872723a264bc5b3704323df992f7bf89ef200eac2a6b40c",
+      "paper.xml": "b968cd19dec999eb841e7091cd908f738988b7faeafa742d50e3f646a91ef809",
+      "ncbiRefSeqLink.txt.gz": "d92371fb330b004278bfed5c2a6d9c6d904b574037f4adfb3849d925d08f7db2",
+      "ncbiRefSeqLink.sql": "29a8852290164f0a263cfa890542d3febd0fb83727a2cf6a06f3daf95187d591"
+    },
+    "current_gene_info_sha256": "fcb82c4602af6005e65a2f1bc9b3fc27e303565ee8710c5afe85a3091a68c3fa",
+    "gene_axis_sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c",
+    "script_sha256": "55de48ac013a1779e915fc2b127781c5081250fdfbf2074724ba1490b45f35b0",
+    "outputs": {
+      "refseq_gene_mapping.csv.gz": "2656232dae404b9319b5fd9d968a3ea04f78060beb8b5176f4a2b4bdc03cd36c",
+      "descriptive_interaction.json": "abe47ba54605b839188e41ed7d7fe3328bbcb79122f5cd94a365afef7b73777c",
+      "functional_IC50_reference.csv": "a39f6ce23b408d880312c7d2eb140cbf7ba4600e8bb181191a29cdab09c2799c",
+      "source_FPKM.npz": "0495741f5f3ca54f42f651470b32f37d48100af03b24c6b1c3755e1c2ce649db",
+      "axis_mapping.csv.gz": "dab06e5a159663f72bf27621e1d1eff5ea5380991639408b42a7fc0713474401",
+      "source_metadata.json": "3fdc5600fd5ba2cfbb2334768f0d37a31e95de7e3c226df43075f4612f772c36",
+      "samples.csv": "a822246d121f54fe863997a277457a6cc4c9ac38141c944fc2a7d2267f171b14",
+      "single_refseq_proxy_axis.npz": "cc5820bd213482e2f7489570a9d53300afd2c073c380521ca799f1241083fd75"
+    },
+    "descriptive_diagnostic": {
+      "source_feature_count": 23694,
+      "scale": "log2(1+source_FPKM)",
+      "parental_response_mean_square": 0.76461665735868,
+      "resistant_response_mean_square": 0.8294481882708503,
+      "descriptive_state_by_treatment_interaction_mean_square": 1.5099968476030703,
+      "parental_reference_disagreement_mean_square": 1.68180509634404,
+      "interaction_confounded_with_unreplicated_treated_libraries": true,
+      "statistical_significance_test": false,
+      "RNA_increment_beyond_state_ID_identified": false,
+      "formal_training": false
+    },
+    "related_tests_passed": 22
   }
 }
