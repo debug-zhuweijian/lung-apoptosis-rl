@@ -128,3 +128,52 @@ def test_raw_native_counts_cannot_be_fractional(tmp_path):
     samples = pd.DataFrame({"geo_accession": ["GSM1"]})
     with pytest.raises(ValueError, match="integers"):
         MOD.save_native(tmp_path, frame, samples, "id", "bulk_raw_counts")
+
+
+def brd9_fixture(tmp_path):
+    blocks=[]
+    for i in range(12):
+        accession=f'GSM{i}'
+        first=['dBRD9-A','DMSO'][i//6]
+        second=['plus IFN-alpha2','no IFN'][(i//3)%2]
+        file=f'{accession}.txt.gz'
+        genes=['ENSG00000000001','ENSG00000000002']
+        # Reverse alternating source rows: joining must use identity, not position.
+        frame=pd.DataFrame({'Identifier':genes,'matchCounts':[i,100+i]})
+        if i%2:frame=frame.iloc[::-1]
+        frame.to_csv(tmp_path/file,sep='\t',index=False)
+        blocks.append(f'^SAMPLE = {accession}\n!Sample_title = sample {i}\n'
+            '!Sample_characteristics_ch1 = cell line: A549\n'
+            f'!Sample_characteristics_ch1 = treatment: {first} pretreated {second}\n'
+            '!Sample_treatment_protocol_ch1 = 125nM for 6h; containing again; 100IU/mL; incubated for 6h\n'
+            f'!Sample_supplementary_file_1 = https://example.org/{file}\n')
+    soft=tmp_path/'meta.gz'
+    with gzip.open(soft,'wt') as f:f.write(''.join(blocks))
+    return soft
+
+
+def test_brd9_history_preserves_nonmolar_units_and_retreatment(tmp_path):
+    soft=brd9_fixture(tmp_path)
+    frame,samples,_,paths=MOD.brd9_history_expression(tmp_path,soft)
+    assert frame.GSM1.tolist()==[1,101]
+    assert len(paths)==12 and len(samples)==12
+    assert samples.second_dose_uM.isna().all()
+    assert samples.second_dose_IU_per_mL.notna().sum()==6
+    assert samples.first_agent_readded.all() and samples.endpoint_h.eq(12).all()
+    assert not samples.intermediate_RNA_measured.any()
+    assert not samples.small_molecule_only_candidate_eligible.any()
+    assert samples.paired_repeat_id.isna().all()
+
+
+@pytest.mark.parametrize('old,new',[('125nM','125uM'),('containing again','withdrawn'),('cell line: A549','cell line: PC9')])
+def test_brd9_changed_protocol_fails(tmp_path,old,new):
+    soft=brd9_fixture(tmp_path)
+    with gzip.open(soft,'rt') as f:t=f.read()
+    with gzip.open(soft,'wt') as f:f.write(t.replace(old,new))
+    with pytest.raises(ValueError):MOD.brd9_history_expression(tmp_path,soft)
+
+
+def test_brd9_duplicate_gene_fails(tmp_path):
+    soft=brd9_fixture(tmp_path)
+    p=tmp_path/'GSM0.txt.gz';f=pd.read_csv(p,sep='\t');f.loc[1,'Identifier']=f.loc[0,'Identifier'];f.to_csv(p,sep='\t',index=False)
+    with pytest.raises(ValueError):MOD.brd9_history_expression(tmp_path,soft)

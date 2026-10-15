@@ -184,3 +184,33 @@ def map_conditions(conditions: pd.DataFrame, identities: pd.DataFrame) -> pd.Dat
     if not linked._merge.eq("both").all():
         raise ValueError("Unmapped condition drug_id")
     return linked.drop(columns="_merge").assign(identity_version="identity-v2", source_condition_id=linked.condition_id)
+
+
+def review_stereo_omission(original, reference):
+    """Review a derived nominal registry completion, never experimental isomer proof.
+
+    The caller must independently establish that both records name the SAME CID
+    and source material. This structural check alone does not resolve identity.
+    Existing specified stereo, salts or connectivity are never overwritten.
+    Unspecified stereo remaining in the reference is retained explicitly.
+    """
+    a, b = describe_structure(original), describe_structure(reference)
+    result = {"eligible": False, "reason": "unresolved_structure",
+              "reference_unspecified_stereo_count": b.get("unspecified_stereo_count"),
+              "experimental_stereochemistry_verified": False}
+    if a['parse_status'] != 'parsed' or b['parse_status'] != 'parsed':
+        return result
+    if a['identity_id'] == b['identity_id']:
+        return {**result, "reason": "already_same_full_form"}
+    if a['connectivity_smiles'] != b['connectivity_smiles']:
+        return {**result, "reason": "connectivity_or_material_form_differs"}
+    def specified(mol):
+        return (sum(x.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED for x in mol.GetAtoms())
+                + sum(x.GetStereo() != Chem.BondStereo.STEREONONE for x in mol.GetBonds()))
+    if specified(Chem.MolFromSmiles(original)):
+        return {**result, "reason": "original_has_specified_stereo_requires_review"}
+    if not specified(Chem.MolFromSmiles(reference)):
+        return {**result, "reason": "reference_adds_no_specified_stereo"}
+    return {**result, "eligible": True,
+            "reason": "complete_omission_with_same_CID_reference_only",
+            "derived_reference_smiles": b['canonical_full_smiles']}
