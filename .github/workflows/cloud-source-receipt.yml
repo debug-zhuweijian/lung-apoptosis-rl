@@ -1,0 +1,56 @@
+name: Cloud source receipt
+on:
+  push:
+    branches: ['codex/data-chain-closure-20261015']
+    paths: ['.github/workflows/cloud-source-receipt.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact review branch without credentials or research data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir receipt
+          git rev-parse HEAD > receipt/branch_head.txt
+          git merge-base --is-ancestor 4a78560bdeb2e0d98332d5a9520764a120abf612 HEAD
+          git branch cloud-review-export HEAD
+          git bundle create receipt/review.bundle refs/heads/cloud-review-export
+          git bundle verify receipt/review.bundle
+          git diff --binary 4a78560bdeb2e0d98332d5a9520764a120abf612 HEAD > receipt/review.patch
+          sha256sum receipt/review.bundle receipt/review.patch > receipt/SHA256SUMS
+      - uses: actions/checkout@v4
+        with:
+          repository: Novartis/scar
+          ref: 6ad76db59c164e58d724663e2dd1149a840d45fd
+          path: author-scar
+          persist-credentials: false
+      - name: Archive published scAR v0.6.0 with license; no remote model execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C author-scar rev-parse HEAD)" = 6ad76db59c164e58d724663e2dd1149a840d45fd
+          git -C author-scar rev-parse HEAD > receipt/scar_commit.txt
+          tar -czf receipt/scar_source_v0.6.0.tgz -C author-scar scar pyproject.toml README.md docs/License.rst
+          sha256sum receipt/scar_source_v0.6.0.tgz >> receipt/SHA256SUMS
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download exact missing checksum dependency for offline installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip download --no-deps --only-binary=:all: --dest receipt/wheels crc32c==2.7.1
+          sha256sum receipt/wheels/* >> receipt/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloud-source-receipt
+          path: receipt/
+          retention-days: 14
+          if-no-files-found: error

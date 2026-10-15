@@ -1,0 +1,96 @@
+name: Cloud source followup
+on:
+  push:
+    branches: ['codex/data-chain-closure-20261015']
+    paths: ['.github/workflows/cloud-source-followup.yml']
+permissions:
+  contents: read
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Retrieve public annotations, protocol metadata and original supplements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install requests
+          python - <<'PY'
+          import hashlib, json, re, time
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from urllib.parse import quote, urlparse
+          import requests
+          out = Path('followup'); out.mkdir()
+          receipts = []
+          def get(url, name, limit=80_000_000, expected=None):
+              p = out / name; p.parent.mkdir(parents=True, exist_ok=True)
+              r = dict(url=url, path=name, retrieved_utc=datetime.now(timezone.utc).isoformat())
+              try:
+                  headers = {'User-Agent':'Mozilla/5.0','Referer':'https://data.mendeley.com/datasets/9bccjb75wp/1'} if 'mendeley.com' in url else {}
+                  with requests.get(url, headers=headers, stream=True, timeout=(20,90)) as response:
+                      response.raise_for_status()
+                      r.update(status_code=response.status_code, resolved_url=response.url, content_type=response.headers.get('Content-Type'))
+                      n=0
+                      if int(response.headers.get('Content-Length','0'))>limit: raise ValueError('outside bounded processed-file scope')
+                      with p.with_suffix(p.suffix+'.part').open('xb') as h:
+                          for c in response.iter_content(65536):
+                              n+=len(c)
+                              if n>limit: raise ValueError('outside bounded processed-file scope')
+                              h.write(c)
+                  partial=p.with_suffix(p.suffix+'.part'); digest=hashlib.sha256(partial.read_bytes()).hexdigest()
+                  r.update(bytes=n,sha256=digest,expected_sha256=expected)
+                  if expected and digest!=expected: raise ValueError('source hash mismatch')
+                  partial.rename(p);r['status']='downloaded'
+              except Exception as e: r.update(status='failed',error=str(e))
+              receipts.append(r);(out/'retrieval_receipt.json').write_text(json.dumps(receipts,indent=2))
+              print(json.dumps(r),flush=True)
+              return p if r['status']=='downloaded' else None
+          get('https://data.mendeley.com/public-files/datasets/9bccjb75wp/files/eeff3433-7308-46da-bb77-2e093cdeba85/file_downloaded','inde/261 library + DMSO.xlsx',expected='2f51796806586e48501753b6aba6d152a42a49e78a0028d3c9b0ed1575a36c71')
+          get('https://data.mendeley.com/public-api/datasets/9bccjb75wp/versions/1','inde/dataset.json')
+          get('https://journals.plos.org/plosone/article/file?type=supplementary&id=10.1371/journal.pone.0181081.s008','sarin/pone.0181081.s008.docx')
+          get('https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt','annotation/hgnc_complete_set.txt')
+          get('https://ftp.ensembl.org/pub/release-75/gtf/homo_sapiens/Homo_sapiens.GRCh37.75.gtf.gz','annotation/Homo_sapiens.GRCh37.75.gtf.gz')
+          get('https://ftp.ensembl.org/pub/release-75/gtf/homo_sapiens/CHECKSUMS','annotation/CHECKSUMS')
+          for name in ['hashSampleSheet.txt.gz','A549_MCF7_K562_hashTable_metadata.txt.gz','A549_MCF7_K562_screen_gene.annotations.txt.gz','A549_MCF7_K562_screen_cell.annotations.txt.gz','pData.txt.gz']:
+              get('https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_'+name,'sciplex/'+name)
+          for name in ['E-MTAB-9923.sdrf.txt','E-MTAB-9923.idf.txt','DEseq2_DexDexVsEtOHDex_A549_byintrons.txt','DEseq2_DexEtOHvsEtOHEtOH_A549_byintrons.txt','DEseq2_EtOHDexVsEtOHEtOH_A549_byintrons.txt']:
+              get('https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/'+name,'bothe/'+name)
+          get('https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8403771/fullTextXML','papers/bothe.xml')
+          for query,name in [('DOI:10.1038/bjc.2013.752','gambogic'),('DOI:10.1038/s41467-021-24537-3','dormancy')]:
+              p=get('https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&query='+quote(query),'papers/'+name+'_metadata.json')
+              if p:
+                  for entry in json.loads(p.read_text()).get('resultList',{}).get('result',[]):
+                      if entry.get('pmcid'): get('https://www.ebi.ac.uk/europepmc/webservices/rest/'+entry['pmcid']+'/fullTextXML','papers/'+name+'.xml');break
+          for name in ['I-BET726','Oxaliplatin','Lestaurtinib','Trametinib','Midostaurin','Cisplatin','Gambogic acid','Dexamethasone','Resveratrol']:
+              get('https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/'+quote(name,safe='')+'/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON','chemistry/'+name.replace(' ','_')+'.json')
+              time.sleep(0.3)
+          page=get('https://www.10xgenomics.com/datasets/30-k-a-549-lung-carcinoma-cells-treatments-transduced-with-a-crispr-pool-multiplexed-6-cm-os-3-1-standard-6-0-0','tenx/page.html')
+          if page:
+              text=page.read_text(); urls=sorted(set(re.findall(r'https[^\s"<>\\]+',text)))
+              candidates=[u for u in urls if '10xgenomics.com' in u and any(s in u for s in ['.h5','.csv','.json','.tar.gz'])]
+              (out/'tenx/discovered_links.json').write_text(json.dumps(candidates,indent=2))
+              for i,u in enumerate(candidates):
+                  if any(s in u for s in ['.csv','config','feature_reference']): get(u,'tenx/'+urlparse(u).path.split('/')[-1],limit=5_000_000)
+          for doi,name in [('s42256-026-01192-1','sequentx'),('s41467-021-24537-3','dormancy'),('bjc2013752','gambogic')]:
+              p=get('https://www.nature.com/articles/'+doi,'papers/'+name+'.html')
+              if p:
+                  from html import unescape
+                  links=sorted(set(unescape(u) for u in re.findall(r'href="([^"]+)"',p.read_text()) if 'MediaObjects' in u))
+                  (out/'papers'/ (name+'_supplement_links.json')).write_text(json.dumps(links,indent=2))
+                  for u in links:
+                      if u.endswith(('.xlsx','.pdf')): get(u, 'papers/'+u.rsplit('/',1)[-1])
+          PY
+      - name: Fetch offline test dependencies
+        run: |
+          mkdir -p followup/wheels
+          python -m pip download --only-binary=:all: tensorboard==2.20.0 -d followup/wheels
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cloud-source-followup
+          path: followup/
+          if-no-files-found: error
+          retention-days: 14

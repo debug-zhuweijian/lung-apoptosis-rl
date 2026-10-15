@@ -1,0 +1,33 @@
+name: Source contracts snapshot
+on:
+  push:
+    branches: [codex/source-contracts-20261015]
+    paths: [.github/workflows/source-contracts-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bundle pinned public source refs, without model or dataset execution
+        run: |
+          set -eu
+          mkdir -p snapshot
+          git fetch https://github.com/debug-zhuweijian/lung-apoptosis-rl.git 371767aa199ea5bf36898b4a7ed563cb8b8ed9f6
+          git branch audit-pr1 371767aa199ea5bf36898b4a7ed563cb8b8ed9f6
+          git branch audit-main 3218e7ce65ba7184d0ea506b46a8ecd6e4ebc5c4
+          git branch audit-working HEAD
+          git bundle create snapshot/sources.bundle audit-main audit-pr1 audit-working
+          git bundle verify snapshot/sources.bundle
+          git rev-parse HEAD > snapshot/workflow_commit.txt
+          sha256sum snapshot/sources.bundle > snapshot/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-contracts-snapshot
+          path: snapshot/
+          retention-days: 14
+          if-no-files-found: error

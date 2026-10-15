@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "genes": {
+      "url": "https://huggingface.co/datasets/tahoebio/Tahoe-100M/resolve/2dc57900b7981cfcf5e211527169a0b006546a95/metadata/gene_metadata.parquet",
+      "bytes": 1326799,
+      "sha256": "d6104d1ca570d94832be0d27ffe8b7e4e54cfd366c9080239219f9c406eb751c",
+      "source_version": "2dc57900b7981cfcf5e211527169a0b006546a95"
+    },
+    "counts": {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_A549_counts.csv",
+      "bytes": 49296053,
+      "sha256": "b33aa1b03d71972f8e8c33864be0f0e2747ffa8b56289d00f27cd8c276cc3360",
+      "source_version": "E-MTAB-16354/SS3_Human_A549; byte-pinned public export"
+    },
+    "metadata": {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_A549_metadata.csv",
+      "bytes": 250782,
+      "sha256": "6ee300a8ba36642950c94d3be7455beb51255e42d8f311273d00aa9e0868a38b",
+      "source_version": "E-MTAB-16354/SS3_Human_A549; byte-pinned public export"
+    }
+  },
+  "expected": {
+    "source_rows": 369,
+    "confirmed_a549_cells": 368,
+    "excluded_identity_rows": 1,
+    "tahoe_genes": 62710,
+    "tidyi_genes": 32858,
+    "shared_genes": 32461
+  },
+  "frozen_asset_identity_verified": false,
+  "note": "Exact public-source identity intersection. This does not authenticate inaccessible frozen training assets or restore the author two-plate collection.",
+  "expected_qc_difference_sha256": "b3e193a52a559de88922f534cf42e5be774ebbe39fcac5d988f716f89201fa45",
+  "qc_discrepancy_semantics": "Deposited metadata QC differs from exported matrix in 269 cells, by up to 9 counts/genes. Cause unverified. Retain original QC and recomputed exported-axis QC separately; this is not a numerical tolerance."
+}

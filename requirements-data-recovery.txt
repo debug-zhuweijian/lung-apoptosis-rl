@@ -1,0 +1,21 @@
+# Optional data-recovery overlay, verified on Windows x64 / Python 3.13.14.
+# Requires the existing requirements-lock.txt runtime; do not replace its pins.
+# numpy and typing-extensions are provided by that base runtime.
+# Install into an isolated --target directory; see docs/DATA_RECOVERY_ENVIRONMENT.md.
+python-docx==1.2.0
+openpyxl==3.1.5
+PyMuPDF==1.28.2
+h5py==3.16.0
+
+# Direct imports of the reused source-table extractor.
+requests==2.34.2
+beautifulsoup4==4.15.0
+
+# Additional dependency closure outside the existing training lock.
+lxml==6.1.1
+et-xmlfile==2.0.0
+charset-normalizer==3.4.9
+idna==3.18
+urllib3==2.7.0
+certifi==2026.6.17
+soupsieve==2.9

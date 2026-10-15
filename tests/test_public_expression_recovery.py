@@ -128,3 +128,136 @@ def test_raw_native_counts_cannot_be_fractional(tmp_path):
     samples = pd.DataFrame({"geo_accession": ["GSM1"]})
     with pytest.raises(ValueError, match="integers"):
         MOD.save_native(tmp_path, frame, samples, "id", "bulk_raw_counts")
+
+
+def brd9_fixture(tmp_path):
+    blocks=[]
+    for i in range(12):
+        accession=f'GSM{i}'
+        first=['dBRD9-A','DMSO'][i//6]
+        second=['plus IFN-alpha2','no IFN'][(i//3)%2]
+        file=f'{accession}.txt.gz'
+        genes=['ENSG00000000001','ENSG00000000002']
+        # Reverse alternating source rows: joining must use identity, not position.
+        frame=pd.DataFrame({'Identifier':genes,'matchCounts':[i,100+i]})
+        if i%2:frame=frame.iloc[::-1]
+        frame.to_csv(tmp_path/file,sep='\t',index=False)
+        blocks.append(f'^SAMPLE = {accession}\n!Sample_title = sample {i}\n'
+            '!Sample_characteristics_ch1 = cell line: A549\n'
+            f'!Sample_characteristics_ch1 = treatment: {first} pretreated {second}\n'
+            '!Sample_treatment_protocol_ch1 = 125nM for 6h; containing again; 100IU/mL; incubated for 6h\n'
+            f'!Sample_supplementary_file_1 = https://example.org/{file}\n')
+    soft=tmp_path/'meta.gz'
+    with gzip.open(soft,'wt') as f:f.write(''.join(blocks))
+    return soft
+
+
+def test_brd9_history_preserves_nonmolar_units_and_retreatment(tmp_path):
+    soft=brd9_fixture(tmp_path)
+    frame,samples,_,paths=MOD.brd9_history_expression(tmp_path,soft)
+    assert frame.GSM1.tolist()==[1,101]
+    assert len(paths)==12 and len(samples)==12
+    assert samples.second_dose_uM.isna().all()
+    assert samples.second_dose_IU_per_mL.notna().sum()==6
+    assert samples.first_agent_readded.all() and samples.endpoint_h.eq(12).all()
+    assert not samples.intermediate_RNA_measured.any()
+    assert not samples.small_molecule_only_candidate_eligible.any()
+    assert samples.paired_repeat_id.isna().all()
+
+
+@pytest.mark.parametrize('old,new',[('125nM','125uM'),('containing again','withdrawn'),('cell line: A549','cell line: PC9')])
+def test_brd9_changed_protocol_fails(tmp_path,old,new):
+    soft=brd9_fixture(tmp_path)
+    with gzip.open(soft,'rt') as f:t=f.read()
+    with gzip.open(soft,'wt') as f:f.write(t.replace(old,new))
+    with pytest.raises(ValueError):MOD.brd9_history_expression(tmp_path,soft)
+
+
+def test_brd9_duplicate_gene_fails(tmp_path):
+    soft=brd9_fixture(tmp_path)
+    p=tmp_path/'GSM0.txt.gz';f=pd.read_csv(p,sep='\t');f.loc[1,'Identifier']=f.loc[0,'Identifier'];f.to_csv(p,sep='\t',index=False)
+    with pytest.raises(ValueError):MOD.brd9_history_expression(tmp_path,soft)
+
+
+def test_source_reconstructed_axis_does_not_claim_frozen_asset_identity(tmp_path):
+    import json
+    axis_path = tmp_path / "genes.parquet"
+    axis = pd.DataFrame({"ensembl_id": ["ENSG1", "ENSG2"], "common_gene_index": [0, 1]})
+    axis.to_parquet(axis_path, index=False)
+    reference = tmp_path / "manifest.json"
+    reference.write_text(json.dumps({"outputs": {"genes.parquet": {"sha256": MOD.digest(axis_path), "bytes": axis_path.stat().st_size}},
+                                    "validation": {"frozen_asset_identity_verified": False, "shared_genes": 2}}))
+    actual, provenance = MOD.load_projection_axis(axis_path, reference)
+    pd.testing.assert_frame_equal(actual, axis)
+    assert provenance["source_reference_verified"] is True
+    assert provenance["frozen_asset_identity_verified"] is False
+    axis.loc[0, "ensembl_id"] = "ENSG3"
+    axis.to_parquet(axis_path, index=False)
+    with pytest.raises(ValueError, match="axis"):
+        MOD.load_projection_axis(axis_path, reference)
+
+
+def test_unmanifested_axis_remains_unauthenticated(tmp_path):
+    p = tmp_path / "genes.parquet"
+    pd.DataFrame({"ensembl_id": ["ENSG1"], "common_gene_index": [0]}).to_parquet(p, index=False)
+    _, scope = MOD.load_projection_axis(p, None)
+    assert scope["source_reference_verified"] is False
+    assert scope["frozen_asset_identity_verified"] is False
+
+
+@pytest.mark.parametrize("use_manifest,use_reference", [(True, False), (False, True), (True, True)])
+def test_axis_proof_modes_keep_source_receipt_and_identity_comparison_distinct(tmp_path, monkeypatch, use_manifest, use_reference):
+    import json
+    soft = tmp_path / "meta.soft.gz"
+    with gzip.open(soft, "wt", encoding="utf-8") as handle:
+        handle.write("^SAMPLE = GSM1\n!Sample_title = A549_Notreatment_rep1\n"
+                     "!Sample_treatment_protocol_ch1 = Cells were treated with 1 μM HM97662 or left untreated for 6 days.\n")
+    matrix = tmp_path / "matrix.tsv"
+    pd.DataFrame({"gene_id": ["ENSG1"], "gene_name": ["A"], "A549_NT-1": [1.25]}).to_csv(matrix, sep="\t", index=False)
+    axis = pd.DataFrame({"common_gene_index": [1, 0], "ensembl_id": ["ENSG2", "ENSG1"]})
+    axis_path = tmp_path / "genes.parquet"
+    axis.to_parquet(axis_path, index=False)
+    manifest = tmp_path / "axis-manifest.json"
+    manifest.write_text(json.dumps({"outputs": {"genes.parquet": {"sha256": MOD.digest(axis_path), "bytes": axis_path.stat().st_size}},
+                                    "validation": {"shared_genes": 2}}))
+    reference = tmp_path / "reference.csv"
+    axis.to_csv(reference, index=False)
+    output = tmp_path / "result"
+    args = ["recover", "hm97662", "--soft", str(soft), "--matrix", str(matrix), "--gene-axis", str(axis_path), "--output", str(output)]
+    if use_manifest:
+        args += ["--gene-axis-manifest", str(manifest)]
+    if use_reference:
+        args += ["--reference-gene-axis", str(reference)]
+    monkeypatch.setattr("sys.argv", args)
+    MOD.main()
+    receipt = json.loads((output / "manifest.json").read_text())
+    validation = receipt["validation"]
+    assert validation["gene_axis_provenance"]["source_reference_verified"] is use_manifest
+    assert validation["reference_axis_match_verified"] is use_reference
+    assert validation["common_axis_verified"] is use_reference
+    assert validation["axis_projection_verified"] is True
+    assert validation["gene_axis_provenance"]["frozen_asset_identity_verified"] is False
+    assert validation["model_compatibility_verified"] is False
+    assert validation["model_input_ready"] is False
+    source_paths = {item["path"] for item in receipt["sources"]}
+    assert (str(manifest.resolve()) in source_paths) is use_manifest
+    assert (str(reference.resolve()) in source_paths) is use_reference
+    with np.load(output / "common_axis_expression.npz", allow_pickle=False) as saved:
+        assert saved["ensembl_ids"].tolist() == ["ENSG1", "ENSG2"]
+        np.testing.assert_array_equal(saved["expression"], [[1.25, np.nan]])
+
+
+def test_axis_manifest_mismatch_fails_before_reading_source_or_publishing_output(tmp_path, monkeypatch):
+    import json
+    axis_path = tmp_path / "genes.parquet"
+    pd.DataFrame({"common_gene_index": [0], "ensembl_id": ["ENSG1"]}).to_parquet(axis_path, index=False)
+    manifest = tmp_path / "axis-manifest.json"
+    manifest.write_text(json.dumps({"outputs": {"genes.parquet": {"sha256": "wrong", "bytes": axis_path.stat().st_size}},
+                                    "validation": {"shared_genes": 1}}))
+    output = tmp_path / "not-created"
+    monkeypatch.setattr("sys.argv", ["recover", "hm97662", "--soft", str(tmp_path / "not-read.gz"),
+        "--gene-axis", str(axis_path), "--reference-gene-axis", str(axis_path),
+        "--gene-axis-manifest", str(manifest), "--output", str(output)])
+    with pytest.raises(ValueError, match="manifest"):
+        MOD.main()
+    assert not output.exists()

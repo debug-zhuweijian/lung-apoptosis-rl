@@ -3,34 +3,43 @@
 import numpy as np
 import pandas as pd
 
+from .source_bridge import validate_gene_axis
+
 
 def align_gene_axis(frame, gene_axis, *, identifier, samples, scale):
-    if scale not in {"bulk_raw_counts", "bulk_estimated_counts", "bulk_log2CPM"}:
+    # Mapping preserves each measurement domain; it does not convert units.
+    if scale not in {"bulk_raw_counts", "bulk_estimated_counts", "bulk_log2CPM", "bulk_TPM", "bulk_FPKM",
+                     "population_mean_CP10k", "microarray_log2_RMA", "bulk_microarray_processed", "single_cell_raw_counts"}:
         raise ValueError("External expression scale must be explicit")
-    axis = gene_axis.sort_values("common_gene_index")
-    if not np.array_equal(axis.common_gene_index, np.arange(len(axis))):
-        raise ValueError("Common gene axis is not contiguous")
-    if axis.ensembl_id.duplicated().any():
-        raise ValueError("Duplicate Ensembl identity in common axis")
+    samples = list(samples)
+    if (not samples or len(set(samples)) != len(samples)
+            or any(not isinstance(s, str) or not s.strip() for s in samples)
+            or identifier in samples):
+        raise ValueError("Expression sample selection must be nonempty and unique")
+    if not frame.columns.is_unique:
+        raise ValueError("Duplicate source columns cannot define samples")
+    axis = validate_gene_axis(gene_axis)
     target_key = "ensembl_id" if identifier == "ensembl_id" else "gene_symbol"
     if identifier not in {"ensembl_id", "gene_symbol"}:
         raise ValueError("Unrecognized gene identifier type")
     ids = frame[identifier].astype("string")
     if identifier == "ensembl_id":
-        ids = ids.str.replace(r"\.\d+$", "", regex=True)
+        ids = ids.str.replace(r"\.\d+(?=_PAR_Y$|$)", "", regex=True)
+    ids = ids.mask(ids.str.strip().eq(""))
     # Ambiguous symbols or multiple source rows cannot silently choose one gene.
     target = axis[target_key].astype("string")
+    target = target.mask(target.str.strip().eq(""))
     ambiguous = set(target[target.duplicated(keep=False)].dropna())
-    mapping = dict(zip(target[~target.duplicated(keep=False)],
-                       axis.loc[~target.duplicated(keep=False), "common_gene_index"]))
+    eligible = target.notna() & ~target.duplicated(keep=False)
+    mapping = dict(zip(target[eligible], axis.loc[eligible, "common_gene_index"]))
     duplicates = ids.duplicated(keep=False)
     values = frame[samples].apply(pd.to_numeric, errors="raise").to_numpy(dtype=np.float64)
     if not np.isfinite(values).all():
         raise ValueError("Nonfinite measured expression value")
-    if scale == "bulk_raw_counts" and (np.any(values < 0) or np.any(values != np.floor(values))):
+    if scale in {"bulk_raw_counts", "single_cell_raw_counts"} and (np.any(values < 0) or np.any(values != np.floor(values))):
         raise ValueError("Raw count source contains negative or noninteger values")
-    if scale == "bulk_estimated_counts" and np.any(values < 0):
-        raise ValueError("Estimated count source contains negative values")
+    if scale in {"bulk_estimated_counts", "bulk_TPM", "bulk_FPKM", "population_mean_CP10k"} and np.any(values < 0):
+        raise ValueError("Nonnegative abundance source contains negative values")
     aligned = np.full((len(samples), len(axis)), np.nan, dtype=np.float64)
     ledger = []
     for i, key in enumerate(ids):

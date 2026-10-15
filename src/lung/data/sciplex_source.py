@@ -124,7 +124,11 @@ def _source_rows(root, source, genes, chemical, planned_path, time_contract):
         records.append({"condition_id": cid, "drug_id": entry.drug_id, "condition_type": "control" if vehicle else "treated",
             "plate": plate, "source": SOURCE, "source_id": SOURCE, "cell_line_id": "CVCL_0023", "background_id": "CVCL_0023",
             "source_sample_id": cid, "source_sample_label": group["sample"].iloc[0] if len(group) else None, "dose_value": float(dose),
-            "dose_unit": "uM", "dose_um": float(dose), "treatment_hours": float(time), "duration_h": float(time),
+            "dose_unit": "uM", "dose_um": float(dose),
+            "source_dose_value": float(item["dose"]), "source_dose_unit": "nM",
+            "dose_semantics": ("vehicle_source_placeholder_not_solvent_molarity" if vehicle else
+                               "source_reported_nominal_compound_concentration"),
+            "treatment_hours": float(time), "duration_h": float(time),
             "source_time_h": float(time), "reported_treatment_hours": float(time), "exposure_duration_h": None,
             "withdrawal_protocol": None, "time_semantics": time_contract["time_semantics"],
             "is_sequential": False, "protocol_id": PROTOCOL, "replicate_id": str(replicate),

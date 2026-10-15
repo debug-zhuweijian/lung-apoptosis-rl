@@ -219,3 +219,22 @@ def test_new_source_dependencies_are_required_even_without_asset_hash_checks(mix
         stream.write(b"modified")
     with pytest.raises(ValueError, match="hash mismatch"):
         TrainingData(root, config, require_preprocessing=False, verify_hashes=False)
+
+
+def test_original_nanomolar_dose_is_preserved_through_training_reader(mixed_fixture):
+    """Removing source-dose fields from _source_rows must break this regression."""
+    root, config, _, base = mixed_fixture
+    before = sha256(base / "manifest.json")
+    prepare_training(root, config, build_preprocessing=False)
+    reader = TrainingData(root, config, require_preprocessing=False)
+    rows = reader.conditions.loc[reader.conditions.source_id.eq(SOURCE)]
+    treated = rows.loc[rows.condition_type.eq("treated")]
+    assert treated.source_dose_unit.eq("nM").all()
+    assert treated.source_dose_value.eq(1000).all()
+    np.testing.assert_array_equal(treated.source_dose_value / 1000., treated.dose_um)
+    # A vehicle's source numeric placeholder is not a measured solvent molarity.
+    controls = rows.loc[rows.condition_type.eq("control")]
+    assert controls.source_dose_value.eq(0).all()
+    assert controls.dose_semantics.eq("vehicle_source_placeholder_not_solvent_molarity").all()
+    assert treated.dose_semantics.eq("source_reported_nominal_compound_concentration").all()
+    assert sha256(base / "manifest.json") == before
