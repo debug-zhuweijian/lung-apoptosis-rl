@@ -44,3 +44,25 @@ def test_FPKM_preserved_without_count_conversion_or_zero_imputation():
 def test_negative_FPKM_is_rejected():
     f=pd.DataFrame({'ensembl_id':['ENSG1'],'a':[-.1]});g=pd.DataFrame({'common_gene_index':[0],'ensembl_id':['ENSG1']})
     with pytest.raises(ValueError,match='negative'):align_gene_axis(f,g,identifier='ensembl_id',samples=['a'],scale='bulk_FPKM')
+
+
+@pytest.mark.parametrize('reverse_axis', [False, True])
+def test_RNA_export_keeps_gene_ids_values_and_mask_aligned(tmp_path, monkeypatch, reverse_axis):
+    from scripts import recover_inde_functional_bridge as recovery
+
+    source=tmp_path/'source';source.mkdir()
+    records=[];frame=pd.DataFrame({'geneID':['ENSG1','ENSG2']})
+    for i,dose in enumerate(['N/A','N/A','500 nM','500 nM','5 microM','5 microM']):
+        name=f'condition_{i}';frame[name]=[0,.125]
+        records.append((f'GSM{i}',{'title':[name], 'characteristics_ch1':['cell line: A549','pimasertib dose: '+dose]},''))
+    frame.to_csv(source/'fpkm_A549.csv.gz',index=False)
+    monkeypatch.setattr(recovery,'read_soft',lambda path:('',records))
+    axis=pd.DataFrame({'common_gene_index':[0,1,2], 'ensembl_id':['ENSG2','ENSG3','ENSG1']})
+    if reverse_axis:axis=axis.iloc[::-1]
+    output=tmp_path/'out';output.mkdir()
+    recovery.recover_rna(source,axis,output)
+    with np.load(output/'RNA_common_axis_FPKM.npz',allow_pickle=False) as result:
+        np.testing.assert_array_equal(result['gene_ids'],['ENSG2','ENSG3','ENSG1'])
+        np.testing.assert_array_equal(result['expression'],np.tile([.125,np.nan,0],(6,1)))
+        np.testing.assert_array_equal(result['observed_mask'],np.tile([True,False,True],(6,1)))
+        np.testing.assert_array_equal(result['sample_ids'],[r[0] for r in records])

@@ -1,0 +1,126 @@
+{
+  "schema": "mphahlele2023_nominal_structures_v1",
+  "doi": "10.1007/s00044-023-03136-5",
+  "primary_url": "https://link.springer.com/article/10.1007/s00044-023-03136-5",
+  "source_locators": [
+    "Synthesis and characterization; Table 1",
+    "Experimental: chemical characterization of 3a-3k",
+    "Table 2 A549 column",
+    "Annexin V-FITC/PI assay; Fig. 2"
+  ],
+  "primary_article_license": "CC-BY-4.0",
+  "material_identity_scope": "nominal structure from reported names, not experimental lot authentication",
+  "roles_assigned": false,
+  "compounds": [
+    {
+      "source_compound_id": "3a",
+      "reported_B_ring": "phenyl",
+      "canonical_smiles": "O=C(/C=C/c1ccccc1)c1ccccc1[N+](=O)[O-]",
+      "neutral_formula": "C15H11NO3",
+      "source_dose_um": 16.94,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3b",
+      "reported_B_ring": "3-fluorophenyl",
+      "canonical_smiles": "O=C(/C=C/c1cccc(F)c1)c1ccccc1[N+](=O)[O-]",
+      "neutral_formula": "C15H10FNO3",
+      "source_dose_um": 14.33,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3c",
+      "reported_B_ring": "4-fluorophenyl",
+      "canonical_smiles": "O=C(/C=C/c1ccc(F)cc1)c1ccccc1[N+](=O)[O-]",
+      "neutral_formula": "C15H10FNO3",
+      "source_dose_um": 7.75,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3d",
+      "reported_B_ring": "2-chlorophenyl",
+      "canonical_smiles": "O=C(/C=C/c1ccccc1Cl)c1ccccc1[N+](=O)[O-]",
+      "neutral_formula": "C15H10ClNO3",
+      "source_dose_um": 13.35,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3e",
+      "reported_B_ring": "4-chlorophenyl",
+      "canonical_smiles": "O=C(/C=C/c1ccc(Cl)cc1)c1ccccc1[N+](=O)[O-]",
+      "neutral_formula": "C15H10ClNO3",
+      "source_dose_um": 26.16,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3f",
+      "reported_B_ring": "4-methylphenyl",
+      "canonical_smiles": "Cc1ccc(/C=C/C(=O)c2ccccc2[N+](=O)[O-])cc1",
+      "neutral_formula": "C16H13NO3",
+      "source_dose_um": 16.1,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3g",
+      "reported_B_ring": "3-methoxyphenyl",
+      "canonical_smiles": "COc1cccc(/C=C/C(=O)c2ccccc2[N+](=O)[O-])c1",
+      "neutral_formula": "C16H13NO4",
+      "source_dose_um": 15.18,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3h",
+      "reported_B_ring": "4-methoxyphenyl",
+      "canonical_smiles": "COc1ccc(/C=C/C(=O)c2ccccc2[N+](=O)[O-])cc1",
+      "neutral_formula": "C16H13NO4",
+      "source_dose_um": 14.2,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3i",
+      "reported_B_ring": "3,5-dimethoxyphenyl",
+      "canonical_smiles": "COc1cc(/C=C/C(=O)c2ccccc2[N+](=O)[O-])cc(OC)c1",
+      "neutral_formula": "C17H15NO5",
+      "source_dose_um": 14.67,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3j",
+      "reported_B_ring": "2,3,4-trimethoxyphenyl",
+      "canonical_smiles": "COc1ccc(/C=C/C(=O)c2ccccc2[N+](=O)[O-])c(OC)c1OC",
+      "neutral_formula": "C18H17NO6",
+      "source_dose_um": 31.35,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": false,
+      "identity_note": "Nominal identity from paper name and substitution pattern; analytical/lot authentication not certified."
+    },
+    {
+      "source_compound_id": "3k",
+      "reported_B_ring": "4-(1,1,2,2-tetrafluoroethoxy)phenyl",
+      "canonical_smiles": "O=C(/C=C/c1ccc(OC(F)(F)C(F)F)cc1)c1ccccc1[N+](=O)[O-]",
+      "neutral_formula": "C17H11F4NO4",
+      "source_dose_um": 10.74,
+      "dose_basis": "1x individual A549 MTT IC50",
+      "source_identity_conflict": true,
+      "identity_note": "Reported 3k HRMS formula C17H12NO5 [M+H]+ and 344.1056/344.1089 mass lack F; inconsistent with named tetrafluoroethoxy structure. Nominal identity only; quarantine exact-material claims."
+    }
+  ]
+}

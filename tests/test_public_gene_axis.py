@@ -60,3 +60,17 @@ def test_position_audit_rejects_duplicate_wells():
     from scripts.recover_public_gene_axis import audit_plate_layout
     f=pd.DataFrame([dict(Cell_line='A549',Plate=8,Well='A1',cell_state='a')]*2)
     with pytest.raises(ValueError,match='Duplicate'):audit_plate_layout(f)
+
+
+@pytest.mark.parametrize('reverse_axis', [False, True])
+def test_export_keeps_gene_ids_values_and_missing_mask_aligned(tmp_path, reverse_axis):
+    axis=pd.DataFrame({'common_gene_index':[0,1,2], 'ensembl_id':['ENSG2','ENSG3','ENSG1']})
+    if reverse_axis:axis=axis.iloc[::-1]
+    source=pd.DataFrame({'ensembl_id':['ENSG1','ENSG2'], 'sample':[0,11]})
+    save_aligned(tmp_path,'aligned',source,axis,['sample'],'bulk_raw_counts',
+                 pd.DataFrame({'sample_id':['sample']}),'synthetic_fixture')
+    with np.load(tmp_path/'aligned/aligned_expression.npz',allow_pickle=False) as result:
+        np.testing.assert_array_equal(result['gene_ids'],['ENSG2','ENSG3','ENSG1'])
+        np.testing.assert_array_equal(result['expression'],[[11,np.nan,0]])
+        np.testing.assert_array_equal(result['observed_mask'],[[True,False,True]])
+        np.testing.assert_array_equal(result['sample_ids'],['sample'])

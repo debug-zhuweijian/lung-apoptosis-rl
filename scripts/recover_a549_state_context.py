@@ -54,7 +54,7 @@ def main():
         if not np.array_equal(aligned[:,int(r.common_gene_index)],values[r.source_row]):raise ValueError('Mapped count changed')
     a.output.mkdir(parents=True);samples.to_csv(a.output/'samples.csv',index=False);ledger.to_csv(a.output/'gene_mapping.csv',index=False)
     np.savez_compressed(a.output/'source_A549_counts.npz',expression=values.T.astype(np.int32),gene_ids=frame.ensembl_id.to_numpy(str),sample_ids=samples.sample_id.to_numpy(str))
-    np.savez_compressed(a.output/'common_axis_counts.npz',expression=aligned,observed_mask=mask,gene_ids=axis.ensembl_id.to_numpy(str),sample_ids=samples.sample_id.to_numpy(str))
+    np.savez_compressed(a.output/'common_axis_counts.npz',expression=aligned,observed_mask=mask,gene_ids=axis.sort_values('common_gene_index').ensembl_id.to_numpy(str),sample_ids=samples.sample_id.to_numpy(str))
     report=dict(accession='GSE246690',doi='10.1158/0008-5472.CAN-24-0529',source_genes=len(frame),source_libraries=len(frame.columns)-1,
                 actual_A549_libraries=len(samples),actual_A549_source_values=int(values.size),common_observed_genes=int(mask[0].sum()),common_missing_genes=int((~mask[0]).sum()),
                 source_replicate_labels=samples.source_replicate_label.value_counts().to_dict(),conservative_split_groups=samples.conservative_split_group.nunique(),

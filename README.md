@@ -1,5 +1,9 @@
 # 肺癌细胞凋亡—强化学习
 
+2026-10-15 本地整合验收：已整合Dot #5/#6、数据闭合#1、两条来源验证分支及Pro最终离线补丁，修复基因ID错列、恢复依赖和pandas缺失值测试问题。最终56份定向测试439项通过；公共轴/HM/pulse/Sarin及GSE96779真实恢复复算通过，有序基因身份与本机冻结轴一致。模型兼容性、独立功能与序贯收益仍未通过。见[整合与验证记录](docs/CLOUD_RESEARCH_INTEGRATION_2026-10-15.md)；下方云端记录保留原时点结论。
+
+2026-10-15 当前 Chat 云端数据接续：GSE96779 的 12 个真实 FPKM 样本经 hg19 符号/坐标证据投影，17,978 基因、215,736 原值逐值核验；另外三来源投影与 TIDYI 原计数重新读取。修复源内读取被训练依赖提前阻断的问题，85 项便携专项测试通过；扩展 Bothe 测试仍有未上传元数据导致的 15 项错误，不声称全测通过。公共轴未认证为旧冻结轴，完整功能与序贯链仍未闭合。见[本轮主要报告与复算入口](docs/REAL_HISTORY_ALIGNMENT_2026-10-15.md)。
+
 2026-10-14 第二阶段：PR #2 已按用户追加授权合并；进一步恢复 DAMTC 的真实表达及条件功能参考、实读 WAVE 原文/补充/源数据，并完成 sci-Plex2 全部24,262细胞的源值核对和独立剂量CPU诊断。59项针对性检查通过；最高剂量低细胞数、来源溶剂/单位及功能监督断点仍明确保留，详见同一[主报告§11](docs/DOT_RESEARCH_DATA_FEASIBILITY_2026-10-14.md#11-持续研究补充功能证据与新近方法2026-10-14-第二阶段)。这不是整体科研验收。
 
 2026-10-14 Dot 云端独立研究：已从公开原件恢复 Sarin、HM97662、GSE96779、GSE161800 四组源尺度表达与样本/协议对应，显式处理估计计数、共处理历史及 GEO/论文剂量单位冲突。49 项针对性检查通过；未启动正式训练，冻结共同轴、状态增量、功能迁移及真实序贯的完整验收仍未闭合。方法、数据与论文论证架构比较见[本轮主研究报告](docs/DOT_RESEARCH_DATA_FEASIBILITY_2026-10-14.md)，实际执行与来源哈希见[证据清单](docs/DOT_RESEARCH_EVIDENCE_2026-10-14.json)。以下为原时点记录，不代表本轮重新执行。
@@ -91,5 +95,7 @@ GPU预处理继续使用CUDA双精度统计、分块基因图及距离计算，�
 当前本机解释器为 `F:/anaconda/envs/study/python.exe`。直接依赖见 `requirements-runtime.txt`，Windows x64／Python 3.13.14 的 44 包依赖版本闭包见 [requirements-lock.txt](requirements-lock.txt)，包含 filelock 和性能测量使用的 psutil。安装使用官方 CUDA 13.0 wheel 索引；`configs/environment-study.lock.json` 保留为原环境快照。移机时在 `configs/runtime.json` 指向新解释器；版本锁尚未做干净环境安装和 wheel 哈希验证。
 
 现有环境不需要重装。新环境可用 `python -m pip install -r requirements-lock.txt`；固定版本安装的说明见 [pip 官方文档](https://pip.pypa.io/en/stable/topics/repeatable-installs/)。
+
+公共来源的数据恢复另需 [requirements-data-recovery.txt](requirements-data-recovery.txt)；按[数据恢复附加环境](docs/DATA_RECOVERY_ENVIRONMENT.md)安装到独立目录并仅为恢复进程启用，保留现有训练环境与版本锁。
 
 本轮测试整合后，AE 与表达缓存场景统一位于 `tests/test_ae_data_supply.py`；辅助预算和势函数预算共享局部启用的 CPU fixture。日常修改只运行相应子集，历史套件入口回归用于修改旧入口时；`test.py` 仍是冻结模型的独立评估入口。当前修复与真实运行记录见 [训练验证与问题修复](docs/训练验证与问题修复_2026-10-08.md)。

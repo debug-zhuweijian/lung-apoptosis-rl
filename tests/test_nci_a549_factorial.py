@@ -9,7 +9,8 @@ def test_adjacent_multiple_ensembl_ids_remain_ambiguous():
     a=pd.DataFrame({'ID':['p1','p2','p3'],'Gene symbol':['A','B','C'],'Gene ID':['1','2','1///2']})
     g=pd.DataFrame({'GeneID':['1','2'],'dbXrefs':['HGNC:1|Ensembl:ENSG00001|Ensembl:ENSG00002|X:3','Ensembl:ENSG00003']})
     r=probe_gene_map(a,g)
-    assert r.ensembl_id.tolist()==[None,'ENSG00003',None]
+    assert r.ensembl_id.isna().tolist()==[True,False,True]
+    assert r.ensembl_id.iloc[1]=='ENSG00003'
 
 
 def test_duplicate_probe_annotation_rejected():

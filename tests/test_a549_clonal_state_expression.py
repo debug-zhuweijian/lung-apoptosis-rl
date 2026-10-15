@@ -50,3 +50,38 @@ def test_library_count_totals_validate_all_source_reads():
     assert validate_library_totals(raw,q).difference.eq(0).all()
     q.loc[0,'# reads mapping to a gene']=4
     with pytest.raises(ValueError,match='reported'):validate_library_totals(raw,q)
+
+
+@pytest.mark.parametrize('reverse_axis', [False, True])
+def test_clonal_export_keeps_gene_ids_values_and_mask_aligned(tmp_path, monkeypatch, reverse_axis):
+    import hashlib
+    import sys
+    from types import SimpleNamespace
+    from scripts import recover_a549_clonal_state_expression as recovery
+
+    source=tmp_path/'source';source.mkdir()
+    for name in ['mmc3.xlsx','mmc2.docx','paper.xml']:
+        (source/name).write_bytes(b'synthetic source fixture')
+    source_frames=frames()
+    for sheet,columns in SHEETS.items():
+        frame=source_frames[sheet]
+        for column in columns:
+            frame[column]=frame.ensembl_gene_id.map({'ENSG00000000001':0,'ENSG00000000002':11})
+    columns=list(dict.fromkeys(c for group in SHEETS.values() for c in group))
+    summary=pd.DataFrame({'sample':[c.removeprefix('Sample_') for c in columns], '# reads mapping to a gene':[11]*12})
+    monkeypatch.setattr(recovery.pd,'read_excel',lambda path,sheet_name,**kwargs:
+                        summary.copy() if sheet_name=='count_summary' else source_frames[sheet_name].copy())
+    # The regression exercises serialization; the synthetic workbook is not the pinned publication.
+    monkeypatch.setattr(hashlib,'md5',lambda data:SimpleNamespace(hexdigest=lambda:'b121b42425192cdbed6ed220353ed416'))
+    gene_ids=['ENSG00000000002','ENSG00000000003','ENSG00000000001']
+    axis=pd.DataFrame({'common_gene_index':[0,1,2], 'ensembl_id':gene_ids})
+    if reverse_axis:axis=axis.iloc[::-1]
+    axis_path=tmp_path/'axis.csv';axis.to_csv(axis_path,index=False)
+    output=tmp_path/'out'
+    monkeypatch.setattr(sys,'argv',['recover','--source',str(source),'--gene-axis',str(axis_path),'--output',str(output)])
+    recovery.main()
+    with np.load(output/'common_axis_counts.npz',allow_pickle=False) as result:
+        np.testing.assert_array_equal(result['gene_ids'],gene_ids)
+        np.testing.assert_array_equal(result['expression'],np.tile([11,np.nan,0],(12,1)))
+        np.testing.assert_array_equal(result['observed_mask'],np.tile([True,False,True],(12,1)))
+        np.testing.assert_array_equal(result['sample_ids'],sample_metadata(columns).sample_id.to_numpy(str))

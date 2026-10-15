@@ -1,0 +1,67 @@
+name: Source contracts public A549 H5AD
+on:
+  push:
+    branches: [codex/source-contracts-20261015]
+    paths: [.github/workflows/source-contracts-public-h5ad.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install requests==2.32.5 h5py==3.15.1 numpy==2.3.5
+      - name: Retrieve one published processed A549 file and inspect native schema
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import requests,hashlib,json,csv,h5py,numpy as np
+          out=Path('source');out.mkdir()
+          url='https://www.ebi.ac.uk/biostudies/files/E-MTAB-16354/SS3_Human_A549_adata.h5ad'
+          expected_bytes=200429210
+          p=out/'SS3_Human_A549_adata.h5ad'
+          r=requests.get(url,stream=True,timeout=(30,180));r.raise_for_status()
+          size=0;h=hashlib.sha256()
+          with p.open('xb') as f:
+              for b in r.iter_content(1024*1024):
+                  size+=len(b)
+                  if size>expected_bytes: raise ValueError('Published file exceeded recorded source size')
+                  f.write(b);h.update(b)
+          if size!=expected_bytes: raise ValueError('Incomplete published file')
+          receipt={'url':url,'retrieved_utc':datetime.now(timezone.utc).isoformat(),'bytes':size,'sha256':h.hexdigest(),'http_last_modified':r.headers.get('Last-Modified'),'datasets':{},'expression_values_read':False,'training_performed':False}
+          def decode(x):
+              return x.decode('utf-8') if isinstance(x,bytes) else x.item() if isinstance(x,np.generic) else x
+          with h5py.File(p,'r') as f:
+              def visit(name,obj):
+                  if isinstance(obj,h5py.Dataset): receipt['datasets'][name]={'shape':list(obj.shape),'dtype':str(obj.dtype)}
+              f.visititems(visit)
+              obs=f['obs'];columns={}
+              for name in obs:
+                  obj=obs[name]
+                  if isinstance(obj,h5py.Dataset): columns[name]=[decode(x) for x in obj[:]]
+                  elif set(['categories','codes'])<=set(obj.keys()):
+                      cats=[decode(x) for x in obj['categories'][:]]
+                      columns[name]=[cats[int(x)] if x>=0 else None for x in obj['codes'][:]]
+              if len({len(v) for v in columns.values()})!=1: raise ValueError('Inconsistent obs lengths')
+              with (out/'obs.csv').open('w',newline='') as g:
+                  w=csv.writer(g);w.writerow(columns.keys());w.writerows(zip(*columns.values()))
+              receipt['obs_rows']=len(next(iter(columns.values())))
+              receipt['obs_index_field']=decode(obs.attrs.get('_index','unknown'))
+              receipt['obs_fields']=list(columns)
+              for field in ['Plate','Cell_line','cell_state']:
+                  if field in columns:
+                      from collections import Counter
+                      receipt[field+'_counts']={str(k):v for k,v in Counter(columns[field]).items()}
+          receipt['obs_sha256']=hashlib.sha256((out/'obs.csv').read_bytes()).hexdigest()
+          (out/'receipt.json').write_text(json.dumps(receipt,indent=2))
+          print(json.dumps(receipt,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-contracts-public-a549-h5ad
+          path: source/
+          retention-days: 14
+          if-no-files-found: error

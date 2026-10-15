@@ -92,7 +92,7 @@ def recover_rna(source,axis,output):
     for r in ledger[ledger.mapping_status.eq('matched')].itertuples():
         if not np.array_equal(x[:,int(r.common_gene_index)],values[r.source_row]):raise ValueError('FPKM mapping changed values')
     sm.to_csv(output/'RNA_samples.csv',index=False);ledger.to_csv(output/'RNA_gene_mapping.csv',index=False)
-    np.savez_compressed(output/'RNA_common_axis_FPKM.npz',expression=x,observed_mask=mask,gene_ids=axis.ensembl_id.to_numpy(str),sample_ids=sm.sample_id.to_numpy(str))
+    np.savez_compressed(output/'RNA_common_axis_FPKM.npz',expression=x,observed_mask=mask,gene_ids=axis.sort_values('common_gene_index').ensembl_id.to_numpy(str),sample_ids=sm.sample_id.to_numpy(str))
     np.savez_compressed(output/'RNA_source_FPKM.npz',expression=values.T,gene_ids=f.ensembl_id.to_numpy(str),sample_ids=sm.sample_id.to_numpy(str))
     return dict(source_genes=len(f),actual_samples=6,source_values=int(values.size),common_observed_genes=int(mask[0].sum()),common_unresolved_genes=int((~mask[0]).sum()),
                 scale='bulk_FPKM',cross_source_scale_calibrated=False,high_dose_sample_ids=sm.loc[sm.dose_uM.eq(5),'sample_id'].tolist())

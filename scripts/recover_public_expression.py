@@ -1,7 +1,10 @@
 """Recover source-native public expression without requiring unpublished caches.
 
 No normalization, split fitting, gene-name guessing, or endpoint pseudo-pairing.
-Use --gene-axis only with the actual frozen axis; missing genes remain NaN.
+--gene-axis projects onto supplied coordinates; --reference-gene-axis separately
+checks an actually available frozen reference. --gene-axis-manifest binds the
+supplied axis bytes to a source receipt. Neither certifies model compatibility.
+Missing genes remain NaN.
 """
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 from lung.data.external_gene_axis import align_gene_axis
+from lung.data.source_bridge import axis_identity, read_gene_axis, verify_axis_reference
 from scripts.align_sarin_state_expression import (
     mapping_ledger, read_transcripts, transcript_ids, aligned_matrix,
 )
@@ -307,6 +311,10 @@ def brd9_history_expression(directory, soft):
 
 def save_native(out, frame, samples, ids, scale):
     columns = samples.matrix_column_id.tolist() if "matrix_column_id" in samples else samples.geo_accession.tolist()
+    if not frame.columns.is_unique or len(set(columns)) != len(columns) or not samples.geo_accession.is_unique:
+        raise ValueError("Duplicate sample identity or expression column")
+    if not columns or samples.geo_accession.isna().any() or samples.geo_accession.astype(str).str.strip().eq("").any():
+        raise ValueError("Missing source sample identity")
     values = frame[columns].to_numpy(dtype=np.float64).T
     if not np.isfinite(values).all():
         raise ValueError("Nonfinite source measurements")
@@ -327,6 +335,22 @@ def save_native(out, frame, samples, ids, scale):
             "roundtrip_exact": True, "scale": scale}
 
 
+def load_projection_axis(path, reference_manifest=None):
+    """Separate verified projection coordinates from frozen-training identity."""
+    axis = read_gene_axis(path)
+    scope = {"axis_sha256": digest(path), "source_reference_verified": False,
+             "frozen_asset_identity_verified": False, "reference_manifest_sha256": None}
+    if reference_manifest is not None:
+        reference = json.loads(Path(reference_manifest).read_text(encoding="utf-8"))
+        expected = reference["outputs"]["genes.parquet"]
+        if (expected["sha256"] != scope["axis_sha256"] or expected["bytes"] != Path(path).stat().st_size
+                or reference["validation"]["shared_genes"] != len(axis)):
+            raise ValueError("Reference axis manifest does not match the supplied axis")
+        scope.update(source_reference_verified=True, reference_manifest_sha256=digest(reference_manifest))
+        # This source manifest attests bytes, not unavailable training assets.
+    return axis, scope
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", choices=["sarin", "hm97662", "gse96779", "gse161800", "gse178640"])
@@ -335,15 +359,28 @@ def main():
     parser.add_argument("--annexin-docx", type=Path)
     parser.add_argument("--extra-matrix", type=Path, help="GSE161800 7vs8 original count table")
     parser.add_argument("--paper-xml", type=Path, help="GSE161800 primary paper XML for unit adjudication")
-    parser.add_argument("--gene-axis", type=Path)
+    parser.add_argument("--gene-axis", type=Path, help="Supplied CSV/Parquet coordinates, not automatically a frozen asset")
+    parser.add_argument("--reference-gene-axis", type=Path, help="Optional actual frozen CSV/Parquet for explicit identity/order comparison")
+    parser.add_argument("--gene-axis-manifest", type=Path, help="Source reference manifest; does not authenticate frozen training assets")
     parser.add_argument("--hgnc", type=Path, help="Versioned HGNC TSV for Sarin probe mapping")
     parser.add_argument("--gtf", type=Path, help="Versioned GRCh37 transcript GTF.gz for Sarin")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError("Use a new output directory; frozen data are never overwritten")
+    if args.gene_axis_manifest and not args.gene_axis:
+        parser.error("--gene-axis-manifest requires --gene-axis")
+    # Reference mismatch is rejected before any output or source matrix is read.
+    axis, axis_provenance = load_projection_axis(args.gene_axis, args.gene_axis_manifest) if args.gene_axis else (None, None)
+    reference_check = {"reference_axis_match_verified": False, "model_compatibility_verified": False}
+    if args.reference_gene_axis:
+        if axis is None:
+            parser.error("--reference-gene-axis requires --gene-axis")
+        reference_check = verify_axis_reference(axis, read_gene_axis(args.reference_gene_axis))
     # Validate source before creating output, so failures cannot look like completed recovery.
     paths = [args.soft]
+    if args.reference_gene_axis:
+        paths.append(args.reference_gene_axis)
     if args.source == "sarin":
         if not args.annexin_docx:
             parser.error("Sarin requires --annexin-docx")
@@ -381,8 +418,10 @@ def main():
     args.output.mkdir(parents=True)
     report = save_native(args.output, frame, samples, identifier, scale)
     if args.source == "sarin":
-        annotation.to_csv(args.output / "probe_annotation.csv.gz", index=False)
-        frame.to_csv(args.output / "probe_expression.csv.gz", index=False)
+        annotation.to_csv(args.output / "probe_annotation.csv.gz", index=False,
+                          compression={"method": "gzip", "compresslevel": 1, "mtime": 0})
+        frame.to_csv(args.output / "probe_expression.csv.gz", index=False,
+                     compression={"method": "gzip", "compresslevel": 1, "mtime": 0})
         endpoints.to_csv(args.output / "annexin_source_values.csv", index=False)
         # A condition-level many-to-many link, NEVER replicate matching or Cartesian pseudo-observations.
         links = []
@@ -406,7 +445,6 @@ def main():
                       repeated_symbols=int(frame.loc[frame.gene_id.duplicated(keep=False), "gene_id"].nunique()),
                       endpoint_link_verified=False, history_observed=True, arbitrary_sequence_support=False)
     if args.gene_axis:
-        axis = pd.read_parquet(args.gene_axis)
         if args.source == "sarin":
             hgnc = pd.read_csv(args.hgnc, sep="\t", dtype=str, keep_default_na=False)
             wanted = set().union(*(set(transcript_ids(row)) for row in annotation.to_dict("records")))
@@ -419,19 +457,30 @@ def main():
                 identifier="ensembl_id", samples=samples.matrix_column_id.tolist(), scale=scale)
         np.savez_compressed(args.output / "common_axis_expression.npz", expression=aligned, observed_mask=mask,
                             sample_ids=samples.geo_accession.to_numpy(dtype=str),
-                            ensembl_ids=axis.sort_values("common_gene_index").ensembl_id.to_numpy(dtype=str))
+                            ensembl_ids=axis.ensembl_id.to_numpy(dtype=str), value_scale=scale)
         with np.load(args.output / "common_axis_expression.npz", allow_pickle=False) as saved:
             np.testing.assert_array_equal(saved["expression"], aligned)
             np.testing.assert_array_equal(saved["observed_mask"], mask)
+            np.testing.assert_array_equal(saved["sample_ids"], samples.geo_accession.to_numpy(dtype=str))
+            np.testing.assert_array_equal(saved["ensembl_ids"], axis.ensembl_id.to_numpy(dtype=str))
+            if saved["value_scale"].item() != scale:
+                raise ValueError("Expression measurement scale changed")
             if not np.isnan(saved["expression"][~mask]).all():
                 raise ValueError("Missing genes were filled")
         ledger.to_parquet(args.output / "gene_mapping.parquet", index=False)
         paths.append(args.gene_axis)
+        if args.gene_axis_manifest:
+            paths.append(args.gene_axis_manifest)
         report["common_axis_matched_genes"] = int(mask.all(axis=0).sum())
-    report.update(common_axis_verified=bool(args.gene_axis), same_cell_pre_post_pairing=False,
+    report.update(reference_check)
+    report["axis_projection_verified"] = axis is not None
+    report["common_axis_identity"] = axis_identity(axis) if axis is not None else None
+    report["gene_axis_provenance"] = axis_provenance
+    # Legacy flag now requires explicit reference comparison, not merely a file argument.
+    report.update(common_axis_verified=reference_check["reference_axis_match_verified"], same_cell_pre_post_pairing=False,
                   normalization_performed=False, training_performed=False, model_input_ready=False, full_research_feasibility_proven=False)
     (args.output / "source_metadata.json").write_text(json.dumps({a: m for a, m, _ in records}, ensure_ascii=False, indent=2))
-    manifest = {"schema_version": 1, "created_utc": datetime.now(timezone.utc).isoformat(),
+    manifest = {"schema_version": 2, "created_utc": datetime.now(timezone.utc).isoformat(),
                 "source": args.source, "validation": report,
                 "sources": [{"path": str(p.resolve()), "sha256": digest(p), "bytes": p.stat().st_size} for p in paths],
                 "script_sha256": digest(__file__),

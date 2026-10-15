@@ -72,7 +72,7 @@ def save_aligned(out,name,frame,axis,samples,scale,metadata,provenance):
     if metadata.sample_id.tolist()!=samples:raise ValueError('Sample metadata row binding mismatch')
     dest=out/name;dest.mkdir()
     np.savez_compressed(dest/'aligned_expression.npz',expression=values,observed_mask=mask,
-                        gene_ids=axis.ensembl_id.to_numpy(dtype=str),sample_ids=np.array(samples),value_scale=np.array(scale))
+                        gene_ids=axis.sort_values('common_gene_index').ensembl_id.to_numpy(dtype=str),sample_ids=np.array(samples),value_scale=np.array(scale))
     ledger.to_csv(dest/'gene_mapping.csv',index=False);metadata.to_csv(dest/'samples.csv',index=False)
     result=dict(samples=len(samples),target_genes=len(axis),observed_genes=int(mask[0].sum()),
                 missing_genes=int((~mask[0]).sum()),measured_zeros=int(((values==0)&mask).sum()),

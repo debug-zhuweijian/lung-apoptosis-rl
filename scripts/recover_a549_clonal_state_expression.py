@@ -93,7 +93,7 @@ def main():
         if not np.array_equal(aligned[:,int(r.common_gene_index)],values[r.source_row]):raise ValueError('Mapped count changed')
     a.output.mkdir(parents=True);totals.to_csv(a.output/'library_count_totals.csv',index=False);samples.to_csv(a.output/'samples.csv',index=False);damaged.to_csv(a.output/'source_symbol_date_audit.csv',index=False);ledger.to_csv(a.output/'gene_mapping.csv.gz',index=False)
     np.savez_compressed(a.output/'source_raw_counts.npz',expression=values.T.astype(np.int64),gene_ids=raw.ensembl_id.to_numpy(str),sample_ids=samples.sample_id.to_numpy(str))
-    np.savez_compressed(a.output/'common_axis_counts.npz',expression=aligned,observed_mask=mask,gene_ids=axis.ensembl_id.to_numpy(str),sample_ids=samples.sample_id.to_numpy(str))
+    np.savez_compressed(a.output/'common_axis_counts.npz',expression=aligned,observed_mask=mask,gene_ids=axis.sort_values('common_gene_index').ensembl_id.to_numpy(str),sample_ids=samples.sample_id.to_numpy(str))
     report=dict(source_doi='10.1016/j.neo.2018.09.008',source_genes=len(raw),source_libraries=len(samples),actual_count_values=int(values.size),
         named_subcultures=9,parental_cultures=3,common_observed_genes=int(mask[0].sum()),common_missing_genes=int((~mask[0]).sum()),
         source_symbol_date_rows=len(damaged),unique_genes_with_source_symbol_date=int(damaged.ensembl_id.nunique()),

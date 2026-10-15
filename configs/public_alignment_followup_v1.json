@@ -1,0 +1,325 @@
+{
+  "schema": "public-alignment-source-lock-v1",
+  "baseline_commit": "4a78560bdeb2e0d98332d5a9520764a120abf612",
+  "sources": [
+    {
+      "url": "https://journals.plos.org/plosone/article/file?type=supplementary&id=10.1371/journal.pone.0181081.s008",
+      "path": "sarin/pone.0181081.s008.docx",
+      "sha256": "7311fdb7f6b0f45877262a62d91aabf227c076f87b1529b88fb2bc11aadcc3ee",
+      "bytes": 98060
+    },
+    {
+      "url": "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt",
+      "path": "annotation/hgnc_complete_set.txt",
+      "sha256": "2828618d23d315be76ea415f7ef0e951858716ebab07e2d584190f52e5178c1e",
+      "bytes": 16982276
+    },
+    {
+      "url": "https://ftp.ensembl.org/pub/release-75/gtf/homo_sapiens/Homo_sapiens.GRCh37.75.gtf.gz",
+      "path": "annotation/Homo_sapiens.GRCh37.75.gtf.gz",
+      "sha256": "770f48d9aecd9bdecdf147fd141c23670b215bccbdbfa459048f45b02581c2ed",
+      "bytes": 39344043
+    },
+    {
+      "url": "https://ftp.ensembl.org/pub/release-75/gtf/homo_sapiens/CHECKSUMS",
+      "path": "annotation/CHECKSUMS",
+      "sha256": "8057530a0021fbf688d79c4bc5bf15278a78d6ed2a0a3b784cd091e4a0da513b",
+      "bytes": 61
+    },
+    {
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_hashSampleSheet.txt.gz",
+      "path": "sciplex/hashSampleSheet.txt.gz",
+      "sha256": "ac66d0dfdcc3c170af9beafe2843d0250a10f753f7bf99968aafe7a2e7279084",
+      "bytes": 6441
+    },
+    {
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_A549_MCF7_K562_hashTable_metadata.txt.gz",
+      "path": "sciplex/A549_MCF7_K562_hashTable_metadata.txt.gz",
+      "sha256": "98a65191d343d149c5742cf6e7b734d403e853d165da800fa2daea41b978a2ff",
+      "bytes": 64715
+    },
+    {
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_A549_MCF7_K562_screen_gene.annotations.txt.gz",
+      "path": "sciplex/A549_MCF7_K562_screen_gene.annotations.txt.gz",
+      "sha256": "fbe43028cfb75dc5ebf383cbbbb100da6b51e7be8e2e74f6354f7c59b9fda7c2",
+      "bytes": 806168
+    },
+    {
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_A549_MCF7_K562_screen_cell.annotations.txt.gz",
+      "path": "sciplex/A549_MCF7_K562_screen_cell.annotations.txt.gz",
+      "sha256": "5db11591747a49f07ceb90a070971d60816591911f1022171adba7d8d032f379",
+      "bytes": 2770264
+    },
+    {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/E-MTAB-9923.sdrf.txt",
+      "path": "bothe/E-MTAB-9923.sdrf.txt",
+      "sha256": "cf7d41065c4f7ab2626014ffccfd57b08850360d1d262b605e03fa52e7175df6",
+      "bytes": 19732
+    },
+    {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/E-MTAB-9923.idf.txt",
+      "path": "bothe/E-MTAB-9923.idf.txt",
+      "sha256": "1b6ba5a7dfb9ef35282506b49f6a5af6254e395c343bce369e9146db2b48ffa9",
+      "bytes": 4759
+    },
+    {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/DEseq2_DexDexVsEtOHDex_A549_byintrons.txt",
+      "path": "bothe/DEseq2_DexDexVsEtOHDex_A549_byintrons.txt",
+      "sha256": "86f24b813a9fb66430b582aeee2fd2b441c3d74f493e147349ed3041b6747792",
+      "bytes": 1709899
+    },
+    {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/DEseq2_DexEtOHvsEtOHEtOH_A549_byintrons.txt",
+      "path": "bothe/DEseq2_DexEtOHvsEtOHEtOH_A549_byintrons.txt",
+      "sha256": "9f556b07eb3c74681d21f6989822ec643ae946263c936130167b66109442ace9",
+      "bytes": 1701783
+    },
+    {
+      "url": "https://www.ebi.ac.uk/biostudies/files/E-MTAB-9923/DEseq2_EtOHDexVsEtOHEtOH_A549_byintrons.txt",
+      "path": "bothe/DEseq2_EtOHDexVsEtOHEtOH_A549_byintrons.txt",
+      "sha256": "05d5e70b8e585b5c72773e831dd845533baea7db9095ebc5c741361921725ae8",
+      "bytes": 1619057
+    },
+    {
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8403771/fullTextXML",
+      "path": "papers/bothe.xml",
+      "sha256": "836ec5b9703faeb6cdf48489b81bd8e422457ea29149154ecd545039845f473e",
+      "bytes": 186306
+    },
+    {
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&query=DOI%3A10.1038/bjc.2013.752",
+      "path": "papers/gambogic_metadata.json",
+      "sha256": "410caf2887ddffb98e58f682c65b29886ec2a50c10c07db7420e915c9f108998",
+      "bytes": 13907
+    },
+    {
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3899775/fullTextXML",
+      "path": "papers/gambogic.xml",
+      "sha256": "1c505ef1d9d27e7bacfc83c8afa558968fd06c261e7953e4ffebd32b6acc6da6",
+      "bytes": 112319
+    },
+    {
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&query=DOI%3A10.1038/s41467-021-24537-3",
+      "path": "papers/dormancy_metadata.json",
+      "sha256": "49459c68fc73a1424900b78d27d214d7f47b24397daff7854cbfa742f56831da",
+      "bytes": 19845
+    },
+    {
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8285479/fullTextXML",
+      "path": "papers/dormancy.xml",
+      "sha256": "bd146760e8e547b4337124a547c80da3aa42bcc81755aeb37c883e3085459a07",
+      "bytes": 248333
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/I-BET726/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/I-BET726.json",
+      "sha256": "62d51c5fabff3ef098b13e55263178b141cb45c04922ccc52e04b0caaa0e9dab",
+      "bytes": 376
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Oxaliplatin/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Oxaliplatin.json",
+      "sha256": "54c4c21a803e57c6ca424ef0781fc73741c4cda48045ea91d0d63332c1f4c79e",
+      "bytes": 335
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Lestaurtinib/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Lestaurtinib.json",
+      "sha256": "f1b572c9812ae27030736e22c28d6accdf2526acc10e5bb2ba7983cf0c8096b4",
+      "bytes": 382
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Trametinib/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Trametinib.json",
+      "sha256": "5dda8d270417785fe34e0b3edfb4cc64685ab84034b1a36bf881074a5936caa9",
+      "bytes": 396
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Midostaurin/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Midostaurin.json",
+      "sha256": "a42ed14604b9b87bfcc31235c7610277701fa9607aa86e2ed24cd86f28b615db",
+      "bytes": 430
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Cisplatin/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Cisplatin.json",
+      "sha256": "ae6f9585e860bcc690668debc9d9384e859a77ce1cd4a3abbc73f168f857d993",
+      "bytes": 262
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Gambogic%20acid/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Gambogic_acid.json",
+      "sha256": "744cc15bdf8d9116ef37951a27edae02ed82af29a727033a8a5c31d7c17794bb",
+      "bytes": 448
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Dexamethasone/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Dexamethasone.json",
+      "sha256": "e1bdceba5f3c91ce6e05381ea3a285653776036b33777159a167411871b67f5b",
+      "bytes": 374
+    },
+    {
+      "url": "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/Resveratrol/property/IsomericSMILES,CanonicalSMILES,InChIKey,MolecularWeight/JSON",
+      "path": "chemistry/Resveratrol.json",
+      "sha256": "16a7925f46e9247cddc1bda3686d430d754b666200216e2b77b70eb4c135bb69",
+      "bytes": 307
+    },
+    {
+      "url": "https://www.nature.com/articles/s42256-026-01192-1",
+      "path": "papers/sequentx.html",
+      "sha256": "6bf565ce55d561b5ad5bf011a5533ccefe065fc7ff4335b435e49b96ed2f3413",
+      "bytes": 419327
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs42256-026-01192-1/MediaObjects/42256_2026_1192_MOESM1_ESM.pdf",
+      "path": "papers/42256_2026_1192_MOESM1_ESM.pdf",
+      "sha256": "0f2a1051c2a08f0266cb888823a5027efbd36cc21820ec4967ff4764b5088284",
+      "bytes": 2189839
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs42256-026-01192-1/MediaObjects/42256_2026_1192_MOESM2_ESM.pdf",
+      "path": "papers/42256_2026_1192_MOESM2_ESM.pdf",
+      "sha256": "50d02ed654518a0b088ace6b769a273407ab3c35a5f06e21fa2e52d345f0ff3e",
+      "bytes": 3911416
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs42256-026-01192-1/MediaObjects/42256_2026_1192_MOESM3_ESM.pdf",
+      "path": "papers/42256_2026_1192_MOESM3_ESM.pdf",
+      "sha256": "b9df4f61001b3b3ec87b9a492b627c7f27f56c51c745e0d89bef3863e0a8ad2f",
+      "bytes": 4265723
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs42256-026-01192-1/MediaObjects/42256_2026_1192_MOESM4_ESM.xlsx",
+      "path": "papers/42256_2026_1192_MOESM4_ESM.xlsx",
+      "sha256": "578a2b8b8a24b5dfab05eed943a24f78f680261ff480ae5fd103e0719dd0879a",
+      "bytes": 185157
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs42256-026-01192-1/MediaObjects/42256_2026_1192_MOESM5_ESM.pdf",
+      "path": "papers/42256_2026_1192_MOESM5_ESM.pdf",
+      "sha256": "cf003b24de8492506165dcf88f3dc0cb3fe39354000180997df2b4fe2e41f066",
+      "bytes": 1318922
+    },
+    {
+      "url": "https://www.nature.com/articles/s41467-021-24537-3",
+      "path": "papers/dormancy.html",
+      "sha256": "d8b6ae32752c01bf9270874ea47d80d4aee28c3cdc1fa0087657a140885268e1",
+      "bytes": 769599
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM2_ESM.pdf",
+      "path": "papers/41467_2021_24537_MOESM2_ESM.pdf",
+      "sha256": "2d7078365ddd29712d0726d4bdf4be3185017c620bfe7c848938e1ce21f60fa9",
+      "bytes": 585177
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM3_ESM.pdf",
+      "path": "papers/41467_2021_24537_MOESM3_ESM.pdf",
+      "sha256": "aab1133ae01ecab421c95d32eea9bce60b3300c6cb407c782318526cb7b38081",
+      "bytes": 72580
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM4_ESM.xlsx",
+      "path": "papers/41467_2021_24537_MOESM4_ESM.xlsx",
+      "sha256": "afcd397ebfc25ada9db931048bcd399de0ade31f967f8c218488dc5d6b2efbc2",
+      "bytes": 1256245
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM5_ESM.xlsx",
+      "path": "papers/41467_2021_24537_MOESM5_ESM.xlsx",
+      "sha256": "b4685ee30d1a021714d88cd5857b3179ce5b95cc364ce52eef3cc5a92e05bfe6",
+      "bytes": 117903
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM6_ESM.xlsx",
+      "path": "papers/41467_2021_24537_MOESM6_ESM.xlsx",
+      "sha256": "cae54fba2832d9b20dc02b7385b3a7406220254bd02753d87927c6fc4bde1aa1",
+      "bytes": 526595
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM7_ESM.xlsx",
+      "path": "papers/41467_2021_24537_MOESM7_ESM.xlsx",
+      "sha256": "42d7b6a04fdcca0cbc2d383dd050b2033377d66f8da5f14c22d3c3e48314aeeb",
+      "bytes": 152753
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM8_ESM.pdf",
+      "path": "papers/41467_2021_24537_MOESM8_ESM.pdf",
+      "sha256": "7eacc69978b3c4451674edde68f80a2649ca4f170fd5d6ccbc7053deecd70312",
+      "bytes": 92153
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM9_ESM.xlsx",
+      "path": "papers/41467_2021_24537_MOESM9_ESM.xlsx",
+      "sha256": "136e583344b3bdda2796168ad0e1785d3abe153ff25c458a6b4cfe2a8dd7e813",
+      "bytes": 3919067
+    },
+    {
+      "url": "https://www.nature.com/articles/bjc2013752",
+      "path": "papers/gambogic.html",
+      "sha256": "2314a0a2da39d88c2e326e2b57ccdaaf6711fe8281eecb6ce51aba433fbfc204",
+      "bytes": 434869
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fbjc.2013.752/MediaObjects/41416_2014_BFbjc2013752_MOESM63_ESM.pdf",
+      "path": "papers/41416_2014_BFbjc2013752_MOESM63_ESM.pdf",
+      "sha256": "ec088f5ae355e97f8715df5dcb969632bf5122b1e1177a6d75721d11fd10b818",
+      "bytes": 40349
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fbjc.2013.752/MediaObjects/41416_2014_BFbjc2013752_MOESM64_ESM.pdf",
+      "path": "papers/41416_2014_BFbjc2013752_MOESM64_ESM.pdf",
+      "sha256": "b4afa10fdd0dc51d62154dbb440219e3d2b26254358484572eb8d82143d00014",
+      "bytes": 211688
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fbjc.2013.752/MediaObjects/41416_2014_BFbjc2013752_MOESM65_ESM.pdf",
+      "path": "papers/41416_2014_BFbjc2013752_MOESM65_ESM.pdf",
+      "sha256": "dfe56fc18e7bb21099e356653be93eeb487953aaf6c1bafe93865a22952d56e0",
+      "bytes": 29307
+    }
+  ],
+  "failed_sources": [
+    {
+      "url": "https://data.mendeley.com/public-files/datasets/9bccjb75wp/files/eeff3433-7308-46da-bb77-2e093cdeba85/file_downloaded",
+      "path": "inde/261 library + DMSO.xlsx",
+      "retrieved_utc": "2026-10-14T16:37:57.157656+00:00",
+      "status": "failed",
+      "error": "403 Client Error: Forbidden for url: https://data.mendeley.com/public-files/datasets/9bccjb75wp/files/eeff3433-7308-46da-bb77-2e093cdeba85/file_downloaded"
+    },
+    {
+      "url": "https://data.mendeley.com/public-api/datasets/9bccjb75wp/versions/1",
+      "path": "inde/dataset.json",
+      "retrieved_utc": "2026-10-14T16:37:57.335743+00:00",
+      "status": "failed",
+      "error": "403 Client Error: Forbidden for url: https://data.mendeley.com/public-api/datasets/9bccjb75wp/versions/1"
+    },
+    {
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_pData.txt.gz",
+      "path": "sciplex/pData.txt.gz",
+      "retrieved_utc": "2026-10-14T16:38:06.004301+00:00",
+      "status_code": 200,
+      "resolved_url": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM4150nnn/GSM4150378/suppl/GSM4150378_sciPlex3_pData.txt.gz",
+      "content_type": "application/x-gzip",
+      "status": "failed",
+      "error": "outside bounded processed-file scope"
+    },
+    {
+      "url": "https://www.10xgenomics.com/datasets/30-k-a-549-lung-carcinoma-cells-treatments-transduced-with-a-crispr-pool-multiplexed-6-cm-os-3-1-standard-6-0-0",
+      "path": "tenx/page.html",
+      "retrieved_utc": "2026-10-14T16:38:33.087227+00:00",
+      "status": "failed",
+      "error": "429 Client Error: Too Many Requests for url: https://www.10xgenomics.com/datasets/30-k-a-549-lung-carcinoma-cells-treatments-transduced-with-a-crispr-pool-multiplexed-6-cm-os-3-1-standard-6-0-0"
+    },
+    {
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM1_ESM.pdf",
+      "path": "papers/41467_2021_24537_MOESM1_ESM.pdf",
+      "retrieved_utc": "2026-10-14T16:39:47.716647+00:00",
+      "status_code": 200,
+      "resolved_url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-021-24537-3/MediaObjects/41467_2021_24537_MOESM1_ESM.pdf",
+      "content_type": "application/pdf",
+      "status": "failed",
+      "error": "outside bounded processed-file scope"
+    }
+  ]
+}
