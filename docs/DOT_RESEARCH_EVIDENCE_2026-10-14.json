@@ -5037,5 +5037,147 @@
     },
     "targeted_tests_passed": 6,
     "source_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13335885/supplementaryFiles"
+  },
+  "brd9_history_recovery": {
+    "schema_version": 1,
+    "created_utc": "2026-10-14T23:44:53.737111+00:00",
+    "source": "gse178640",
+    "validation": {
+      "feature_count": 21386,
+      "sample_count": 12,
+      "measurement_values": 256632,
+      "minimum": 0.0,
+      "maximum": 331735.0,
+      "noninteger_values": 0,
+      "roundtrip_exact": true,
+      "scale": "bulk_raw_counts",
+      "common_axis_matched_genes": 17379,
+      "common_axis_verified": true,
+      "same_cell_pre_post_pairing": false,
+      "normalization_performed": false,
+      "training_performed": false,
+      "model_input_ready": false,
+      "full_research_feasibility_proven": false
+    },
+    "sources": [
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSE178640_family.soft.gz",
+        "sha256": "c5c60d256640d131d5f68fa83c45a35d9986d2dad7837239d4acf1aee56620f1",
+        "bytes": 3736
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395127_dBRD9-A_IFN_1.txt.gz",
+        "sha256": "aace742ef8395d2c069971edfe34bd00ac462d61ea911e276b0c366865a2c209",
+        "bytes": 106889
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395128_dBRD9-A_IFN_2.txt.gz",
+        "sha256": "bc4d9a419cab51bcfceb302c9190b6a370fddc7f2aa2c6f9039e3485db11ef74",
+        "bytes": 107159
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395129_dBRD9-A_IFN-3.txt.gz",
+        "sha256": "c6ec0a9afe2194ae019496d65ec35212c99b0b83c5471c65ac0548d771647e1e",
+        "bytes": 107103
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395130_dBRD9-A_no_1.txt.gz",
+        "sha256": "83699cd70bd2ea4edfc273b8cc1d8b3d76b34c4b37901c57dfb074cfae644137",
+        "bytes": 105489
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395131_dBRD9-A_no_2.txt.gz",
+        "sha256": "e0f4c36ba30e79a1a477153b4d8adb95867f699f1e7679b1afab4c141865d8a9",
+        "bytes": 106814
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395132_dBRD9-A_no_3.txt.gz",
+        "sha256": "ecc00bce09610b0ee2be459bac08409c03d6ea6dc5ca90752e6cec65d657bac6",
+        "bytes": 106717
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395133_DMSO_IFN_1.txt.gz",
+        "sha256": "ca8d4e8874e03e7f373e79519f07f6b34cc313c7e08bfa147472e421a325f548",
+        "bytes": 105422
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395134_DMSO_IFN_2.txt.gz",
+        "sha256": "f5ae2548f70cb5ff4bd87ddbbf5f3035fff29af64e5bbec96f9a66da98138d5d",
+        "bytes": 106409
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395135_DMSO_IFN_3.txt.gz",
+        "sha256": "12ee1afa20fe02dbb0fc63528f4fbbd2275c23c2786bebae0d451d807a4b421c",
+        "bytes": 106608
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395136_DMSO_no_1.txt.gz",
+        "sha256": "8e9ec06f34da09df7fff6267c2c41caaa7c7af233b93cf9b90b110d073bdccca",
+        "bytes": 106303
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395137_DMSO_no_2.txt.gz",
+        "sha256": "8ba53a2dc507450ef83737e37619c86db230da97e2324857c904614fa7af12e4",
+        "bytes": 106976
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/GSM5395138_DMSO_no_3.txt.gz",
+        "sha256": "0a150da8a0ebadfbf415c69863bf73911d060f77cff4322effca0a3ed6298bf9",
+        "bytes": 107080
+      },
+      {
+        "path": "/workspace/shared/lung-review-20261014/brd9-ifn/public_gene_axis.parquet",
+        "sha256": "69b9087d4e9d0685732be560b693cb04f2b8e27da311f495724f14e57b85c81f",
+        "bytes": 1073459
+      }
+    ],
+    "script_sha256": "8b90ebadfa21119777ec5aafa37cbf0e66e9ec39ddabb48b71dbecf636c7a99e",
+    "outputs": {
+      "gene_mapping.parquet": "b200370a654a02b308f7edfed953e7b9d3aecfd4a766b356561a732fedfe260e",
+      "common_axis_expression.npz": "71a13177121af4656b47a49e9969ebbae6ffb25ed607d7a31f1f09b830117852",
+      "source_metadata.json": "70c51d0f01f9e933974b8562b0d56157cf970a73031a6709f8167e67e1225710",
+      "samples.csv": "defaee5e53f27a1dbf310533d26689ade7659b7a7bcc25fc1c40ec8ffcfd2d9c",
+      "source_expression.npz": "bdb815bbfbc912844f3a680f0ba51583498a4e06fa8459eb317a68950d19281a"
+    }
+  },
+  "hdac_functional_reference": {
+    "source_doi": "10.1038/s42003-025-09455-0",
+    "source_workbook_sha256": "45c8aaebf80a89619a6320eb9415d7f22afd929ea4aec5e078f716c369f767fd",
+    "source_conditions": 49,
+    "active_conditions": 42,
+    "active_ratio_values": 126,
+    "normalization_anchor_values": 21,
+    "normalization_anchors_are_independent_controls": false,
+    "source_values_above_one": 5,
+    "source_summary_columns_recomputed": false,
+    "source_SE_definition_verified": false,
+    "annexin_labels": false,
+    "clock_fully_qualified": false,
+    "RNA_protein_statistic_rows": 22240,
+    "RNA_protein_correlations": {
+      "Abexinostat": 0.5862749070681034,
+      "Belinostat": 0.48451006504675415,
+      "Panobinostat": 0.6447691983504514,
+      "TSA": 0.5771377790813259
+    },
+    "RNA_quantity": "published dose-regression normalized coefficient from sci-Plex; not expression count or dose-specific log fold change",
+    "RNA_source_independent_from_sciPlex": false,
+    "RNA_fate_pairing": false,
+    "protein_quantity": "bulk protein log2 fold change against DMSO; UniProt isoform IDs retained",
+    "replicate_identity_between_modalities": false,
+    "initial_state_increment_verified": false,
+    "full_research_feasibility_proven": false,
+    "files": {
+      "A549_viability_source.csv": "57532b52ced0e245320c9c4b793c1e132bbff3146ebf193a3ceff9b1c99f4dce",
+      "author_RNA_protein_effects.parquet": "c2d1b13709c70a7001cae0d2d3fba51e6ef83d365ea99e2f1453c08def786696"
+    }
+  },
+  "continuation_20261015": {
+    "related_tests_passed": 26,
+    "elapsed_seconds": 0.94,
+    "restored_output_hashes_verified": 10,
+    "previous_shared_cache_available": false,
+    "source_and_derived_repo_files_preserved": true,
+    "full_feasibility": false
   }
 }

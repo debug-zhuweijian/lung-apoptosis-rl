@@ -249,6 +249,62 @@ def pulse_expression(matrix, extra_matrix, soft, paper_xml):
     return frame, pd.DataFrame([mapping[c] for c in all_columns]), records
 
 
+def brd9_history_expression(directory, soft):
+    """Read four source histories without inventing a mid-treatment RNA state."""
+    _, records = read_soft(soft)
+    if len(records) != 12:
+        raise ValueError("GSE178640 requires 12 registered libraries")
+    rows, series, paths = [], [], []
+    reference = None
+    for accession, meta, _ in records:
+        chars = meta.get("characteristics_ch1", [])
+        if "cell line: A549" not in chars:
+            raise ValueError("A549 background required")
+        treatment = next((x.split(": ", 1)[1] for x in chars if x.startswith("treatment: ")), None)
+        allowed = {f"{a} pretreated {b}" for a in ["dBRD9-A", "DMSO"] for b in ["plus IFN-alpha2", "no IFN"]}
+        if treatment not in allowed:
+            raise ValueError("Unreviewed history category")
+        protocol = " ".join(meta.get("treatment_protocol_ch1", []))
+        for token in ["125nM", "for 6h", "containing again", "100IU/mL", "incubated for 6h"]:
+            if token not in protocol:
+                raise ValueError("Reviewed exposure/retreatment changed")
+        urls = meta.get("supplementary_file_1", [])
+        if len(urls) != 1:
+            raise ValueError("Unique per-sample count file required")
+        path = directory / urls[0].rsplit("/", 1)[1]
+        frame = pd.read_csv(path, sep="\t")
+        if list(frame.columns) != ["Identifier", "matchCounts"] or not frame.Identifier.is_unique:
+            raise ValueError("Unique source gene/count columns required")
+        if not frame.Identifier.str.fullmatch(r"ENSG\d{11}").all():
+            raise ValueError("Source Ensembl identity changed")
+        if reference is None:
+            reference = frame.Identifier.tolist()
+        if set(frame.Identifier) != set(reference):
+            raise ValueError("Sample gene universes differ")
+        values = frame.set_index("Identifier").loc[reference, "matchCounts"]
+        if not np.isfinite(values).all() or (values < 0).any() or (values != np.floor(values)).any():
+            raise ValueError("Raw counts must be finite nonnegative integers")
+        series.append(values.rename(accession));paths.append(path)
+        first = "dBRD9-A" if treatment.startswith("dBRD9-A") else "DMSO"
+        has_ifn = "plus IFN-alpha2" in treatment
+        rows.append(dict(geo_accession=accession, matrix_column_id=accession,
+            source_title=meta["title"][0], cell_background="A549", source_history=treatment,
+            first_agent=first, first_dose_nM=125 if first=="dBRD9-A" else None,
+            first_start_h=0, media_refresh_h=6, first_agent_readded=True, first_total_exposure_h=12,
+            second_agent="IFN-alpha2" if has_ifn else None,
+            second_dose_IU_per_mL=100 if has_ifn else None,
+            second_dose_uM=None, second_start_h=6 if has_ifn else None,
+            second_exposure_h=6 if has_ifn else None, endpoint_h=12,
+            intermediate_RNA_measured=False, paired_repeat_id=None,
+            small_molecule_only_candidate_eligible=False, apoptosis_endpoint_available=False,
+            source_protocol=protocol))
+    samples=pd.DataFrame(rows)
+    if not samples.groupby("source_history").size().eq(3).all() or samples.source_history.nunique()!=4:
+        raise ValueError("Four source histories with three samples each required")
+    result=pd.concat(series,axis=1).reset_index().rename(columns={"Identifier":"ensembl_id"})
+    return result, samples, records, paths
+
+
 def save_native(out, frame, samples, ids, scale):
     columns = samples.matrix_column_id.tolist() if "matrix_column_id" in samples else samples.geo_accession.tolist()
     values = frame[columns].to_numpy(dtype=np.float64).T
@@ -273,7 +329,7 @@ def save_native(out, frame, samples, ids, scale):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source", choices=["sarin", "hm97662", "gse96779", "gse161800"])
+    parser.add_argument("source", choices=["sarin", "hm97662", "gse96779", "gse161800", "gse178640"])
     parser.add_argument("--soft", type=Path, required=True)
     parser.add_argument("--matrix", type=Path)
     parser.add_argument("--annexin-docx", type=Path)
@@ -297,6 +353,12 @@ def main():
         endpoints = sarin_annexin(args.annexin_docx)
         paths.append(args.annexin_docx)
         identifier, scale = "ID_REF", "deposited_background_corrected_quantile_normalized_microarray_VALUE"
+    elif args.source == "gse178640":
+        if not args.matrix or not args.matrix.is_dir():
+            parser.error("GSE178640 --matrix is the directory of 12 original count files")
+        frame, samples, records, count_paths = brd9_history_expression(args.matrix, args.soft)
+        paths.extend(count_paths)
+        identifier, scale = "ensembl_id", "bulk_raw_counts"
     elif args.source == "gse161800":
         if not (args.matrix and args.extra_matrix and args.paper_xml):
             parser.error("GSE161800 requires two count tables and --paper-xml for unit adjudication")
