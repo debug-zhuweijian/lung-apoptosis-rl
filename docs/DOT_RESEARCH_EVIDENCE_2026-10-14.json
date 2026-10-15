@@ -5179,5 +5179,92 @@
     "previous_shared_cache_available": false,
     "source_and_derived_repo_files_preserved": true,
     "full_feasibility": false
+  },
+  "cpa_pharos_subset_actual_20261015": {
+    "source": "GSE206741_PHAROS_pano_criz_processed_subset",
+    "synthetic": false,
+    "n_cells": 3018,
+    "n_source_genes": 31854,
+    "n_wells": 6,
+    "counts_nnz": 5537094,
+    "n_common_axis_observed": 25756,
+    "n_common_axis_missing": 6705,
+    "condition_counts": {
+      "panobinostat_crizotinib": 1617,
+      "DMSO_DMSO": 1401
+    },
+    "author_placeholder_counts": {
+      "[('DMSO_TF', 0.0, 'uM')]": 3018
+    },
+    "gene_axis_scope": "provided_public_axis_not_unavailable_local_frozen_axis",
+    "dose_status": "unresolved_GEO_10uM_vs_CPA_methods_1uM",
+    "protocol_sources": {
+      "GEO": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE206741",
+      "CPA_primary_methods": "https://doi.org/10.15252/msb.202211517",
+      "processed_subset": "https://zenodo.org/records/21925263",
+      "GEO_dose_claim_uM": 10,
+      "CPA_per_compound_dose_claim_uM": 1,
+      "resolved_drug_dose_uM": null
+    },
+    "training_eligible": false,
+    "dose_evaluation_eligible": false,
+    "true_sequence_evaluation_eligible": false,
+    "apoptosis_evaluation_eligible": false,
+    "observed_timepoints": [
+      24
+    ],
+    "pre_post_cell_pairing": false,
+    "single_agent_crizotinib_in_subset": false,
+    "biological_repeat_independence": "not_established",
+    "normalization_verified": "X=log1p(counts/cell_count_sum*10000)",
+    "count_scope": "author_QC_filtered_cells_and_genes_not_full_GEO",
+    "inputs": [
+      {
+        "name": "GSE206741_pharos_subset.h5ad",
+        "sha256": "43744ba619e7b9974717820b022f5958c7137305f717268d03b117837ff1718e"
+      },
+      {
+        "name": "GSE206741_cell_metadata.tsv.gz",
+        "sha256": "67593f3785759bf9f2089cd369ab6f3d5aca76555fa1a31fd7ba781a79b20765"
+      },
+      {
+        "name": "GSE206741_gene_metadata.tsv.gz",
+        "sha256": "5beab60fb97830d1fcc11276c3f200e96a93bbb96bccd65186784f928fa81bdd"
+      },
+      {
+        "name": "gene_axis.csv",
+        "sha256": "8e78790b3c4ad79cf86789e91666090a3af519d8dec96fd2b86387443572735c"
+      }
+    ],
+    "outputs": {
+      "cells.csv": "b442290894000de01c76b0b1ad4c22112f5ab1e6fd5128794cdfee9304396076",
+      "gene_mapping.csv": "e0e75ca1cc27a432ff60bb26cc16b4b14b07ec99c76450ddf2220aa06da5bb04",
+      "source_cell_counts.npz": "f1a05267b6c82bf374efca94fe0e17d59fb4ca0914b59e6cad2f3b89e0f42751",
+      "source_genes.csv": "eb30163b66ccb6a1c148f39a9282ceee6d0062797be862066556dae340d432dd",
+      "well_pseudobulk_common_axis.npz": "9cfca4f5404f635737a07db3d962694c9c1ab390268f3dde18f9ae7f0424c098",
+      "wells.csv": "8bc98974846f39eabc8a25eae17ea5928cfac44c72256613b93f319eff42ed02"
+    },
+    "implementation_sha256": "a292285e8f7b013b19cc7edbfd6a7ffc0d736284deed078d78147c2b56a8a53a"
+  },
+  "closest_method_primary_review_20261015": {
+    "PHAROS_pmc": "PMC13622985",
+    "PHAROS_code_commit": "3ad97ae0f5cb9acde5bcea17fb14fc29bca0cc3c",
+    "CPA_primary_pmc": "PMC10258562",
+    "BioPert_code_commit": "622c39a862d70417177d7ea7ae70f2be27f576d3",
+    "BioPert_full_paper_read": false,
+    "PHAROS_model_run": false,
+    "BioPert_model_run": false,
+    "reference_response_is_test_time_information": true,
+    "PHAROS_A549_actual_sequential_validation": false,
+    "source_readback": {
+      "biopert_Models.jl": "c5d884c0287c77d5e484c03e656b9838f3cbbde23d843b3eff0dc438d62ec086",
+      "biopert_Observations.jl": "7e06015674a9e1da191ddc81aa81b9d17545d1e412fd1dbaab0fe8fdbbd3e67e",
+      "PHAROS.xml": "0b93df050b274ec026941d16273bb94d83fab9d37a6ed4e35253b28108695aab",
+      "biopert_Splits.jl": "053afc113d19c1915efe636e84c4629e4912065938f923e7e357723ec0ab6e07",
+      "CPA.xml": "ade660126b3122b3941c24cd2689d058c0c09a8f853b30dfe9a8b82fc5abf09c",
+      "biopert_create_split_obs.jl": "fe65fa66ca8e37821b89f1e6b156ce9e52883b6d2aefdfa37af166d7fa50cc9b"
+    },
+    "tests_passed": 35,
+    "self_review": "Dot 自审，未使用独立代理"
   }
 }
