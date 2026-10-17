@@ -13,25 +13,19 @@ from . import full_protocol_inputs as base
 ROOT = base.ROOT
 ENRICHMENT = ROOT / "experiments/20261011-data-alignment-round19/bothe_dexamethasone_source"
 ENRICHMENT_HASH = "dc22f8d7bd53c4b2b62d9edffeba9a60f2acc9a03b334075a0678f1d1d769f59"
-BASE_CODE_HASH = "6d067664e80cd9f7035387fc904c0c6271d6792b4d934b58aec2fe4854de6a37"
-MODEL_CODE_HASH = "c6bdce150ed8a0cc53e3e26d3f438597805f918c6a4a4e1fa4f6304e1aa64e27"
 OUTPUT = ROOT / "experiments/20261011-data-alignment-round19/full-protocol-inputs-v3"
 SCHEMA = "source_bound_full_physical_protocol_inputs_v3"
 DEX_KEY = "UREBDLICKHMUKA-CXSFZGCWSA-N"
 
 
 def prepare():
-    base.check({str(Path(base.__file__).resolve()): BASE_CODE_HASH,
-                str(ROOT / "src/lung/models/full_protocol.py"): MODEL_CODE_HASH,
-                str(ENRICHMENT / "manifest.json"): ENRICHMENT_HASH})
+    base.check({str(ENRICHMENT / "manifest.json"): ENRICHMENT_HASH})
     manifest = base.read(ENRICHMENT / "manifest.json")
     base.require(manifest["schema"] == "bothe-dexamethasone-source-enrichment-v1"
                  and manifest["source_graph_scope"] == "nominal Dexamethasone only",
                  "Enrichment source identity changed")
-    enrichment_bindings = {str(ENRICHMENT / "manifest.json"): ENRICHMENT_HASH,
-                           str(Path(base.__file__).resolve()): BASE_CODE_HASH,
-                           str(ROOT / "src/lung/models/full_protocol.py"): MODEL_CODE_HASH}
-    for name, digest in manifest["frozen_inputs_sha256"].items():
+    enrichment_bindings = {str(ENRICHMENT / "manifest.json"): ENRICHMENT_HASH}
+    for name, digest in base.data_file_bindings(manifest["frozen_inputs_sha256"]).items():
         path = (ROOT / name).resolve()
         base.require(path.is_relative_to(ROOT), "Frozen source escapes root")
         enrichment_bindings[str(path)] = digest
@@ -40,6 +34,7 @@ def prepare():
         base.require(path.is_relative_to(ENRICHMENT), "Enrichment output escapes source")
         base.require(path.stat().st_size == entry["bytes"], "Enrichment source size changed")
         enrichment_bindings[str(path)] = entry["sha256"]
+    enrichment_bindings = base.data_file_bindings(enrichment_bindings)
     base.check(enrichment_bindings)
     records, frozen_bindings = base.prepare()
     # Fresh source records, not a mutable v2 reader cache, are the base authority.
@@ -128,12 +123,10 @@ class FullProtocolInputsV3(base.FullProtocolInputs):
     def load(cls, directory=OUTPUT):
         directory = Path(directory).resolve()
         manifest = base.read(directory / "manifest.json")
-        base.require(manifest["schema"] == SCHEMA and manifest["consumer_sha256"] == base.sha(__file__)
-                     and manifest["base_consumer_sha256"] == BASE_CODE_HASH
-                     and manifest["feature_schema"] == base.FEATURE_SCHEMA
+        base.require(manifest["schema"] == SCHEMA and manifest["feature_schema"] == base.FEATURE_SCHEMA
                      and manifest["formal_training_ready"] is False, "V3 consumer/schema identity changed")
         reader = cls()
-        base.require(manifest["source_bindings"] == reader.source_bindings, "Incomplete v3 source bindings")
+        base.require(base.data_file_bindings(manifest["source_bindings"]) == reader.source_bindings, "Incomplete v3 source bindings")
         base.require(set(manifest["files_sha256"]) == {"records.json"}, "V3 record binding schema changed")
         base.check({str(directory / name): digest for name, digest in manifest["files_sha256"].items()})
         base.require(base.read(directory / "records.json") == reader._records,
@@ -152,7 +145,6 @@ def build(output=OUTPUT):
         json.dump(actual, stream, ensure_ascii=False, indent=2, allow_nan=False)
         stream.write("\n")
     receipt = {"schema": SCHEMA, "feature_schema": base.FEATURE_SCHEMA,
-               "consumer_sha256": base.sha(__file__), "base_consumer_sha256": BASE_CODE_HASH,
                "source_bindings": reader.source_bindings,
                "files_sha256": {"records.json": base.sha(output / "records.json")},
                "candidate_count": len(actual), "source_counts": {"Vielhauer2013": 20, "Bothe2021:E-MTAB-9923": 4},

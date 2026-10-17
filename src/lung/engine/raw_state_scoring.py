@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 
 from lung.models import StateClassifier
+from lung.data.common import dataset_config
 from . import full_protocol_response as producer
 from . import full_protocol_response_learning as learning
 from . import auxiliary
@@ -27,7 +28,6 @@ from .training_control import checkpoint_completion
 SCHEMA = "raw-sorting-state-C-v1"
 SIDECAR_SCHEMA = "raw-sorting-state-sidecar-v1"
 LABELS = list(StateClassifier.LABELS)
-READBACK = ROOT / "experiments/20261011-data-alignment-round22/root_state_C_readback.json"
 GATE_FOLLOWUP = ROOT / "experiments/20261011-data-alignment-round22/root_state_gate_followup.json"
 FLAGS = {"source_C_transfer_validated": False, "cross_source_C_calibration_verified": False,
     "Annexin_interpretation": False, "scientific_qualified": False,
@@ -62,16 +62,6 @@ def settings(config):
     return value
 
 
-def execution_dependencies():
-    names = ("engine/raw_state_scoring.py", "engine/auxiliary.py", "engine/representation.py",
-        "engine/representation_cache.py", "engine/checkpoint.py", "engine/training_control.py",
-        "engine/data.py", "engine/config.py", "engine/full_protocol_response.py",
-        "engine/full_protocol_response_learning.py", "models/heads.py", "models/state_objectives.py",
-        "models/latent_staged.py", "models/encoders.py", "data/reader.py", "data/preprocess.py")
-    return {**{n: file_hash(ROOT / "src/lung" / n) for n in names},
-        "torch": str(torch.__version__), "numpy": str(np.__version__)}
-
-
 def verify_ae_origin(ae_run, data_identity):
     """JSON/bytes only: a completed independent matching AE, never old runs."""
     ae_run = Path(ae_run).resolve()
@@ -81,45 +71,52 @@ def verify_ae_origin(ae_run, data_identity):
     manifest = json.loads((ae_run / "run_manifest.json").read_text(encoding="utf-8"))
     require(manifest.get("schema") == learning.SCHEMA + ":joint-AE"
         and manifest.get("data_identity") == data_identity
-        and manifest.get("execution_dependencies") == learning.execution_dependencies()
         and manifest.get("config", {}).get("synthetic") is False
         and manifest["config"].get("data") == learning.JOINT_CONFIG, "AE_ORIGIN_IDENTITY")
     return {"run": str(ae_run), "result_sha256": file_hash(ae_run / "AE_result.json"),
         "manifest_sha256": file_hash(ae_run / "run_manifest.json"),
         "weights": result["weights"], "checkpoint_sha256": result["checkpoint_sha256"],
-        "last_checkpoint": result["last_checkpoint"], "last_checkpoint_sha256": result["last_checkpoint_sha256"]}
+        "final_checkpoint": result["final_checkpoint"], "final_checkpoint_sha256": result["final_checkpoint_sha256"]}
 
 
 def preflight(config, *, ae_run=None):
-    """Recheck prior real readback hashes and split metadata; no RNA values/PT."""
+    """Check current bound assets and split metadata; no RNA values/PT."""
     config = state_config(config)
-    report = json.loads(READBACK.read_text(encoding="utf-8"))
-    require(report.get("state_arrays_equal_direct_source_normalization") is True
-        and report.get("source_count_order_then_cell_id_join_verified") is True
-        and report.get("fold") == "1_to_8" and report.get("role") == "fit"
-        and report.get("fit_cells") == 248, "REAL_STATE_READBACK_REQUIRED")
-    for entry in report["source_bindings"]:
-        require(file_hash(ROOT / entry["path"]) == entry["sha256"], "REAL_STATE_READBACK_SOURCE_CHANGED")
-    _, _, _, bindings = producer.bound_inputs()
-    frame = pd.read_parquet(ROOT / producer.inputs.JOINT / "tidyi_splits.parquet")
-    groups = {r: frame.loc[frame["fold"].eq("1_to_8") & frame["role"].eq(r)].copy()
+    data_config = dataset_config(ROOT, ROOT / config["data"])
+    assets = ROOT / data_config["assets"]
+    manifest_path = assets / "manifest.json"
+    require(file_hash(manifest_path) == producer.inputs.PINS[manifest_path.relative_to(ROOT).as_posix()],
+            "STATE_DATA_MANIFEST_CHANGED")
+    manifest = producer.inputs.read(manifest_path)
+    require(manifest["status"] == "complete" and manifest["config"] == data_config, "STATE_DATA_CONFIG_CHANGED")
+    require(file_hash(ROOT / data_config["bundle"] / "manifest.json") == manifest["source_manifest_sha256"],
+            "STATE_SOURCE_MANIFEST_CHANGED")
+    for name in ("genes.parquet", "normalization.npz", "tidyi_splits.parquet"):
+        require(file_hash(assets / name) == manifest["files"][name]["sha256"], "STATE_ASSET_CHANGED")
+    data_identity = config_hash({"signature": manifest["signature"], "files": manifest["files"]})
+    require(manifest["metadata"]["tidyi_folds"].get("1_to_8", {}).get("status") == "ready",
+            "STATE_SPLIT_INSUFFICIENT")
+    frame = pd.read_parquet(assets / "tidyi_splits.parquet")
+    frame = frame.loc[frame["fold"].eq("1_to_8")].copy()
+    require(frame["cell_id"].notna().all() and frame["cell_id"].is_unique, "ROLE_OVERLAP")
+    require(frame["state_class"].eq(frame["state_label_original"].map(dict(zip(LABELS, range(3))))).all()
+        and frame["label_scope"].eq("original_sorted_state_not_natural_apoptosis_rate").all(),
+        "ORIGINAL_LABEL_SEMANTICS_CHANGED")
+    groups = {r: frame.loc[frame["role"].eq(r)].copy()
               for r in ("fit", "selection", "calibration")}
     require(all(len(q) and set(q["state_class"]) == {0, 1, 2}
         and q["cell_id"].is_unique for q in groups.values()), "ORIGINAL_ROLES_OR_CLASSES")
-    require(all(set(groups[a]["cell_id"]).isdisjoint(groups[b]["cell_id"])
-        for a, b in (("fit", "selection"), ("fit", "calibration"), ("selection", "calibration"))), "ROLE_OVERLAP")
     role_plan = {r: {"cells": len(q), "class_counts": [int(q["state_class"].eq(i).sum()) for i in range(3)],
         "cell_ids_sha256": config_hash(q["cell_id"].tolist())} for r, q in groups.items()}
     origin, missing = None, "matching_completed_joint_AE_missing"
     if ae_run and (Path(ae_run) / "AE_result.json").is_file():
-        origin, missing = verify_ae_origin(ae_run, bindings["data_identity"]), None
-    return {"schema": SCHEMA + ":preflight", "data_identity": bindings["data_identity"],
-        "gene_axis_sha256": bindings["gene_axis_sha256"], "normalization_sha256": bindings["normalization_sha256"],
-        "settings": settings(config), "execution_dependencies": execution_dependencies(),
-        "class_order": LABELS, "roles": role_plan, "raw_label_semantics": report["raw_label_semantics"],
-        "reused_real_readback": {"path": str(READBACK), "sha256": file_hash(READBACK),
-            "fit_expression_values_sha256": report["expression_values_sha256"],
-            "class_ids_sha256": report["class_ids_sha256"]},
+        origin, missing = verify_ae_origin(ae_run, data_identity), None
+    return {"schema": SCHEMA + ":preflight", "data_identity": data_identity,
+        "gene_axis_sha256": manifest["files"]["genes.parquet"]["sha256"],
+        "normalization_sha256": manifest["files"]["normalization.npz"]["sha256"],
+        "settings": settings(config),
+        "class_order": LABELS, "roles": role_plan,
+        "raw_label_semantics": "original_sorted_state_not_natural_apoptosis_rate",
         "AE_origin": origin, "remaining_dependency": missing, "fit_inputs_ready": origin is not None,
         "RNA_matrix_values_reread": 0, "PT_loads": 0, "model_forwards": 0, "optimizer_steps": 0,
         "final_RNA_read": False, "class_probabilities_generated": 0, **FLAGS}
@@ -131,10 +128,6 @@ class StateMonitor:
 
     def progress(self, values, **kwargs):
         return values
-
-    def stop_check(self, *args):
-        # Update-level persistence without a new time limit or stopping rule.
-        return None
 
     def record(self, stage, epoch, values):
         with (self.experiment / "training_metrics.jsonl").open("a", encoding="utf-8") as stream:
@@ -152,19 +145,17 @@ def validate_state_declaration(path, *, allow_synthetic=False):
     require(body.get("class_order") == LABELS and all(body.get(k) is v for k, v in FLAGS.items())
         and body.get("training_completion", {}).get("status") == "complete"
         and body.get("calibration_completion", {}).get("status") == "complete"
-        and type(body["calibration_completion"].get("cursor")) is int
-        and body["calibration_completion"]["cursor"] == body["calibration_completion"].get("target_steps"),
+        and type(body["calibration_completion"].get("actual_steps")) is int
+        and body["calibration_completion"]["actual_steps"] == body["calibration_completion"].get("target_steps"),
         "STATE_SCOPE_OR_COMPLETION")
     run = path.parent
     manifest = json.loads((run / "run_manifest.json").read_text(encoding="utf-8"))
     require(body.get("manifest_sha256") == file_hash(run / "run_manifest.json")
         and manifest.get("schema") == SCHEMA + ":run" and manifest.get("synthetic") is body["synthetic"]
-        and manifest.get("execution_dependencies") == execution_dependencies()
         and manifest.get("data_identity") == body.get("data_identity")
         and manifest.get("AE_origin") == body.get("AE_origin"), "STATE_RUN_IDENTITY_CHANGED")
     for key, name in (("serving", "state_weights.pt"), ("calibrated", "weights/state/calibrated.pt"),
-        ("best", "weights/state/best.pt"), ("last", "weights/state/last.pt"),
-        ("temperature", "weights/state/temperature-last.pt")):
+        ("best", "weights/state/best.pt"), ("final", "weights/state/final.pt")):
         entry = body["assets"][key]
         require(Path(entry["path"]).resolve() == run / name and file_hash(run / name) == entry["sha256"],
                 "STATE_ASSET_CHANGED")
@@ -181,50 +172,35 @@ def validate_state_declaration(path, *, allow_synthetic=False):
         and type(body.get("selected_epoch")) is int and 0 < body["selected_epoch"] <= completion["actual_epochs"]
         and type(body.get("selected_optimizer_step")) is int
         and 0 < body["selected_optimizer_step"] <= completion["actual_updates"], "STATE_MANIFEST_FOLD_OR_COUNTERS")
-    deps = calibration.get("dependencies", {})
-    cache = run / "cache" / f"state-calibration-{body['training_identity']}.pt"
     require(type(calibration.get("target_steps")) is int and calibration["target_steps"] == cfg["calibration_steps"]
-        and deps.get("role") == "calibration" and deps.get("objective") == "unweighted_three_class_nll"
-        and type(deps.get("lr")) in (int, float) and deps["lr"] == cfg["calibration_lr"]
-        and type(deps.get("target_steps")) is int and deps["target_steps"] == cfg["calibration_steps"]
-        and deps.get("state_identity") == body["training_identity"]
-        and deps.get("uncalibrated_best_sha256") == body["assets"]["best"]["sha256"]
-        and deps.get("feature_cache_sha256") == file_hash(cache), "STATE_CALIBRATION_DEPENDENCIES_CHANGED")
+        and calibration.get("role") == "calibration" and calibration.get("objective") == "unweighted_three_class_nll"
+        and type(calibration.get("lr")) in (int, float) and calibration["lr"] == cfg["calibration_lr"],
+        "STATE_CALIBRATION_DEPENDENCIES_CHANGED")
     if not body["synthetic"]:
         require(verify_ae_origin(body["AE_origin"]["run"], body["data_identity"]) == body["AE_origin"],
                 "STATE_AE_ORIGIN_CHANGED")
     return body
 
 
-def fit_state(data, config, ae_run, output, *, resume=False, synthetic=False, monitor=None):
+def fit_state(data, config, ae_run, output, *, synthetic=False, monitor=None):
     """Future explicit C fit using original train_state and only the frozen AE."""
     settings(config)
     output = Path(output).resolve()
     require(output.is_relative_to(ROOT / "experiments"), "FIT_OUTPUT_PROJECT_BOUNDARY")
     origin = verify_ae_origin(ae_run, data.identity)
     manifest = {"schema": SCHEMA + ":run", "data_identity": data.identity, "config": config,
-        "AE_origin": origin, "synthetic": synthetic, "execution_dependencies": execution_dependencies()}
+        "AE_origin": origin, "synthetic": synthetic}
     with FileLock(str(output) + ".lock", timeout=0):
-        if resume:
-            require((output / "run_manifest.json").is_file()
-                and json.loads((output / "run_manifest.json").read_text(encoding="utf-8")) == manifest,
-                "PRE_PT_RESUME_IDENTITY_CHANGED")
-            if (output / "state_declaration.json").is_file():
-                return validate_state_declaration(output / "state_declaration.json", allow_synthetic=synthetic)
-            require(not (output / "weights/state/calibrated.pt").exists(),
-                    "COMPLETED_STATE_DECLARATION_MISSING_NO_RETRAIN")
-        else:
-            require(not output.exists(), "NEW_STATE_NAMESPACE_REQUIRED")
-            output.mkdir(parents=True)
-            atomic_json(output / "run_manifest.json", manifest)
+        require(not output.exists(), "NEW_STATE_NAMESPACE_REQUIRED")
+        output.mkdir(parents=True)
+        atomic_json(output / "run_manifest.json", manifest)
         pipeline = auxiliary.train_state(data, config, monitor or StateMonitor(output),
-            {"representation": origin["weights"]}, resume=resume)
+            {"representation": origin["weights"]})
         directory = output / "weights/state"
-        calibrated, last, best, temperature = [load_checkpoint(directory / n) for n in
-            ("calibrated.pt", "last.pt", "best.pt", "temperature-last.pt")]
-        completion = checkpoint_completion(last, config["epochs"])
-        require(last.get("extra", {}).get("update_resume") is None, "STATE_UPDATE_NOT_COMPLETE")
-        meta, calibration = calibrated["metadata"], calibrated.get("extra", {}).get("calibration_state", {})
+        calibrated, final, best = [load_checkpoint(directory / n) for n in
+            ("calibrated.pt", "final.pt", "best.pt")]
+        completion = checkpoint_completion(final, config["epochs"])
+        meta, calibration = calibrated["metadata"], calibrated.get("extra", {}).get("calibration_completion", {})
         require(meta.get("stage") == "state" and meta.get("data_identity") == data.identity
             and meta.get("class_order") == LABELS and meta.get("train_role") == "fit"
             and meta.get("selection_role") == "selection" and meta.get("calibration_role") == "calibration"
@@ -232,12 +208,9 @@ def fit_state(data, config, ae_run, output, *, resume=False, synthetic=False, mo
             and meta.get("state_loss") == "weighted_ce" and meta.get("state_aggregate_lambda") == 0.
             and Path(pipeline["state"]).resolve() == directory / "calibrated.pt"
             and Path(meta["uncalibrated_best"]).resolve() == directory / "best.pt", "STATE_TRAINING_CONTRACT")
-        require(calibration.get("status") == "complete" and type(calibration.get("cursor")) is int
-            and calibration.get("cursor") == config["calibration_steps"]
-            and calibration.get("target_steps") == config["calibration_steps"]
-            and calibration.get("dependencies", {}).get("uncalibrated_best_sha256") == file_hash(directory / "best.pt")
-            and type(temperature.get("counters", {}).get("optimizer_step")) is int
-            and temperature["counters"]["optimizer_step"] == config["calibration_steps"],
+        require(calibration.get("status") == "complete" and type(calibration.get("actual_steps")) is int
+            and calibration.get("actual_steps") == config["calibration_steps"]
+            and calibration.get("target_steps") == config["calibration_steps"],
             "STATE_CALIBRATION_NOT_COMPLETE")
         require_trained(best, "RAW_STATE_C_NO_UPDATES")
         require_finite_state(calibrated["model"])
@@ -256,8 +229,7 @@ def fit_state(data, config, ae_run, output, *, resume=False, synthetic=False, mo
             "training_identity": calibrated["identity"], "manifest_sha256": file_hash(output / "run_manifest.json"),
             "assets": {k: {"path": str(p), "sha256": file_hash(p)} for k, p in
                 (("serving", output / "state_weights.pt"), ("calibrated", directory / "calibrated.pt"),
-                 ("best", directory / "best.pt"), ("last", directory / "last.pt"),
-                 ("temperature", directory / "temperature-last.pt"))}, **FLAGS}
+                 ("best", directory / "best.pt"), ("final", directory / "final.pt"))}, **FLAGS}
         body["state_identity"] = config_hash(body)
         atomic_json(output / "state_declaration.json", body)
         return validate_state_declaration(output / "state_declaration.json", allow_synthetic=synthetic)
@@ -360,7 +332,7 @@ def score_prediction(prediction_path, declaration_path, output, *, microbatch=64
         output.mkdir(parents=True)
         try:
             reader, _, context, bindings = producer.bound_inputs()
-            model = producer.qualified_model(prediction["model_metadata"], bindings, context, device)
+            model = producer.load_model(prediction["model_metadata"], bindings, context, device)
             classifier, loaded = load_state_for_prediction(declaration_path, prediction, model)
             require(loaded == declaration, "C_DECLARATION_CHANGED")
             x, reference = producer.read_proxy_reference(context)
@@ -486,7 +458,7 @@ def final_preflight(config, *, declaration_path=None, device="cpu"):
         "state_asset": state_asset(declaration_path, declaration) if declaration else None,
         "model_status": "frozen_matching_C_ready" if declaration else "completed_matching_C_pending",
         "device": device, "dtype": "float32", "settings": report["settings"],
-        "execution_dependencies": report["execution_dependencies"], "real_readback": report["reused_real_readback"],
+        "raw_label_semantics": report["raw_label_semantics"],
         "model_selection": False, "statistic_refitting": False, "calibration_refitting": False,
         "final_RNA_values_read": False, "PT_loads": 0, "model_forwards": 0, "optimizer_steps": 0,
         "source_channel_gate_derivation_verified": False, "gate_metadata_sensitivity": gate_sensitivity_plan(frame),

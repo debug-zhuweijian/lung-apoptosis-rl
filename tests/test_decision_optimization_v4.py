@@ -75,57 +75,6 @@ def test_dlpa_uses_batched_callback_and_keeps_independent_search_streams(system)
         adapter.score_many(root, ((("STOP",), (1, 1)),))
 
 
-@pytest.mark.parametrize("population", [1, 5, 6])
-def test_time_mixture_batch_matches_scalar_predictor(population, monkeypatch):
-    from types import SimpleNamespace
-    from test_world_execution_v1 import config_and_data, response_model
-    from lung.timecourse import scoring, nested, response
-    shape, _, data = config_and_data(2)
-    models = [(response_model(shape, data), {"inference_microbatch": 2, "inference_ode_steps": 2})
-              for _ in range(2)]
-    data.action_features = lambda cid: data.sample_response(cid, 1, __import__('numpy').random.default_rng(1), "T")
-    predictor = nested.FrozenTimePredictor.__new__(nested.FrozenTimePredictor)
-    predictor.data, predictor.models = data, models
-    predictor.cfg = {"device": "cpu"}
-    predictor.artifacts = {"response": ["a", "b"]}
-    predictor.regressors = {"B": "B", "K": "K", "U": "U"}
-    predictor.gate = {"enabled": True}
-    predictor.calibration = {"on": {"status": "fixture", "quantile": 1., "eps": .01}}
-    for module in (scoring, nested):
-        monkeypatch.setattr(module, "project", lambda x, _: x)
-        monkeypatch.setattr(module, "chain_features", lambda data, cid, x, ref, b, device: x.mean(0))
-        monkeypatch.setattr(module, "infer", lambda model, features, device:
-                            features*.01 if model == "K" else torch.tensor([.1, .2]))
-    reference = torch.randn(population, shape.n_genes)
-    seeds = (7, 13, 21)
-    expected = [predictor.predict("T-0", population, seed, reference)["projected"] for seed in seeds]
-    before = torch.random.get_rng_state().clone()
-    actual = scoring.projected_seed_batch(predictor, "T-0", reference, seeds)
-    assert torch.equal(before, torch.random.get_rng_state())
-    for value, target in zip(actual, expected):
-        assert len(value) == population
-        torch.testing.assert_close(value, target, rtol=2e-5, atol=2e-6)
-
-
-def test_time_cache_roles_root_calibration_population_and_steps(monkeypatch):
-    from test_timecourse_decisions import fixture_data, Predictor, Proxy
-    from lung.timecourse.decision_world import TimeDecisionWorld
-    data = fixture_data()
-    predictor = Predictor(data)
-    ids = data.condition_ids(drugs=data.drug_groups["D"])
-    owner = TimeDecisionWorld(predictor, Proxy(), ids, ("rep1", "plate49"), "T", "env",
-                              {"device": "cpu", "population": 4, "projection_width": 4})
-    root, sequence = owner.root, (ids[0],)
-    owner.raw_score(root, sequence, (7, 8), 4)
-    owner.raw_score(root, sequence, (7, 8), 4)
-    assert len(predictor.calls) == 2 and owner._score_cache.hits == 2
-    owner.raw_score(replace(root, role="E"), sequence, (7,), 4)
-    owner.raw_score(root, sequence, (7,), 8)
-    predictor.calibration = {"version": "new"}
-    owner.raw_score(root, sequence, (7,), 4)
-    assert len(predictor.calls) == 5
-
-
 @pytest.mark.parametrize("mode", ["population_mean", "condition_only"])
 def test_input_ablation_respects_population_boundaries(world_factory, mode):
     owner, _, _, _ = world_factory(2)
@@ -137,33 +86,6 @@ def test_input_ablation_respects_population_boundaries(world_factory, mode):
     torch.testing.assert_close(owner.score(root, sequence, seeds), expected, rtol=2e-5, atol=2e-6)
 
 
-def test_checkpoint_throttle_has_exact_resume(synthetic_world, tmp_path, monkeypatch):
-    from test_decision_engine_v1 import Monitor
-    from lung.engine import decision
-    from lung.engine.checkpoint import load_checkpoint
-    _, config, data, _ = synthetic_world
-    config = {**config, "training_control": {"checkpoint_every_updates": 100, "checkpoint_every_seconds": 0}}
-    writes = []
-    original = decision.atomic_save
-    def recording(path, payload):
-        writes.append((str(path), payload["extra"]["cursor"].copy()))
-        return original(path, payload)
-    monkeypatch.setattr(decision, "atomic_save", recording)
-    full = Monitor(tmp_path / "full")
-    decision.train_decision("dlpa", data, config, full, {})
-    assert not any(row["phase"] == "distill" and row["update"] == 1 for _, row in writes)
-    resumed = Monitor(tmp_path / "resume", fail=("distill_step", 1))
-    with pytest.raises(KeyboardInterrupt):
-        decision.train_decision("dlpa", data, config, resumed, {})
-    resumed.fail = None
-    decision.train_decision("dlpa", data, config, resumed, {}, resume=True)
-    a = load_checkpoint(full.weights / "dlpa/seed_0/last.pt")
-    b = load_checkpoint(resumed.weights / "dlpa/seed_0/last.pt")
-    assert a["counters"] == b["counters"]
-    for name in a["model"]:
-        torch.testing.assert_close(a["model"][name], b["model"][name], rtol=0, atol=0)
-    assert b["extra"]["training_control"]["status"] == "complete"
-    assert b["extra"]["training_control"]["updates"] == b["counters"]["distill_step"]
 
 
 @pytest.mark.parametrize("endpoint", [False, True])

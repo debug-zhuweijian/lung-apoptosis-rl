@@ -1,7 +1,7 @@
 """Discrete prefix-tree DLPA extension; local search does not mutate proposal weights."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Callable
 
 import torch
@@ -188,17 +188,3 @@ class DLPAPlanner:
                            "scoring_repeats": c.score_repeats, "role": "search_not_report",
                            "node_key_fields": (run_id, root.root_id, "full_prefix", a.versions,
                                                planning_seed, a.n_pop)})
-
-    def state_dict(self) -> dict:
-        if self._active:
-            raise RuntimeError("Save DLPA only at completed root boundaries")
-        return {"schema": "DLPA-PLAN-V1", "config": asdict(self.config),
-                "versions": self.adapter.versions, "root_count": self.root_count,
-                "plan_iteration": self.plan_iteration, "evaluated_sequences": self.evaluated_sequences}
-
-    def load_state_dict(self, state: dict) -> None:
-        if (self._active or state["schema"] != "DLPA-PLAN-V1"
-                or state["config"] != asdict(self.config) or state["versions"] != self.adapter.versions):
-            raise ValueError("Incompatible planner resume")
-        for key in ("root_count", "plan_iteration", "evaluated_sequences"):
-            setattr(self, key, state[key])

@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import torch
 
+from lung.data.common import data_file_bindings
 from lung.rl import stream_seed
 from .auxiliary import encode_vectors, verify_auxiliary_dependencies
 from .checkpoint import atomic_json, load_checkpoint
@@ -56,10 +57,10 @@ def load_condition_inputs(directory, project_root):
     if manifest.get("schema_version") != 1:
         raise ValueError("CONDITION_INPUT_SCHEMA_UNSUPPORTED")
     files = [manifest_path]
-    for name, digest in manifest["files"].items():
+    for name, digest in data_file_bindings(manifest["files"]).items():
         files.append(checked({"path": name, "sha256": digest}, directory))
     protocols, protocol_files = None, []
-    for name, digest in manifest["inputs_sha256"].items():
+    for name, digest in data_file_bindings(manifest["inputs_sha256"]).items():
         path = checked({"path": name, "sha256": digest}, project_root)
         files.append(path)
         if path.name == "manifest.json":
@@ -272,7 +273,7 @@ def preflight(project_root, data_config, pipeline, bundle, reference=None, mappi
                 require_trained(saved, "CHECKPOINT_NO_OPTIMIZER_UPDATES")
                 require_finite_state(saved["model"])
                 if key in {"pool", "state", "backward", "correction"}:
-                    verify_auxiliary_dependencies(path, pipeline)
+                    verify_auxiliary_dependencies(path, pipeline, saved=saved)
             except (ValueError, StageUnavailable, FileNotFoundError, KeyError) as error:
                 issues.append(f"CHECKPOINT_DEPENDENCY_INVALID: {key}: {error}")
     if pipeline.get("correction") and not all(pipeline.get(k) for k in ("backward", "correction_gate")):
@@ -379,8 +380,7 @@ class ExternalConditionWorld(BiologicalWorld):
 
     def __init__(self, data, config, pipeline, actions):
         self.external_actions = actions
-        super().__init__(data, {**config, "task": "PROXY-A549-V1", "protocol": None}, pipeline,
-                         require_resolution=False)
+        super().__init__(data, {**config, "task": "PROXY-A549-V1", "protocol": None}, pipeline)
 
     def _action_metadata(self):
         if not self.external_actions:
@@ -418,7 +418,7 @@ def generate_feature_rows(world, root, provenance, *, seed, reference_id):
 
 
 def generate_to_directory(project_root, data, config, pipeline, bundle, reference, mappings,
-                          output, *, reference_path, mapping_path, data_config_path, script_path):
+                          output, *, reference_path, mapping_path, data_config_path):
     """Write actual frozen features and the inputs needed for a later schema2 join."""
     output, project_root = Path(output).resolve(), Path(project_root).resolve()
     if output.exists():
@@ -431,8 +431,7 @@ def generate_to_directory(project_root, data, config, pipeline, bundle, referenc
     mapping_record = descriptor_record(mapping_path, mappings)
     for item in bundle["source_records"]:
         checked(item, project_root)
-    generator_files = [Path(__file__), Path(script_path), *sorted((project_root / "src/lung").rglob("*.py"))]
-    guard_paths = [*bundle["files"], *generator_files, Path(data_config_path)]
+    guard_paths = [*bundle["files"], Path(data_config_path)]
     guard_paths.extend(data.assets_dir / n for n in ("manifest.json", "genes.parquet", "normalization.npz", "neighbors.npz", "bandwidths.npz"))
     for key in FEATURE_KEYS:
         if pipeline.get(key):
@@ -472,7 +471,6 @@ def generate_to_directory(project_root, data, config, pipeline, bundle, referenc
         "preprocessing": [record(data.assets_dir / n) for n in ("manifest.json", "normalization.npz", "neighbors.npz", "bandwidths.npz")],
         "chemical_identity": [record(project_root / data_cfg["drug_identity_manifest"]),
                               *[record(p) for p in bundle["files"] if p.name in {"compounds.parquet", "fingerprints.npy"}]],
-        "feature_generator": [record(p) for p in sorted(set(generator_files))],
         "condition_inputs": [record(p) for p in bundle["files"]] + [mapping_record, record(data_config_path)],
         "initial_state": [reference_record, record(output / "reference_population.npy"), record(output / "reference_draw.json"),
                           *reference["source_files"]]}

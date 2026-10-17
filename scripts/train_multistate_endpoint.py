@@ -10,7 +10,6 @@ sys.path.insert(0, str(ROOT))
 from lung.data.martin_state_function import DOMAIN_IDS, MartinStateFunctionInputs
 from lung.data.multistate_role_plan import MultiStateRolePlan
 from lung.engine.multistate_endpoint_model import preflight
-from lung.engine.multistate_endpoint_learning import terminal_q_preflight
 
 
 def main(argv=None):
@@ -25,7 +24,7 @@ def main(argv=None):
     plan = MultiStateRolePlan(args.role_plan, source)
     result = preflight(source, plan, fold_id=args.fold, head_id=args.head,
                        native_cache_index=args.native_cache_index)
-    print(json.dumps({**result, 'Q': terminal_q_preflight()}, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False))
     return 2  # Valid metadata is explicitly still a pending scientific chain.
 
 

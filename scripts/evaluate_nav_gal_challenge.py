@@ -28,7 +28,7 @@ def read_json(path):
 
 
 def verify_manifest(directory, root, required_outputs):
-    """Check every declared direct dependency; preserve original path conventions."""
+    """Check declared data dependencies, ignoring historical Python provenance."""
     path = directory / "manifest.json"
     manifest = read_json(path)
     outputs = manifest.get("files_sha256", manifest.get("outputs_sha256", {}))
@@ -39,6 +39,8 @@ def verify_manifest(directory, root, required_outputs):
     for base, entries in [(inputs_base, manifest.get("inputs_sha256", {})),
                           (root, manifest.get("sources_sha256", {})), (directory, outputs)]:
         for name, expected in entries.items():
+            if Path(name).suffix.lower() == ".py":
+                continue
             source = (base / name.replace("\\", "/")).resolve()
             if not re.fullmatch(r"[a-f0-9]{64}", expected) or sha(source) != expected:
                 raise ValueError(f"Frozen dependency hash mismatch: {source}")

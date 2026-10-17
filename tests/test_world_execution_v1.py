@@ -12,7 +12,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.engine import auxiliary, world
 from lung.engine.response import condition_kwargs
-from lung.engine.synthetic import SyntheticData
+from synthetic_data import SyntheticData
 from lung.models import (ModelConfig, ResponseModel, PopulationPool, StateClassifier,
                          BackwardModel, CorrectionModel)
 from lung.rl import stream_seed
@@ -128,11 +128,9 @@ def world_factory(monkeypatch):
         module.eval().requires_grad_(False)
     pipeline = {"response": ["member-0", "member-1"], **{key: key for key in auxiliaries}}
     monkeypatch.setattr(world, "load_response", lambda path, *_: members[int(path[-1])])
-    monkeypatch.setattr(world, "load_auxiliary", lambda path, *_: auxiliaries[path])
-    monkeypatch.setattr(world, "verify_auxiliary_dependencies", lambda *_: True)
+    monkeypatch.setattr(world, "load_auxiliary", lambda path, *_, **kwargs: auxiliaries[path])
     monkeypatch.setattr(world, "file_hash", lambda value: "hash-" + str(value))
     monkeypatch.setattr(auxiliary, "file_hash", lambda value: "hash-" + str(value))
-    monkeypatch.setattr(world, "implementation_identity", lambda: "synthetic-world-test")
 
     def make(batch_size):
         updated = deepcopy(config)
@@ -150,7 +148,6 @@ def test_world_identity_and_feature_cache_binding_include_batching(world_factory
     for stage in ("pool", "state"):
         assert len({auxiliary.pipeline_identity(stage, data, config, pipeline)
                     for config in (config1, config2, config3)}) == 3
-    assert auxiliary.calibration_audit_binding(data, config2, pipeline)["inference_microbatch"] == 2
     legacy = deepcopy(config1)
     del legacy["response"]["inference_microbatch"]
     assert auxiliary.pipeline_identity("pool", data, legacy, pipeline) == auxiliary.pipeline_identity("pool", data, config1, pipeline)
@@ -158,6 +155,7 @@ def test_world_identity_and_feature_cache_binding_include_batching(world_factory
 
 def test_world_tensor_features_correction_and_score_use_configured_batches(world_factory, monkeypatch):
     owner, _, _, _ = world_factory(3)
+    monkeypatch.setattr(owner, "_gate", lambda _: True)
     calls = []
     original = world.encode_vectors
 
@@ -177,14 +175,56 @@ def test_world_tensor_features_correction_and_score_use_configured_batches(world
     assert calls == [10, 10, 10, 5]
 
 
-def test_batched_world_fixed_sequence_score_matches_single_cell_world(world_factory):
+@pytest.mark.parametrize("gate", [False, True])
+@pytest.mark.parametrize("member_count", [1, 2])
+def test_batched_world_fixed_sequence_score_matches_single_cell_world(world_factory, gate, member_count):
     baseline, _, _, _ = world_factory(1)
+    baseline.members = baseline.members[:member_count]
+    baseline._gate = lambda _: gate
+    with torch.no_grad():
+        baseline.correction.network[-1].bias.fill_(.05)
     root = baseline.roots("T")[0]
     prefix = (next(iter(baseline.actions)),)
-    expected = baseline.score_one(root, prefix, 51)
+    seeds = (51, 52)
+    expected = [baseline.score_one(root, prefix, seed) for seed in seeds]
     for batch_size in (2, 3):
         owner, _, _, _ = world_factory(batch_size)
-        assert owner.score_one(root, prefix, 51) == pytest.approx(expected, abs=2e-6, rel=2e-5)
+        owner.members = owner.members[:member_count]
+        owner._gate = lambda _: gate
+        actual = [owner.score_one(root, prefix, seed) for seed in seeds]
+        assert actual == pytest.approx(expected, abs=2e-6, rel=2e-5)
+        batched = owner._score_seed_batch(root, prefix, seeds, owner.n_pop, owner.steps)
+        assert batched == pytest.approx(expected, abs=2e-6, rel=2e-5)
+
+
+@pytest.mark.parametrize("correction", ["absent", "disabled", "enabled"])
+def test_world_skips_inactive_correction_and_reuses_projection(world_factory, monkeypatch, correction):
+    owner, _, _, _ = world_factory(3)
+    monkeypatch.setattr(owner, "_gate", lambda _: correction == "enabled")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Inactive correction must not run backward or correction diagnostics")
+
+    if correction == "absent":
+        owner.backward = owner.correction = None
+    elif correction == "disabled":
+        owner.backward = owner.correction = forbidden
+    calls = []
+    original = world.projected
+
+    def project(raw, data):
+        calls.append(raw)
+        return original(raw, data)
+
+    monkeypatch.setattr(world, "projected", project)
+    root = owner.roots("T")[0]
+    prefix = (next(iter(owner.actions)),)
+    expression, _ = owner.propagate(root, prefix, 51)
+    expected_calls = len(owner.members) * (2 if correction == "enabled" else 1)
+    assert expression.isfinite().all() and len(calls) == expected_calls
+    calls.clear()
+    scores = owner._score_seed_batch(root, prefix, (51, 52), owner.n_pop, owner.steps)
+    assert np.isfinite(scores).all() and len(calls) == 2 * expected_calls
 
 
 @pytest.mark.parametrize("batch_size", [0, -1, 1.5, True])

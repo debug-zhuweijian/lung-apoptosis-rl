@@ -129,18 +129,17 @@ class RegisteredProtocolScorer:
             raise ValueError('INVALID_SCORER_FEATURE_NAMES')
         if not callable(self.scorer):
             raise ValueError('SCORER_CALLABLE_REQUIRED')
-        if self.scorer_kind not in ('endpoint_G', 'private_candidate_Q'):
+        if self.scorer_kind != 'endpoint_G':
             raise ValueError('INVALID_SCORER_KIND')
 
 
 def rank_protocol_candidates(input_bridge, candidate_ids, *, scorer=None,
                              cache_manifest=None, algorithm='G_enumeration_baseline', adapter=None):
     """Call actual vectors; no observed outcomes or cost tie-breakers are read."""
-    if algorithm not in ('G_enumeration_baseline', 'private_candidate_Q'):
+    if algorithm != 'G_enumeration_baseline':
         raise ValueError('UNKNOWN_PROTOCOL_ALGORITHM')
     if scorer is not None:
-        expected_kind = 'endpoint_G' if algorithm == 'G_enumeration_baseline' else 'private_candidate_Q'
-        if not isinstance(scorer, RegisteredProtocolScorer) or scorer.scorer_kind != expected_kind:
+        if not isinstance(scorer, RegisteredProtocolScorer) or scorer.scorer_kind != 'endpoint_G':
             raise ValueError('SCORER_KIND_ALGORITHM_MISMATCH')
     if scorer is None or cache_manifest is None:
         return {'status': 'pending_model' if scorer is None else 'pending_standard_reference_cache',
@@ -186,7 +185,3 @@ def rank_protocol_candidates(input_bridge, candidate_ids, *, scorer=None,
 
 def enumerate_with_g(*args, **kwargs):
     return rank_protocol_candidates(*args, **kwargs, algorithm='G_enumeration_baseline')
-
-
-def rank_with_candidate_q(*args, **kwargs):
-    return rank_protocol_candidates(*args, **kwargs, algorithm='private_candidate_Q')

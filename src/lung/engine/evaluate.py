@@ -12,10 +12,10 @@ from lung.models import rbf_mmd
 from lung.models.objectives import shared_control_mmd
 from lung.rl import (DLPAPlanner, generate_fixed_sequences, reevaluate_fixed_sequences, audit_winners)
 from .checkpoint import atomic_json, load_checkpoint, seed_all
-from .config import ROOT, StageUnavailable, load_config, project_path, file_hash, verify_interpreter
+from .config import ROOT, StageUnavailable, load_config, project_path, file_hash
 from .data import open_data
-from .response import load_response, tensor, condition_kwargs, projected
-from .synthetic import smoke_config
+from .response import tensor, condition_kwargs, projected
+from .response_loader import load_response
 from .inference_noise import response_noise
 
 
@@ -183,39 +183,42 @@ def evaluate_decisions(data, config, pipeline, output):
 def main(argv=None):
     command = argparse.ArgumentParser(description="冻结模型的独立 test；不训练、不调门控、不校准")
     group = command.add_mutually_exclusive_group(required=True)
-    group.add_argument("--weights")
+    group.add_argument("--weights", help="单个 response/state 权重；潜空间预测器使用 --pipeline")
     group.add_argument("--pipeline")
     command.add_argument("--data")
     command.add_argument("--device")
-    command.add_argument("--smoke", action="store_true")
     command.add_argument("--mode", choices=("response", "state", "decision"), default="response")
     arguments = command.parse_args(argv)
     try:
-        verify_interpreter()
         config, pipeline = load_config(), {}
+        input_checkpoint = None
         if arguments.pipeline:
             record = json.loads(project_path(arguments.pipeline).read_text(encoding="utf-8"))
             config, pipeline = record["config"], record["artifacts"]
-        if arguments.smoke:
-            config = smoke_config(config)
+        if config.get("synthetic"):
+            raise StageUnavailable("SYNTHETIC_ARTIFACT_NOT_SUPPORTED")
         if arguments.data:
             config["data"] = arguments.data
         if arguments.device:
             config["device"] = arguments.device
         if arguments.weights:
             saved = load_checkpoint(project_path(arguments.weights))
-            if bool(saved["metadata"].get("synthetic")) != bool(config.get("synthetic")):
-                raise StageUnavailable("SYNTHETIC_REAL_MISMATCH: use --smoke only for engineering artifacts")
+            input_checkpoint = saved
+            if saved["metadata"].get("synthetic"):
+                raise StageUnavailable("SYNTHETIC_ARTIFACT_NOT_SUPPORTED")
             if saved["metadata"]["stage"] == "response":
                 pipeline["response"] = [str(project_path(arguments.weights))]
                 config["response"] = saved["metadata"]["response_config"]
             elif saved["metadata"]["stage"] == "state":
                 config = state_evaluation_config(config, saved["metadata"])
-                pipeline["response"] = [saved["metadata"]["reference_response"]]
+                if saved["metadata"].get("reference_representation"):
+                    pipeline["representation"] = saved["metadata"]["reference_representation"]
+                else:
+                    pipeline["response"] = [saved["metadata"]["reference_response"]]
                 pipeline["state"] = str(project_path(arguments.weights))
                 arguments.mode = "state"
             else:
-                raise StageUnavailable("COMPLETE_PIPELINE_REQUIRED: use --pipeline for complete decision evaluation")
+                raise StageUnavailable("COMPLETE_PIPELINE_REQUIRED: use --pipeline for latent response or decision evaluation")
         if pipeline.get("inference_ode_steps"):
             config["response"]["inference_ode_steps"] = pipeline["inference_ode_steps"]
         data = open_data(config, "response", prepare=False, test=True)
@@ -226,21 +229,16 @@ def main(argv=None):
         before = {path: file_hash(path) for path in paths}
         seed_all(config["seed"]+900)
         if arguments.mode == "response":
-            models = [load_response(path, data, config["device"]) for path in pipeline["response"]]
+            models = [load_response(path, data, config["device"], saved=input_checkpoint)
+                      for path in pipeline["response"]]
             report = evaluate_expression(models, data, config, output, pipeline)
         elif arguments.mode == "state":
-            from .auxiliary import load_auxiliary, encode_vectors, state_metrics, verify_auxiliary_dependencies
-            saved_state = load_checkpoint(pipeline["state"])
+            from .auxiliary import (load_auxiliary, encode_vectors, state_metrics,
+                                    auxiliary_representation)
+            saved_state = input_checkpoint if input_checkpoint is not None else load_checkpoint(pipeline["state"])
             config = state_evaluation_config(config, saved_state["metadata"])
-            if arguments.weights:
-                # Standalone C uses only E_ref, not the other response members.
-                expected = saved_state["metadata"]["dependencies"]["pipeline"]["response"][0]
-                if file_hash(pipeline["response"][0]) != expected:
-                    raise StageUnavailable("AUX_DEPENDENCY_MISMATCH: reference response changed")
-            else:
-                verify_auxiliary_dependencies(pipeline["state"], pipeline)
-            reference = load_response(pipeline["response"][0], data, config["device"])
-            classifier = load_auxiliary(pipeline["state"], data, config["device"])
+            reference, _ = auxiliary_representation(data, pipeline, config["device"])
+            classifier = load_auxiliary(pipeline["state"], data, config["device"], pipeline=pipeline, saved=saved_state)
             # The opposite plate is diagnostic final_test; not Tahoe response labels.
             batch = data.state_arrays(config["state_fold"], "final_test" if not data.synthetic else "test")
             with torch.no_grad():

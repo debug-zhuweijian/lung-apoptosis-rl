@@ -31,36 +31,13 @@ def execute(output, **kwargs):
                             device="cpu", **kwargs)
 
 
-def test_completed_resume_does_not_forward(fixture):
+def test_new_batch_produces_all_candidates_once(fixture):
     output, calls = fixture
     first = execute(output)
     assert first["new_P_outputs_in_invocation"] == len(calls) == 20
-    second = execute(output, resume=True)
-    assert second["new_P_outputs_in_invocation"] == 0 and len(calls) == 20
-    assert second["reused_P_outputs_in_invocation"] == 20
-
-
-def test_resume_plan_drift_rejected_before_production(fixture):
-    output, calls = fixture
-    execute(output)
-    plan_path = output / "batch_plan.json"
-    plan = json.loads(plan_path.read_text())
-    plan["steps"] = 99
-    plan_path.write_text(json.dumps(plan))
-    with pytest.raises(ValueError, match="PRE_PT_RESUME_IDENTITY"):
-        execute(output, resume=True)
+    with pytest.raises(ValueError, match="NEW_BATCH_OUTPUT_REQUIRED"):
+        execute(output)
     assert len(calls) == 20
-
-
-def test_incomplete_candidate_preserved(fixture):
-    output, calls = fixture
-    execute(output)
-    path = output / "candidate-3" / "prediction.json"
-    path.unlink()  # Only the current test's own fixture; no project data.
-    with pytest.raises(ValueError, match="INCOMPLETE_CANDIDATE_PRESERVED"):
-        execute(output, resume=True)
-    assert path.parent.exists() and len(calls) == 20
-    assert "INCOMPLETE_CANDIDATE_PRESERVED" in (output / "failures.jsonl").read_text()
 
 
 def test_preflight_never_produces(fixture, monkeypatch):

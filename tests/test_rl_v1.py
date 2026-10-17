@@ -12,7 +12,7 @@ from lung.rl import (
     AffineCritic, Candidate, CandidateRegistry, ConditionalActor, ConditionalTable,
     DAACConfig, DAACTrainer, DLPAConfig, DLPAPlanner, DecisionState, ModelRollout,
     NetworkSpec, ProposalDistiller, ProtocolSpec, RLUnavailable, RootContext,
-    SimulationAdapter, VersionStamp, audit_winners, critic_mc_diagnostic,
+    SimulationAdapter, VersionStamp, audit_winners,
     exact_time_ticks, generate_fixed_sequences, joint_kl, min_expected_target,
     precision_repeats, prefix_advantages, reevaluate_fixed_sequences,
 )
@@ -85,13 +85,20 @@ def test_exact_integer_time_and_missing_protocol(system):
     assert exact_time_ticks(["0.5", "1.25", "24"]) == (4, (2, 5, 96))
     with pytest.raises(ValueError):
         exact_time_ticks([.5])
-    _, adapter, _, _ = system
+    _, adapter, root, _ = system
     with pytest.raises(RLUnavailable, match="PROTOCOL_INCOMPLETE"):
         replace(adapter, protocol=None).validate_ready()
     with pytest.raises(RLUnavailable, match="ENDPOINT_UNAVAILABLE"):
         replace(adapter, endpoint_available=False).validate_ready()
-    with pytest.raises(RLUnavailable, match="POPULATION_RESOLUTION_UNRESOLVED"):
-        replace(adapter, population_resolution_passed=False).validate_ready()
+    unshaped = replace(adapter, population_resolution_passed=False, potential_fn=None)
+    unshaped.validate_ready()
+    assert unshaped.population_resolution_passed is False
+    env = ModelRollout(unshaped, root, seed=11, score_repeats=2)
+    while not env.done:
+        mask = env.legal_mask
+        transition = env.step(int(torch.nonzero(mask)[0]), mask.float() / mask.sum())
+        assert transition.phi_current == transition.phi_next == 0.
+        assert transition.reward == transition.base_reward
     with pytest.raises(RLUnavailable, match="POTENTIAL_UNAVAILABLE"):
         replace(adapter, potential_fn=None).validate_ready(require_potential=True)
 
@@ -161,7 +168,7 @@ def test_affine_expectation_and_conditional_credit(system):
 
 
 @pytest.mark.parametrize("critic_type", ["affine", "icl_control"])
-def test_daac_warmup_delayed_updates_targets_and_resume(system, tmp_path, critic_type):
+def test_daac_warmup_delayed_updates_targets_and_export(system, tmp_path, critic_type):
     registry, adapter, root, _ = system
     config = DAACConfig(batch_size=2, capacity=32, warmup_transitions=2, critic_type=critic_type)
     trainer = DAACTrainer(registry, adapter.versions, config, seed=4)
@@ -179,15 +186,13 @@ def test_daac_warmup_delayed_updates_targets_and_resume(system, tmp_path, critic
     assert trainer._targets([records[-1]]).item() == pytest.approx(records[-1].reward)
     checkpoint = tmp_path / "rl.pt"
     torch.save(trainer.state_dict(), checkpoint)
-    restored = DAACTrainer(registry, adapter.versions, config, seed=99)
-    restored.load_state_dict(torch.load(checkpoint, weights_only=False))
+    exported = torch.load(checkpoint, weights_only=False)
+    restored = ConditionalActor(registry)
+    restored.load_state_dict(exported["actor"])
     state = adapter.observe(root, (), 10)
-    mask = adapter.protocol.legal_mask(registry, ())
-    assert trainer.select(state, mask)[0] == restored.select(state, mask)[0]
-    first, second = trainer.update(), restored.update()
-    assert first["critic_loss_1"] == pytest.approx(second["critic_loss_1"], abs=1e-8)
-    for left, right in zip(trainer.actor.parameters(), restored.actor.parameters()):
-        assert torch.equal(left, right)
+    mask = adapter.protocol.legal_mask(registry, ())[None]
+    torch.testing.assert_close(trainer.actor([state], mask), restored([state], mask))
+    assert not {"actor_optimizer", "critic_optimizer", "targets", "replay", "global_rng"} & set(exported)
     with pytest.raises(ValueError, match="version mismatch"):
         trainer.observe(replace(records2[0], versions=replace(adapter.versions, reward="new-reward")))
 
@@ -204,7 +209,7 @@ def test_prefix_conditional_mle_not_joint_arithmetic_average(system):
     assert p[-1].item() == pytest.approx(.06)
 
 
-def test_dlpa_deduplicated_scoring_joint_distillation_and_resume(system):
+def test_dlpa_deduplicated_scoring_joint_distillation(system):
     registry, adapter, root, calls = system
     distiller = ProposalDistiller(registry, adapter.versions, seed=2, lr=.01)
     config = DLPAConfig(rounds=2, candidates_per_round=80, elite_count=8, score_repeats=4)
@@ -224,14 +229,6 @@ def test_dlpa_deduplicated_scoring_joint_distillation_and_resume(system):
     assert after < before
     with pytest.raises(ValueError, match="T-root"):
         distiller.add(replace(result, role="E"))
-    d2 = ProposalDistiller(registry, adapter.versions, seed=99, lr=.01)
-    d2.load_state_dict(deepcopy(distiller.state_dict()))
-    p2 = DLPAPlanner(adapter, d2.proposal, config)
-    p2.load_state_dict(planner.state_dict())
-    next1, next2 = planner.plan(root, 7), p2.plan(root, 7)
-    assert next1.sequences == next2.sequences
-    assert all(torch.equal(a.probabilities, b.probabilities) for a, b in zip(next1.teachers, next2.teachers))
-    assert distiller.update(8)["distill_kl"] == pytest.approx(d2.update(8)["distill_kl"])
 
 
 def test_fixed_reevaluation_never_calls_actor_or_observe_and_keeps_provenance(system):
@@ -254,12 +251,3 @@ def test_fixed_reevaluation_never_calls_actor_or_observe_and_keeps_provenance(sy
     assert not reevaluation_seeds & audit_seeds
     with pytest.raises(ValueError, match="same root"):
         audit_winners(evaluation_adapter, replace(root, root_id="different-root"), result, own, seed=8, repeats=4)
-
-
-def test_frozen_mc_diagnostic_compares_shaped_values(system):
-    registry, adapter, root, _ = system
-    actor = ConditionalActor(registry)
-    initial = deepcopy(actor.state_dict())
-    result = critic_mc_diagnostic(actor, adapter, root, "a_high_2", .2, repeats=4)
-    assert result["shaped_target"] == pytest.approx(result["base_target"] - .2)
-    assert all(torch.equal(v, initial[k]) for k, v in actor.state_dict().items())

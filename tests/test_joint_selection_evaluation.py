@@ -17,18 +17,17 @@ def view():
 
 def packet(view, tmp_path, role="final_test"):
     files = {}
-    for name in ("information", "response", "G", "simple", "Q"):
+    for name in ("information", "response", "G", "simple"):
         path = tmp_path / (name + ".fixture")
         path.write_text("synthetic fixture only, no scientific execution: " + name, encoding="utf-8")
         files[name] = {"path": path.name, "sha256": sha(path)}
     ids = sorted(r["candidate_id"] for r in view.metadata_units(role))
     methods = {}
-    for name, model in (("direct_G", "G"), ("simple_rank", "simple"), ("learned_Q", "Q")):
+    for name, model in (("direct_G", "G"), ("simple_rank", "simple")):
         methods[name] = {"scores": {cid: (i + 1) / 20 for i, cid in enumerate(ids)},
             "model_artifact": files[model], "information_set_id": "shared-fixture-information",
             "feedback_G_artifact": files["G"], "feature_use": "declared-fixture-feature-use",
-            "score_definition": "candidate_value_same_terminal_Annexin_reward" if model == "Q"
-                                else "estimated_terminal_Annexin_fraction"}
+            "score_definition": "estimated_terminal_Annexin_fraction"}
     return {"schema": SCORE_SCHEMA, "view_identity": view.identity(), "role": role,
         "objective": deepcopy(OBJECTIVE), "information_set_id": "shared-fixture-information",
         "information_artifact": files["information"], "response_feature_artifact": files["response"],
@@ -127,9 +126,9 @@ def test_complete_same_information_same_feedback_single_model_boundaries(view, t
     elif mutation == "fold":
         value["view_identity"]["experiment_id"] = "viel_leave_group_01"
     elif mutation == "information":
-        value["methods"]["learned_Q"]["information_set_id"] = "extra-test-information"
+        value["methods"]["simple_rank"]["information_set_id"] = "extra-test-information"
     elif mutation == "feedback":
-        value["methods"]["learned_Q"]["feedback_G_artifact"] = G["model_artifact"] | {"sha256": "wrong"}
+        value["methods"]["simple_rank"]["feedback_G_artifact"] = G["model_artifact"] | {"sha256": "wrong"}
     elif mutation == "role":
         value["fit_observation_ids"].append(view.metadata_units("final_test")[0]["observation_id"])
     elif mutation == "finalY":
@@ -137,7 +136,7 @@ def test_complete_same_information_same_feedback_single_model_boundaries(view, t
     elif mutation == "model_per_candidate":
         G["candidate_model_artifacts"] = dict.fromkeys(G["scores"], G["model_artifact"])
     elif mutation == "missing_method":
-        value["methods"].pop("learned_Q")
+        value["methods"].pop("direct_G")
     elif mutation == "coordinate":
         value["methods"]["simple_rank"]["score_definition"] = "arbitrary_rank_energy"
     else:
@@ -155,11 +154,16 @@ def test_G_fraction_score_boundaries(view, tmp_path, invalid):
         view.freeze_scores(value, root=tmp_path)
 
 
-def test_explicit_evaluation_uses_mock_Y_full_domain_and_prefrozen_fixed_subsets(view, tmp_path, monkeypatch):
+@pytest.mark.parametrize("include_simple_rank", [True, False])
+def test_explicit_evaluation_uses_mock_Y_full_domain_and_prefrozen_fixed_subsets(view, tmp_path, monkeypatch, include_simple_rank):
     monkeypatch.setattr(JointSelectionEvaluation, "_measured_units", lambda self, role: fixture_labels(self, role))
-    frozen = view.freeze_scores(packet(view, tmp_path), root=tmp_path)
+    value = packet(view, tmp_path)
+    if not include_simple_rank:
+        value["methods"].pop("simple_rank")
+    frozen = view.freeze_scores(value, root=tmp_path)
     result = view.evaluate_frozen(frozen, root=tmp_path)
     methods = result["results"]
+    assert ("simple_rank" in methods) is include_simple_rank
     full = {r["candidate_id"] for r in view.metadata_units("final_test")}
     assert all(set(r["candidate_domain"]) == full for r in methods.values())
     assert methods["direct_G"]["measured_candidate_regret"] == 0
@@ -191,10 +195,11 @@ def test_changed_artifact_or_receipt_rejected_before_Y(view, tmp_path, monkeypat
     forbid_Y(monkeypatch)
     frozen = view.freeze_scores(packet(view, tmp_path), root=tmp_path)
     changed = deepcopy(frozen)
-    changed["packet"]["methods"]["learned_Q"]["scores"][next(iter(changed["packet"]["methods"]["learned_Q"]["scores"]))] = -.2
+    changed_scores = changed["packet"]["methods"]["simple_rank"]["scores"]
+    changed_scores[next(iter(changed_scores))] = -.2
     with pytest.raises(ValueError, match="RECEIPT_CHANGED"):
         view.evaluate_frozen(changed, root=tmp_path)
-    (tmp_path / "Q.fixture").write_text("changed fixture", encoding="utf-8")
+    (tmp_path / "simple.fixture").write_text("changed fixture", encoding="utf-8")
     with pytest.raises(ValueError, match="ARTIFACT_CHANGED"):
         view.evaluate_frozen(frozen, root=tmp_path)
 

@@ -6,14 +6,12 @@ exposure, washout, or a complete treatment history. No functional Y is opened.
 """
 from collections import Counter
 from dataclasses import asdict, replace
-import inspect
 import hashlib
 import json
 import math
 from pathlib import Path
 
 import numpy as np
-import scipy
 import torch
 
 from lung.data.native_response_units import NativeResponseUnits
@@ -22,7 +20,7 @@ from lung.models.full_protocol import (DOSE_UNITS, FEATURE_SCHEMA, PARAMETER_IDE
     FullPhysicalProtocolBatch, FullProtocolConditioner, FullProtocolLatentAdapter)
 from lung.models.latent_staged import LatentMember, SharedAutoencoder
 from . import full_protocol_response as producer
-from .checkpoint import atomic_json, atomic_save, load_checkpoint, restore_rng, rng_state, seed_all
+from .checkpoint import atomic_json, atomic_save, load_checkpoint, seed_all
 from .config import ROOT, config_hash, merge
 from .data import EngineData
 from .latent_pipeline import _EarlyStop, _couple, _model_config, latent_settings, run_latent_ae
@@ -45,7 +43,6 @@ def joint_config(config):
     """Independent copy; existing active configs and interrupted runs stay intact."""
     return merge(config, {"data": JOINT_CONFIG, "synthetic": False, "auto_prepare": False,
         "workflow": "modular_stage", "stage": "response", "task": "RESPONSE-A549-V1",
-        "dashboard": False, "open_browser": False,
         "response": {"model": {"n_genes": 32461, "n_sources": 2,
                               "n_backgrounds": 1, "n_protocols": 2}}})
 
@@ -75,17 +72,6 @@ def settings_from_config(config):
         ("lr", "weight_decay", "grad_clip")) and value["lr"] > 0
         and value["weight_decay"] >= 0 and value["grad_clip"] > 0, "OPTIMIZER_SETTINGS")
     return value
-
-
-def execution_dependencies():
-    paths = ["engine/full_protocol_response_learning.py", "engine/full_protocol_response.py",
-        "engine/latent_pipeline.py", "engine/representation_cache.py", "engine/response.py",
-        "engine/checkpoint.py", "engine/ae_data.py", "models/latent_staged.py", "models/full_protocol.py",
-        "models/encoders.py", "models/compact.py", "models/objectives.py", "models/flow.py",
-        "data/native_response_units.py", "data/reader.py", "data/preprocess.py"]
-    return {**{p: producer.inputs.sha(ROOT / "src/lung" / p) for p in paths},
-        "EarlyStop": config_hash(inspect.getsource(_EarlyStop)), "torch": str(torch.__version__),
-        "numpy": str(np.__version__), "scipy": str(scipy.__version__)}
 
 
 class NativeProtocolData:
@@ -153,7 +139,7 @@ def preflight(data, settings, *, ae_checkpoint=None, read_samples=False):
     require(data.identity == bindings["data_identity"], "JOINT_SERVING_DATA_IDENTITY")
     records = list(data.requests.values())
     result = {"schema": SCHEMA, "stage": producer.STAGE, "bindings": bindings,
-        "execution_dependencies": execution_dependencies(), "settings": settings,
+        "settings": settings,
         "protocol_identity": data.protocol_identity, "coverage": COVERAGE,
         "roles": dict(Counter(r["role"] for r in records)),
         "by_source_role_endpoint": dict(Counter("|".join((r["source_id"], r["role"],
@@ -204,36 +190,21 @@ class _AEMonitor:
             stream.write(json.dumps({"stage": stage, "epoch": epoch, **value}) + "\n")
 
 
-def fit_matching_ae(config, output, *, resume=False):
+def fit_matching_ae(config, output):
     """Explicit future B1, same old dual-end fit MSE in an independent folder."""
     config = joint_ae_config(config)
     data = EngineData(config, roles=("T", "V"), allow_test=False)
     output = Path(output).resolve()
     require(output.is_relative_to(ROOT / "experiments"), "REAL_AE_OUTPUT_PROJECT_BOUNDARY")
-    manifest = {"schema": SCHEMA + ":joint-AE", "config": config, "data_identity": data.identity,
-        "execution_dependencies": execution_dependencies(), "old_run_resumed": False}
-    _new_or_resume(output, manifest, resume)
-    if resume:
-        result_path = output / "AE_result.json"
-        if result_path.is_file():
-            result = json.loads(result_path.read_text(encoding="utf-8"))
-            verify_completed_ae_result(result, output, data.identity)
-            return result
-        # An interrupted source loop can already have completed last.pt before
-        # its wrapper receipt was saved. Missing proof must not restart it.
-        last = load_checkpoint(output / "weights/latent_ae/last.pt")
-        stop = _EarlyStop(config)
-        stop.load_state_dict(last["extra"]["early_stop"])
-        require(not stop.stopped and last["epoch"] < config["epochs"]
-            and last["extra"].get("training_completion", {}).get("status") != "complete",
-            "COMPLETED_AE_RECEIPT_MISSING_NO_RETRAIN")
+    manifest = {"schema": SCHEMA + ":joint-AE", "config": config, "data_identity": data.identity}
+    _new_experiment(output, manifest)
     result = run_latent_ae(config, _AEMonitor(output), data)
-    last_path = output / "weights/latent_ae/last.pt"
-    last = load_checkpoint(last_path)
+    final_path = output / "weights/latent_ae/final.pt"
+    final = load_checkpoint(final_path)
     result = {**result, "schema": AE_RESULT_SCHEMA, "stage": "latent_ae", "data_identity": data.identity,
-        "training_completion": last.get("extra", {}).get("training_completion", {}),
+        "training_completion": final.get("extra", {}).get("training_completion", {}),
         "checkpoint_sha256": producer.inputs.sha(result["weights"]),
-        "last_checkpoint": str(last_path), "last_checkpoint_sha256": producer.inputs.sha(last_path)}
+        "final_checkpoint": str(final_path), "final_checkpoint_sha256": producer.inputs.sha(final_path)}
     verify_completed_ae_result(result, output, data.identity)
     atomic_json(output / "AE_result.json", result)
     return result
@@ -244,22 +215,17 @@ def verify_completed_ae_result(result, output, data_identity):
         and result.get("data_identity") == data_identity
         and result.get("training_completion", {}).get("status") == "complete", "COMPLETED_AE_RESULT_PROOF")
     output = Path(output).resolve()
-    selected, last = Path(result["weights"]).resolve(), Path(result["last_checkpoint"]).resolve()
-    require(selected in (output / "weights/latent_ae/best.pt", output / "weights/latent_ae/last.pt")
-        and last == output / "weights/latent_ae/last.pt"
+    selected, final = Path(result["weights"]).resolve(), Path(result["final_checkpoint"]).resolve()
+    require(selected in (output / "weights/latent_ae/best.pt", output / "weights/latent_ae/final.pt")
+        and final == output / "weights/latent_ae/final.pt"
         and producer.inputs.sha(selected) == result.get("checkpoint_sha256")
-        and producer.inputs.sha(last) == result.get("last_checkpoint_sha256"), "COMPLETED_AE_CHECKPOINT_CHANGED")
+        and producer.inputs.sha(final) == result.get("final_checkpoint_sha256"), "COMPLETED_AE_CHECKPOINT_CHANGED")
 
 
-def _new_or_resume(output, manifest, resume):
-    if resume:
-        require((output / "run_manifest.json").is_file() and
-            json.loads((output / "run_manifest.json").read_text(encoding="utf-8")) == manifest,
-            "PRE_PT_RESUME_IDENTITY_CHANGED")
-    else:
-        require(not output.exists(), "NEW_EXPERIMENT_OUTPUT_REQUIRED")
-        output.mkdir(parents=True)
-        atomic_json(output / "run_manifest.json", manifest)
+def _new_experiment(output, manifest):
+    require(not output.exists(), "NEW_EXPERIMENT_OUTPUT_REQUIRED")
+    output.mkdir(parents=True)
+    atomic_json(output / "run_manifest.json", manifest)
 
 
 def export_matching_ae(ae_path, data, output, bindings, config):
@@ -277,7 +243,6 @@ def export_matching_ae(ae_path, data, output, bindings, config):
     verify_completed_ae_result(declaration, origin, data.identity)
     manifest = json.loads((origin / "run_manifest.json").read_text(encoding="utf-8"))
     require(manifest.get("schema") == SCHEMA + ":joint-AE" and manifest.get("config") == joint_ae_config(config)
-        and manifest.get("execution_dependencies") == execution_dependencies()
         and declaration.get("data_identity") == data.identity
         and Path(declaration.get("weights", "")).resolve() == ae_path
         and declaration.get("checkpoint_sha256") == producer.inputs.sha(ae_path)
@@ -291,7 +256,7 @@ def export_matching_ae(ae_path, data, output, bindings, config):
     require(meta.get("stage") == "latent_ae" and meta.get("data_identity") == data.identity
         and asdict(source_shape) == asdict(expected), "MATCHING_JOINT_AE_DOMAIN_SHAPE")
     require(type(steps) is int and steps > 0 and type(saved.get("epoch")) is int and saved["epoch"] > 0
-        and not saved.get("extra", {}).get("budget_exhausted"), "MATCHING_COMPLETED_AE_REQUIRED")
+        and saved.get("extra", {}).get("training_completion", {}).get("status") == "complete", "MATCHING_COMPLETED_AE_REQUIRED")
     producer.finite_weights(saved.get("model"))
     shape = replace(source_shape, **data.context_sizes)
     shared = SharedAutoencoder(shape, tensor(data.neighbors, "cpu", torch.long))
@@ -362,7 +327,7 @@ def _validation(full, data, cache, settings, device):
 
 
 def fit_response(data, shared, settings, output, *, bindings, representation_path,
-                 cache=None, resume=False, synthetic=False, after_update=None):
+                 cache=None, synthetic=False):
     """Explicit new version; B3/B4 objectives and old role sampling are retained."""
     require(data.synthetic is synthetic and type(synthetic) is bool, "SYNTHETIC_IDENTITY")
     require(settings.get("settings_version", SETTINGS_SCHEMA) == SETTINGS_SCHEMA, "REFERENCE_SETTINGS_VERSION")
@@ -381,54 +346,24 @@ def fit_response(data, shared, settings, output, *, bindings, representation_pat
         "training_protocol_coverage": COVERAGE, "coupling_space": settings["coupling_space"],
         "numeric_mode": settings["numeric_mode"], "reference_contract": reference}
     manifest = {"schema": SCHEMA, "metadata": metadata, "protocol_identity": data.protocol_identity,
-        "settings": settings, "execution_dependencies": execution_dependencies(),
+        "settings": settings,
         "cache_encoder": cache.manifest["encoder"] if cache is not None else "synthetic_only_no_cache"}
-    _new_or_resume(output, manifest, resume)
+    _new_experiment(output, manifest)
     device = settings["device"]
     identity = config_hash(manifest)
-    saved = load_checkpoint(output / "last.pt", identity) if resume else None
     stop = _EarlyStop(settings)
-    if saved is not None:
-        require(saved["metadata"] == metadata, "RESUME_METADATA_CHANGED")
-        require(all(producer.equal_weight(v, saved["shared"].get(k)) for k, v in shared.state_dict().items()), "RESUME_FROZEN_AE_CHANGED")
-        stop.load_state_dict(saved["extra"]["early_stop"])
-        if stop.stopped or saved["epoch"] >= settings["epochs"]:
-            return completed_response_result(saved, output, metadata, stop)
     seed_all(settings["seed"])
     shared.to(device).eval().requires_grad_(False)
     full = FullProtocolLatentAdapter(LatentMember(shape, shared), FullProtocolConditioner(shape)).to(device)
     full.member.init_decoder_from_shared()
     full.member.decoder.requires_grad_(False)
-    epoch0, cursor, best, best_step, best_epoch, best_sha, position = 0, 0, math.inf, 0, 0, None, None
-    if saved is not None:
-        full.load_registered_state(saved["model"], metadata)
-        epoch0, best, position = saved["epoch"], saved["extra"]["best"], saved["extra"].get("resume")
-        best_step, best_epoch = saved["extra"]["best_optimizer_step"], saved["extra"]["best_epoch"]
-        best_sha = saved["extra"]["selected_weights_sha256"]
-        cursor = position["next_group_start"] if position else 0
-        restore_rng(saved["rng"])
+    best, best_step, best_epoch = math.inf, 0, 0
     refine = settings["refine"]
     switch = int(refine.get("switch_epoch", 10**9))
-    active0 = bool(saved["extra"]["decoder_trainable"]) if saved is not None else False
     params = list(full.member.velocity_model.parameters()) + list(full.member.condition_encoder.parameters()) + list(full.full_protocol.parameters())
     optimizer = torch.optim.AdamW(params, lr=settings["lr"], weight_decay=settings["weight_decay"])
-    if active0:
-        full.member.decoder.requires_grad_(True)
-        optimizer.add_param_group({"params": list(full.member.decoder.parameters())})
-    if saved is not None:
-        optimizer.load_state_dict(saved["optimizer"])
     frozen = {k: v.detach().cpu().clone() for k, v in shared.state_dict().items()}
-    def save(epoch, current):
-        atomic_save(output / "last.pt", {"schema_version": 1, "identity": identity, "model": full.state_dict(),
-            "shared": frozen, "optimizer": optimizer.state_dict(), "epoch": epoch, "metadata": metadata,
-            "counters": {"optimizer_step": stop.steps}, "rng": rng_state(),
-            "extra": {"best": best, "resume": current, "early_stop": stop.state_dict(),
-                      "best_optimizer_step": best_step, "best_epoch": best_epoch,
-                      "selected_weights_sha256": best_sha,
-                      "training_completion": {"status": "complete" if current is None and
-                          (stop.stopped or epoch >= settings["epochs"]) else "running"},
-                      "decoder_trainable": bool(full.member.decoder[0].weight.requires_grad)}})
-    for epoch in range(epoch0, settings["epochs"]):
+    for epoch in range(settings["epochs"]):
         active = bool(refine.get("enabled", False)) and epoch + 1 > switch
         if active and not full.member.decoder[0].weight.requires_grad:
             full.member.decoder.requires_grad_(True)
@@ -439,14 +374,8 @@ def fit_response(data, shared, settings, output, *, bindings, representation_pat
         generator = torch.Generator(device=device).manual_seed(settings["seed"] + 200000 + epoch)
         keys = list(data.iter_response_epoch("T", settings["seed"] + 200000 + epoch))
         group_size = settings["conditions_per_update"]
-        require(cursor <= len(keys) and (cursor == len(keys) or cursor % group_size == 0), "RESUME_CURSOR")
-        if position is not None:
-            require(position["keys"] == keys and position["epoch"] == epoch, "RESUME_ROLE_ORDER")
-            rng.bit_generator.state = position["numpy_rng"]
-            generator.set_state(position["torch_rng"])
-            position = None
         full.train()
-        for start in range(cursor, len(keys), group_size):
+        for start in range(0, len(keys), group_size):
             group = keys[start:start + group_size]
             optimizer.zero_grad(set_to_none=True)
             for condition in group:
@@ -472,13 +401,6 @@ def fit_response(data, shared, settings, output, *, bindings, representation_pat
                 settings["grad_clip"], error_if_nonfinite=True)
             optimizer.step()
             stop.step_done()
-            current = {"epoch": epoch, "next_group_start": start+len(group), "keys": keys,
-                "numpy_rng": rng.bit_generator.state, "torch_rng": generator.get_state()}
-            save(epoch, current)
-            if after_update is not None:
-                require(synthetic, "TEST_HOOK_SYNTHETIC_ONLY")
-                after_update(stop.steps)
-        cursor = 0
         full.eval()
         score = _validation(full, data, cache, settings, device)
         if stop.observe(score):
@@ -486,49 +408,13 @@ def fit_response(data, shared, settings, output, *, bindings, representation_pat
             serving = {"schema_version": 1, "model": full.state_dict(), "shared": frozen,
                 "metadata": metadata, "epoch": epoch+1, "counters": {"optimizer_step": stop.steps}}
             atomic_save(output / "response_weights.pt", serving)
-            best_sha = producer.inputs.sha(output / "response_weights.pt")
-        save(epoch+1, None)
         if stop.stopped:
             break
-    return completed_response_result(load_checkpoint(output / "last.pt", identity), output, metadata, stop)
-
-
-def completed_response_result(saved, output, metadata, stop):
-    """An already completed resume returns the existing selection, no new fit."""
-    extra = saved["extra"]
-    path = Path(output) / "response_weights.pt"
-    require(extra.get("training_completion", {}).get("status") == "complete" and extra.get("resume") is None
-        and producer.inputs.sha(path) == extra.get("selected_weights_sha256"), "COMPLETED_RESPONSE_PROOF_PENDING")
-    value = torch.load(path, weights_only=True, map_location="cpu")
-    require(value["metadata"] == metadata and type(extra.get("best_optimizer_step")) is int
-        and extra["best_optimizer_step"] > 0 and value["counters"]["optimizer_step"] == extra["best_optimizer_step"]
-        and value["epoch"] == extra["best_epoch"] and math.isfinite(extra["best"]), "COMPLETED_RESPONSE_SELECTION_CHANGED")
-    producer.finite_weights(value["model"])
-    producer.finite_weights(value["shared"])
-    return {"schema": SCHEMA, "weights": str(path), "optimizer_steps": stop.steps,
-        "selected_optimizer_step": extra["best_optimizer_step"], "selected_epoch": extra["best_epoch"],
-        "best_selection_loss": extra["best"], "synthetic": metadata["synthetic"], "coverage": COVERAGE,
+    atomic_save(output / "final.pt", {"schema_version": 1, "identity": identity, "model": full.state_dict(),
+        "shared": frozen, "epoch": epoch+1, "metadata": metadata,
+        "counters": {"optimizer_step": stop.steps}, "extra": {"training_completion": {"status": "complete"}}})
+    return {"schema": SCHEMA, "weights": str(output / "response_weights.pt"), "optimizer_steps": stop.steps,
+        "selected_optimizer_step": best_step, "selected_epoch": best_epoch,
+        "best_selection_loss": best, "synthetic": metadata["synthetic"], "coverage": COVERAGE,
         "reference_contract": metadata["reference_contract"],
         "production_registered": False, "scientific_qualified": False}
-
-
-def completed_response_before_cache(output, data, settings, bindings, assets):
-    """Explicit completed CLI resume may not rebuild an unused real h cache."""
-    output = Path(output)
-    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
-    meta = manifest["metadata"]
-    require(manifest["execution_dependencies"] == execution_dependencies()
-        and manifest["settings"] == settings and manifest["protocol_identity"] == data.protocol_identity
-        and meta["full_response_bindings"] == bindings and meta["data_identity"] == data.identity
-        and meta["synthetic"] is False and meta["stage"] == producer.STAGE
-        and meta["training_protocol_coverage"] == COVERAGE
-        and meta["reference_contract"] == producer.reference_contract(settings["reference_variant"])
-        and meta["representation_hash"] == producer.inputs.sha(Path(assets) / "representation_weights.pt"),
-        "PRE_PT_COMPLETED_RESPONSE_IDENTITY_CHANGED")
-    saved = load_checkpoint(output / "last.pt", config_hash(manifest))
-    require(saved["metadata"] == meta, "COMPLETED_RESPONSE_METADATA_CHANGED")
-    stop = _EarlyStop(settings)
-    stop.load_state_dict(saved["extra"]["early_stop"])
-    if stop.stopped or saved["epoch"] >= settings["epochs"]:
-        return completed_response_result(saved, output, meta, stop)
-    return None

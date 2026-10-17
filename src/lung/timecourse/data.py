@@ -8,24 +8,18 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from lung.data.preprocess import standardized, weighted_moments, exact_neighbor_graph, log_normalize
+from lung.data.preprocess import standardized
 from lung.data.common import inside
 from lung.data.reader import SparseRows
 from lung.engine.config import config_hash, file_hash
-from .protocol import GROUPS, VEHICLE, settings
-from .preparation import prepare_time_data, source_paths, kernel_bandwidth
+from .protocol import GROUPS, VEHICLE
+from .preparation import source_paths
 
 KEYS = ["catalog_number", "time_point", "dose_uM", "replicate", "culture_plate"]
 
 
 class TimeData:
-    _array: sparse.csr_matrix
     def __init__(self, root, config, fit_drugs, allowed_target_drugs, role):
-        if config.get("synthetic", False):
-            fixture = synthetic_data(config)
-            fixture._initialize(fit_drugs, allowed_target_drugs, role)
-            self.__dict__.update(fixture.__dict__)
-            return
         self.root, self.config = Path(root).resolve(), config
         _, self.assets_dir = source_paths(root, config)
         self.manifest = json.loads((self.assets_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -61,42 +55,6 @@ class TimeData:
                                           registry=registry, **options)
         self.drug_groups = copy.deepcopy(GROUPS)
         self._initialize(fit_drugs, allowed_target_drugs, role)
-
-    @classmethod
-    def from_arrays(cls, counts, cells, genes, fingerprints, *, fit_drugs, allowed_target_drugs,
-                    role="fit", synthetic=False, drug_groups=None, neighbors=2):
-        if synthetic is not True:
-            raise ValueError("ARRAY_FIXTURE_REQUIRES_EXPLICIT_SYNTHETIC")
-        obj = cls.__new__(cls)
-        obj.synthetic, obj.root, obj.config = True, Path("."), {"synthetic": True}
-        obj.assets_dir = None
-        obj._array = sparse.csr_matrix(counts)
-        obj._cells = pd.DataFrame(cells).reset_index(drop=True).copy()
-        obj._cells["array_row"] = np.arange(len(obj._cells))
-        obj.genes = np.asarray(genes).astype(str)
-        obj.n_genes = len(obj.genes)
-        if len(set(obj.genes)) != obj.n_genes or obj._array.shape != (len(obj._cells), obj.n_genes):
-            raise ValueError("GENE_AXIS_MISMATCH")
-        obj._fingerprints = {key: np.asarray(value).tolist() for key, value in fingerprints.items()}
-        obj.drug_groups = copy.deepcopy(drug_groups or GROUPS)
-        registered = sum(obj.drug_groups.values(), []) + [VEHICLE]
-        known = obj._cells.time_point.eq(24) & obj._cells.author_hash_qc.eq(True) & obj._cells.catalog_number.isin(registered)
-        values, valid = log_normalize(obj._array[np.flatnonzero(known)])
-        if not valid.all() or len(valid) < 2:
-            raise ValueError("INVALID_KNOWN24")
-        def factory():
-            yield values, np.full(len(valid), 1 / len(valid))
-        obj.mu, obj.scale, sd, _ = weighted_moments(factory(), obj.n_genes)
-        obj.neighbors = exact_neighbor_graph(factory, obj.mu, sd, obj.genes, neighbors=min(neighbors, obj.n_genes - 1))
-        obj.bandwidth = kernel_bandwidth((values[:128].toarray() - obj.mu) / obj.scale)
-        obj.coordinate_identity = config_hash({"genes": obj.genes.tolist(), "mu": obj.mu.tolist(),
-            "scale": obj.scale.tolist(), "neighbors": obj.neighbors.tolist(),
-            "bandwidth": obj.bandwidth, "synthetic": True})
-        obj.identity = config_hash({"coordinate": obj.coordinate_identity, "cells": obj._cells.to_dict("records"),
-            "counts": obj._array.toarray().tolist(), "fingerprints": obj._fingerprints})
-        obj.manifest = {"identity": obj.identity, "synthetic": True}
-        obj._initialize(fit_drugs, allowed_target_drugs, role)
-        return obj
 
     def _initialize(self, fit_drugs, allowed_target_drugs, role):
         registered = set(sum(self.drug_groups.values(), []))
@@ -200,9 +158,7 @@ class TimeData:
             if n < 1:
                 raise ValueError("SAMPLE_COUNT_POSITIVE")
             rows = rows.iloc[rng.choice(len(rows), n, replace=n > len(rows))]
-        if self.synthetic:
-            matrix = self._array[rows.array_row.to_numpy(int)]
-        elif self._sparse_rows is not None:
+        if self._sparse_rows is not None:
             matrix_rows = pd.DataFrame({
                 "matrix_path": [self._matrix_paths[int(shard)] for shard in rows.shard_id],
                 "matrix_row": rows.row_in_shard.to_numpy(int)})
@@ -236,31 +192,3 @@ class TimeData:
         if values.ndim != 2 or values.shape[1] != self.n_genes or not len(values):
             raise ValueError("CANONICAL_FEATURE_AXIS_MISMATCH")
         return values.mean(axis=0)
-
-
-def synthetic_data(config):
-    """Deterministic small populations exercising the same access boundary."""
-    from lung.research.sciplex_diagnostics import LAYOUT
-    cfg = settings(config)
-    width = config.get("response", {}).get("model", {}).get("n_genes", 8)
-    if width > 64:
-        raise ValueError("SYNTHETIC_REQUIRES_EXPLICIT_SMALL_MODEL")
-    groups = {"D": GROUPS["D"][:cfg.get("synthetic_development_drugs", 8)],
-              "C": GROUPS["C"][:2], "E": GROUPS["E"][:2]}
-    drugs = sum(groups.values(), [])
-    rng = np.random.default_rng(923)
-    rows, counts = [], []
-    for time in (24, 72):
-        for drug in drugs + [VEHICLE]:
-            layout = list(LAYOUT.items()) if drug != VEHICLE else [((rep, 0.), plate)
-                for rep, plate in sorted(set((rep, plate) for (rep, _), plate in LAYOUT.items()))]
-            for (replicate, dose), plate in layout:
-                for _ in range(3):
-                    rows.append(dict(catalog_number=drug, time_point=time, dose_uM=dose,
-                        replicate=replicate, culture_plate=f"{plate}_{time}", author_hash_qc=True))
-                    counts.append(10000000 + rng.integers(1, 20, width))
-    fingerprint = {drug: np.zeros(2048) for drug in drugs + [VEHICLE]}
-    for index, drug in enumerate(drugs):
-        fingerprint[drug][index] = 1
-    return TimeData.from_arrays(counts, rows, [f"synthetic_gene_{i}" for i in range(width)], fingerprint,
-        fit_drugs=groups["D"], allowed_target_drugs=groups["D"], role="fit", synthetic=True, drug_groups=groups)

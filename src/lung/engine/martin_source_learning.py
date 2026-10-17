@@ -7,17 +7,16 @@ measured gain. Final RNA, P, state C, functional G and Q are never enabled here.
 from dataclasses import dataclass, fields, replace
 import hashlib
 import inspect
-import json
 import math
 from pathlib import Path
 
 import torch
 
-from ..data.martin_source_inputs import MartinSourceInputs, canonical, digest, require, sha
+from ..data.martin_source_inputs import MartinSourceInputs, digest, require, sha
 from ..data.martin_native_rna import DOMAINS
 from ..models.full_protocol import FullPhysicalProtocolBatch
 from ..models.martin_source import MartinSourceModel
-from .checkpoint import atomic_json, atomic_save, load_checkpoint, restore_rng, rng_state, seed_all
+from .checkpoint import atomic_json, atomic_save, seed_all
 from .latent_pipeline import _EarlyStop
 
 SCHEMA = 'martin-independent-source-E-D-learning-v1'
@@ -132,7 +131,7 @@ def settings_from_config(config, *, width=32):
 
 
 def execution_dependencies():
-    """Check execution versions before opening a locally generated resume PT."""
+    """Record the implementation identity of exported source models."""
     models = Path(__file__).resolve().parents[1] / 'models'
     return {**{name: sha(models / name) for name in ('martin_source.py', 'full_protocol.py', 'encoders.py')},
             'checkpoint.py': sha(Path(__file__).with_name('checkpoint.py')),
@@ -165,52 +164,32 @@ def _loss(model, data, sample_ids):
     return torch.stack(list(values.values())).mean(), values
 
 
-def fit_source(fit, selection, settings, output, *, resume=False, synthetic=False):
+def fit_source(fit, selection, settings, output, *, synthetic=False):
     """Explicit fitting only; CLI default preflight never calls this function."""
     report = preflight(fit, selection, settings)
     output = Path(output).resolve()
-    require(type(resume) is bool and type(synthetic) is bool, 'LEARNING_STRICT_BOOL')
+    require(type(synthetic) is bool, 'LEARNING_STRICT_BOOL')
     identity = digest({**report, 'synthetic': synthetic})
     manifest = {**report, 'identity': identity, 'synthetic': synthetic}
-    if resume:
-        require(output.is_dir() and (output / 'run_manifest.json').is_file(), 'RESUME_RUN_MISSING')
-        require(canonical(json.loads((output / 'run_manifest.json').read_text(encoding='utf-8'))) == canonical(manifest),
-                'RESUME_INPUT_MODEL_OR_CONFIG_CHANGED')
-    else:
-        require(not output.exists(), 'NEW_SOURCE_LEARNING_EXPERIMENT_REQUIRED')
+    require(not output.exists(), 'NEW_SOURCE_LEARNING_EXPERIMENT_REQUIRED')
     seed_all(settings['seed'])
     example = fit.by_domain[DOMAINS[0]][fit.sample_ids[0]]
     model = MartinSourceModel(example.gene_ids, fit.contract, width=settings['width']).to(settings['device'])
     optimizer = torch.optim.AdamW(model.parameters(), lr=settings['lr'], weight_decay=settings['weight_decay'])
     stop = _EarlyStop({'early_stopping': settings['early_stopping']})
-    epoch, cursor, order, history = 0, 0, None, []
-    if resume:
-        saved = load_checkpoint(output / 'last.pt', identity)
-        model.load_registered_state(saved['model'], saved['metadata'])
-        optimizer.load_state_dict(saved['optimizer'])
-        epoch, cursor, order = saved['epoch'], saved['extra']['cursor'], saved['extra']['order']
-        history = saved['extra']['history']
-        stop.load_state_dict(saved['extra']['early_stop'])
-        require(type(epoch) is int and 0 <= epoch <= settings['epochs'] and type(cursor) is int
-                and cursor >= 0 and type(saved['counters']['optimizer_step']) is int
-                and saved['counters']['optimizer_step'] == stop.steps, 'RESUME_COUNTERS')
-        restore_rng(saved['rng'])
-    else:
-        output.mkdir(parents=True)
-        atomic_json(output / 'run_manifest.json', manifest)
-    def save(name='last.pt'):
+    epoch, history = 0, []
+    output.mkdir(parents=True)
+    atomic_json(output / 'run_manifest.json', manifest)
+    def save(name):
         metadata = {'model_identity': model.identity, 'training_role': 'fit', 'final_RNA_used': False,
                     'stage': SCHEMA, 'synthetic': synthetic, 'objective': OBJECTIVE, 'scientific_qualified': False}
         atomic_save(output / name, {'schema_version': 1, 'identity': identity, 'model': model.state_dict(),
-                    'optimizer': optimizer.state_dict(), 'epoch': epoch, 'metadata': metadata,
-                    'counters': {'optimizer_step': stop.steps}, 'rng': rng_state(),
-                    'extra': {'cursor': cursor, 'order': order, 'history': history, 'early_stop': stop.state_dict()}})
+                    'epoch': epoch, 'metadata': metadata,
+                    'counters': {'optimizer_step': stop.steps}})
     while epoch < settings['epochs'] and not stop.stopped:
-        if order is None:
-            order = torch.randperm(len(fit.sample_ids)).tolist()
-        require(sorted(order) == list(range(len(fit.sample_ids))) and cursor <= len(order), 'RESUME_FIT_PERMUTATION')
+        order = torch.randperm(len(fit.sample_ids)).tolist()
         model.train()
-        while cursor < len(order):
+        for cursor in range(0, len(order), settings['batch']):
             end = min(cursor + settings['batch'], len(order))
             ids = [fit.sample_ids[i] for i in order[cursor:end]]
             optimizer.zero_grad(set_to_none=True)
@@ -220,8 +199,6 @@ def fit_source(fit, selection, settings, output, *, resume=False, synthetic=Fals
             torch.nn.utils.clip_grad_norm_(model.parameters(), settings['grad_clip'], error_if_nonfinite=True)
             optimizer.step()
             stop.step_done()
-            cursor = end
-            save()
         model.eval()
         with torch.no_grad():
             metric, domains = _loss(model, selection, selection.sample_ids)
@@ -230,11 +207,11 @@ def fit_source(fit, selection, settings, output, *, resume=False, synthetic=Fals
         history = [*history, {'epoch': epoch + 1, 'optimizer_step': stop.steps,
                              'selection_loss': float(metric),
                              'selection_domain_loss': {d: float(v) for d, v in domains.items()}}]
-        epoch, cursor, order = epoch + 1, 0, None
+        epoch += 1
         if improved:
             save('best.pt')
-        save()
         atomic_json(output / 'history.json', history)
+    save('final.pt')
     result = {'schema': SCHEMA, 'identity': identity, 'epochs_completed': epoch, 'optimizer_steps': stop.steps,
               'reason': 'selection_plateau' if stop.stopped else 'max_epochs', 'history': history,
               'fit_counts': fit.counts, 'selection_counts': selection.counts, 'synthetic': synthetic,
@@ -242,6 +219,6 @@ def fit_source(fit, selection, settings, output, *, resume=False, synthetic=Fals
     result = {**result, 'completion': {'status': 'complete', 'reason': result['reason']},
               'run_manifest_sha256': sha(output / 'run_manifest.json'),
               'selected_checkpoint': {'file': 'best.pt', 'sha256': sha(output / 'best.pt')},
-              'last_checkpoint': {'file': 'last.pt', 'sha256': sha(output / 'last.pt')}}
+              'final_checkpoint': {'file': 'final.pt', 'sha256': sha(output / 'final.pt')}}
     atomic_json(output / 'result.json', result)
     return result

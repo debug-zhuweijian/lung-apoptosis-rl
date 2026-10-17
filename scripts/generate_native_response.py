@@ -1,4 +1,4 @@
-"""Metadata preflight by default; generation needs an explicit qualified backend."""
+"""Metadata preflight or generation from declared matching AE/response weights."""
 import argparse
 import json
 from pathlib import Path

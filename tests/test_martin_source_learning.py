@@ -98,10 +98,10 @@ def test_synthetic_fit_selection_identity_and_output(tmp_path, cpu_only):
     assert result['optimizer_steps'] == 4 and result['epochs_completed'] == 2
     assert len(result['history']) == 2 and result['final_RNA_used'] is False
     assert result['scientific_qualified'] is False and result['synthetic'] is True
-    saved = m.load_checkpoint(tmp_path/'source/last.pt')
+    saved = torch.load(tmp_path/'source/final.pt', weights_only=True)
     assert saved['metadata']['training_role'] == 'fit'
     assert saved['metadata']['model_identity']['input_contract']['fit_sample_ids'] == list(fit.sample_ids)
-    assert saved['extra']['cursor'] == 0 and saved['extra']['order'] is None
+    assert 'optimizer' not in saved and 'rng' not in saved
     assert saved['metadata']['final_RNA_used'] is False
 
 
@@ -118,57 +118,14 @@ def test_selection_only_no_grad_and_never_optimizer_data(tmp_path, cpu_only, mon
     assert all(grad is False and set(ids) == set(selection.sample_ids) for role, grad, ids in seen if role=='selection')
 
 
-def test_synthetic_mid_epoch_resume_preserves_weights_optimizer_rng(tmp_path, cpu_only, monkeypatch):
-    fit, selection = datasets()
-    full, interrupted = tmp_path/'full', tmp_path/'interrupted'
-    expected = m.fit_source(fit, selection, settings(), full, synthetic=True)
-    save = m.atomic_save
-    fired = False
-    def interrupt(path, value):
-        nonlocal fired
-        save(path, value)
-        if not fired and path.name == 'last.pt':
-            fired = True
-            raise RuntimeError('synthetic interruption after persisted update')
-    monkeypatch.setattr(m, 'atomic_save', interrupt)
-    with pytest.raises(RuntimeError, match='synthetic interruption'):
-        m.fit_source(fit, selection, settings(), interrupted, synthetic=True)
-    monkeypatch.setattr(m, 'atomic_save', save)
-    resumed = m.fit_source(fit, selection, settings(), interrupted, resume=True, synthetic=True)
-    assert resumed == expected
-    left, right = m.load_checkpoint(full/'last.pt'), m.load_checkpoint(interrupted/'last.pt')
-    from tests.conftest import assert_same
-    for key in ('model', 'optimizer', 'rng', 'extra', 'counters'):
-        assert_same(left[key], right[key])
-
-
-def test_existing_output_and_resume_config_change_rejected(tmp_path, cpu_only, monkeypatch):
+def test_existing_output_rejected(tmp_path, cpu_only, monkeypatch):
     fit, selection = datasets()
     out = tmp_path/'source'
     m.fit_source(fit, selection, settings(1), out, synthetic=True)
     with pytest.raises(ValueError, match='NEW_SOURCE_LEARNING_EXPERIMENT'):
         m.fit_source(fit, selection, settings(1), out, synthetic=True)
-    def forbidden(*args, **kwargs):
-        pytest.fail('Mismatch must fail before PT read')
-    monkeypatch.setattr(m, 'load_checkpoint', forbidden)
-    with pytest.raises(ValueError, match='RESUME_INPUT_MODEL_OR_CONFIG_CHANGED'):
-        m.fit_source(fit, selection, {**settings(1), 'lr': 2e-4}, out, resume=True, synthetic=True)
 
 
 def test_no_new_selection_role_is_invented_for_lobo(tmp_path):
     with pytest.raises(ValueError, match='EXISTING_CYCLE_PLAN'):
         m.prepare_fold(tmp_path, system='lobo', fold_id='anything')
-
-
-def test_resume_dependency_drift_fails_before_model_or_pt(tmp_path, cpu_only, monkeypatch):
-    fit, selection = datasets()
-    out = tmp_path/'source'
-    m.fit_source(fit, selection, settings(1), out, synthetic=True)
-    deps = m.execution_dependencies()
-    monkeypatch.setattr(m, 'execution_dependencies', lambda: {**deps, 'checkpoint.py': 'changed-source'})
-    def forbidden(*args, **kwargs):
-        pytest.fail('Dependency drift must reject before constructing model or loading PT')
-    monkeypatch.setattr(m, 'MartinSourceModel', forbidden)
-    monkeypatch.setattr(m, 'load_checkpoint', forbidden)
-    with pytest.raises(ValueError, match='RESUME_INPUT_MODEL_OR_CONFIG_CHANGED'):
-        m.fit_source(fit, selection, settings(1), out, resume=True, synthetic=True)

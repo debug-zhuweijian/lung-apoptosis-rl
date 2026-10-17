@@ -1,4 +1,4 @@
-"""Original C toy fitting/recovery and sidecar integrity, never real ML/PT."""
+"""Original C toy fitting/export and sidecar integrity, never real ML/PT."""
 from copy import deepcopy
 from dataclasses import asdict
 import json
@@ -6,13 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 
 from lung.engine import raw_state_scoring as module
 from lung.engine.checkpoint import load_checkpoint, save_training, seed_all
 from lung.engine.config import load_config
-from lung.engine.modular_budget import StagePaused
 from lung.models import ModelConfig, StateClassifier
 from lung.models.latent_staged import SharedAutoencoder
 from conftest import assert_same
@@ -39,21 +39,21 @@ def config():
     return {"task": "PROXY-A549-V1", "synthetic": True, "seed": 8321, "device": "cpu", "epochs": 2,
         "state_fold": "1_to_8", "state_batch": 3, "aux_batch": 2, "aux_lr": .01,
         "calibration_steps": 3, "calibration_lr": .01, "early_stopping": False,
-        "training_control": {"checkpoint_every_updates": 1}, "state_loss": "weighted_ce",
+        "state_loss": "weighted_ce",
         "state_aggregate_lambda": 0., "response": {"inference_microbatch": 2, "inference_ode_steps": 1}}
 
 
 def fitting_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "ROOT", tmp_path)
     (tmp_path / "experiments").mkdir()
-    monkeypatch.setattr(module, "execution_dependencies", lambda: {"synthetic_fixture_only": True})
+
     seed_all(8123)
     data = ToyData()
     shape = ModelConfig(n_genes=4, d_model=8, n_heads=2, context_dim=2, latent_dim=3,
         backbone="compact_full_gene", checkpoint_blocks=False)
     shared = SharedAutoencoder(shape, torch.arange(4)[:, None])
     ae = tmp_path / "experiments/toy-AE.pt"
-    save_training(ae, shared, None, epoch=1, identity="syntheticAE",
+    save_training(ae, shared, epoch=1, identity="syntheticAE",
         metadata={"stage": "latent_ae", "data_identity": data.identity, "model_config": asdict(shape),
                   "synthetic_fixture_only": True}, counters={"optimizer_step": 1})
     origin = {"run": str(ae.parent), "weights": str(ae), "checkpoint_sha256": module.file_hash(ae),
@@ -81,7 +81,7 @@ def test_toy_original_C_fit_only_uses_three_named_roles_and_freezes_AE(tmp_path,
     assert module.file_hash(ae_run / "toy-AE.pt") == ae_sha
     assert body["class_order"] == ["PI-APC-", "PI-APC+", "PI+APC+"]
     assert body["training_completion"]["actual_updates"] == 4
-    assert body["calibration_completion"]["cursor"] == 3
+    assert body["calibration_completion"]["actual_steps"] == 3
     assert all(body[k] is False for k in module.FLAGS)
     saved = torch.load(body["assets"]["serving"]["path"], weights_only=True)
     assert saved["metadata"]["dependencies"]["pipeline"] == {"representation": [ae_sha]}
@@ -89,55 +89,6 @@ def test_toy_original_C_fit_only_uses_three_named_roles_and_freezes_AE(tmp_path,
     assert "response" not in saved["metadata"]["dependencies"]["pipeline"]
     with pytest.raises(ValueError, match="SYNTHETIC_STATE_HAS_NO_PRODUCTION"):
         module.validate_state_declaration(tmp_path / "experiments/C/state_declaration.json")
-
-
-class PauseMonitor(module.StateMonitor):
-    def stop_check(self, step, epoch=0):
-        return "synthetic-interruption" if step == 1 else None
-
-
-def test_toy_state_update_resume_preserves_optimizer_and_calibration(tmp_path, monkeypatch):
-    data, ae_run = fitting_fixture(tmp_path, monkeypatch)
-    full, partial = [tmp_path / "experiments" / p for p in ("full", "partial")]
-    module.fit_state(data, config(), ae_run, full, synthetic=True)
-    with pytest.raises(StagePaused):
-        module.fit_state(data, config(), ae_run, partial, synthetic=True, monitor=PauseMonitor(partial))
-    assert load_checkpoint(partial / "weights/state/last.pt")["counters"]["optimizer_step"] == 1
-    module.fit_state(data, config(), ae_run, partial, synthetic=True, resume=True)
-    a, b = [load_checkpoint(p / "weights/state/last.pt") for p in (full, partial)]
-    for key in ("model", "optimizer", "counters", "rng", "extra"):
-        assert_same(a[key], b[key])
-    a, b = [load_checkpoint(p / "weights/state/calibrated.pt") for p in (full, partial)]
-    assert_same(a["model"], b["model"])
-
-
-def test_completed_C_resume_reads_only_receipt_and_bytes(tmp_path, monkeypatch):
-    data, ae_run = fitting_fixture(tmp_path, monkeypatch)
-    output = tmp_path / "experiments/C"
-    body = module.fit_state(data, config(), ae_run, output, synthetic=True)
-    monkeypatch.setattr(module.auxiliary, "train_state", lambda *a, **k: pytest.fail("No refit/forward"))
-    monkeypatch.setattr(module, "load_checkpoint", lambda *a, **k: pytest.fail("No PT"))
-    assert module.fit_state(data, config(), ae_run, output, synthetic=True, resume=True) == body
-
-
-def test_completed_C_missing_receipt_refuses_retraining(tmp_path, monkeypatch):
-    data, ae_run = fitting_fixture(tmp_path, monkeypatch)
-    output = tmp_path / "experiments/C"
-    module.fit_state(data, config(), ae_run, output, synthetic=True)
-    (output / "state_declaration.json").rename(output / "saved-declaration.json")
-    monkeypatch.setattr(module.auxiliary, "train_state", lambda *a, **k: pytest.fail("No repeated fit"))
-    with pytest.raises(ValueError, match="COMPLETED_STATE_DECLARATION_MISSING"):
-        module.fit_state(data, config(), ae_run, output, synthetic=True, resume=True)
-
-
-def test_C_dependency_drift_rejects_before_PT(tmp_path, monkeypatch):
-    data, ae_run = fitting_fixture(tmp_path, monkeypatch)
-    output = tmp_path / "experiments/C"
-    module.fit_state(data, config(), ae_run, output, synthetic=True)
-    monkeypatch.setattr(module, "execution_dependencies", lambda: {"changed": True})
-    monkeypatch.setattr(module.auxiliary, "train_state", lambda *a, **k: pytest.fail("No model construction"))
-    with pytest.raises(ValueError, match="PRE_PT_RESUME_IDENTITY_CHANGED"):
-        module.fit_state(data, config(), ae_run, output, synthetic=True, resume=True)
 
 
 @pytest.mark.parametrize("change", [None, "source_origin", "tensor_identity", "data_identity"])
@@ -229,7 +180,7 @@ def sidecar_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(module.producer, "bound_inputs", lambda: (None, None, context, {"toy": True}))
     monkeypatch.setattr(module.producer, "numeric_batch", lambda *a: ({}, None))
     monkeypatch.setattr(module.producer, "read_proxy_reference", lambda c: (x.copy(), deepcopy(reference)))
-    monkeypatch.setattr(module.producer, "qualified_model", lambda *a: model)
+    monkeypatch.setattr(module.producer, "load_model", lambda *a: model)
     monkeypatch.setattr(module, "validate_state_declaration", lambda p: deepcopy(declaration))
     monkeypatch.setattr(module, "load_state_for_prediction", lambda *a: (classifier, deepcopy(declaration)))
     return model, classifier, context, prediction, x, pp, dp
@@ -305,6 +256,7 @@ def test_final_metadata_preflight_does_not_open_final_RNA_or_models(monkeypatch)
     monkeypatch.setattr(module, "EngineData", forbid)
     monkeypatch.setattr(module, "load_representation", forbid)
     monkeypatch.setattr(module.auxiliary, "train_state", forbid)
+    monkeypatch.setattr(module.producer, "bound_inputs", forbid)
     plan = module.final_preflight(load_config("configs/modular_research.yaml"))
     assert plan["role"] == "final_test" and plan["sample_count"] == 368
     assert plan["class_counts"] == [167, 93, 108]
@@ -315,6 +267,48 @@ def test_final_metadata_preflight_does_not_open_final_RNA_or_models(monkeypatch)
     assert all(plan[k] is False for k in module.FLAGS)
     assert plan["PT_loads"] == plan["model_forwards"] == plan["optimizer_steps"] == 0
     assert plan["final_RNA_values_read"] is False
+
+
+@pytest.mark.parametrize("change,reason", [(None, None), ("bytes", "STATE_ASSET_CHANGED"),
+    ("overlap", "ROLE_OVERLAP"), ("label", "ORIGINAL_LABEL_SEMANTICS_CHANGED")])
+def test_preflight_uses_current_split_identity_and_labels(tmp_path, monkeypatch, change, reason):
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    assets = tmp_path / module.producer.inputs.JOINT
+    assets.mkdir(parents=True)
+    rows = [{"fold": "1_to_8", "role": role, "cell_id": f"{role}-{i}", "state_class": i,
+        "state_label_original": label, "label_scope": "original_sorted_state_not_natural_apoptosis_rate"}
+        for role in ("fit", "selection", "calibration", "final_test") for i, label in enumerate(module.LABELS)]
+    if change == "overlap":
+        rows[-1]["cell_id"] = rows[0]["cell_id"]
+    elif change == "label":
+        rows[0]["state_class"] = 1
+    path = assets / "tidyi_splits.parquet"
+    pd.DataFrame(rows).to_parquet(path)
+    source = tmp_path / "source/manifest.json"
+    source.parent.mkdir()
+    source.write_text("{}", encoding="utf-8")
+    for name in ("genes.parquet", "normalization.npz"):
+        (assets / name).write_bytes(b"fixture-only-asset-bytes")
+    data_config = {"assets": module.producer.inputs.JOINT, "bundle": "source"}
+    monkeypatch.setattr(module, "dataset_config", lambda *_: data_config)
+    (assets / "manifest.json").write_text(json.dumps({
+        "signature": "fixture", "status": "complete", "config": data_config,
+        "source_manifest_sha256": module.file_hash(source),
+        "metadata": {"tidyi_folds": {"1_to_8": {"status": "ready"}}},
+        "files": {name: {"sha256": "changed" if change == "bytes" and name == path.name
+            else module.file_hash(assets / name)} for name in ("genes.parquet", "normalization.npz", path.name)}}),
+        encoding="utf-8")
+    monkeypatch.setattr(module.producer.inputs, "PINS", {
+        (assets / "manifest.json").relative_to(tmp_path).as_posix(): module.file_hash(assets / "manifest.json")})
+
+    if reason:
+        with pytest.raises(ValueError, match=reason):
+            module.preflight(config())
+    else:
+        report = module.preflight(config())
+        assert report["roles"]["fit"]["cells"] == 3
+        assert report["RNA_matrix_values_reread"] == report["PT_loads"] == 0
+        assert "reused_real_readback" not in report
 
 
 def toy_final_fixture(tmp_path, monkeypatch):

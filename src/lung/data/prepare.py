@@ -16,7 +16,7 @@ import pyarrow.parquet as pq
 from src.lung_data import PreparedLungData
 
 from .chemistry import build_chemical_catalog
-from .common import OUTER, ROLES, atomic_json, dataset_config, inside, sha256, training_contract, response_source_dependencies
+from .common import OUTER, ROLES, atomic_json, dataset_config, inside, sha256, training_contract, training_manifest_signature, response_source_dependencies
 from .preprocess import build_preprocessing as _build_preprocessing
 from .splits import condition_roles, control_roles, tidyi_splits
 
@@ -229,7 +229,7 @@ def prepare_training(project_root, config_path=None, *, build_preprocessing=True
         signature, source_hash, identity, schema = training_contract(root, config)
         path = assets / "manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
-        if manifest is not None and manifest["signature"] != signature:
+        if manifest is not None and training_manifest_signature(manifest) != signature:
             raise ValueError("Training asset configuration/source changed; create a new version, do not overwrite")
         if manifest is not None:
             for name, item in manifest.get("files", {}).items():

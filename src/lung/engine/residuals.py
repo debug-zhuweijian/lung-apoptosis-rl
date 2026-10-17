@@ -1,4 +1,4 @@
-"""R-only B/K fits, entity OOF discrepancy learning, G gates and delayed C calibration."""
+"""R-only backward and correction fits with independent G-domain selection."""
 
 import hashlib
 from collections import OrderedDict
@@ -8,10 +8,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from lung.models import BackwardModel, CorrectionModel, ErrorEstimator, group_expression_error, split_conformal_quantile
-from .auxiliary import (fit_epochs, feature_cache, encode_vectors, load_auxiliary,
-                        pipeline_identity, require_population_audit, dependency_record,
-                        calibration_audit_binding, verify_auxiliary_dependencies)
+from lung.models import BackwardModel, CorrectionModel, group_expression_error
+from .auxiliary import (fit_epochs, encode_vectors, load_auxiliary, pipeline_identity,
+                        dependency_record)
 from .checkpoint import atomic_save, atomic_json, load_checkpoint, seed_all
 from .config import config_hash, file_hash, StageUnavailable
 from .response import tensor, condition_kwargs, projected
@@ -46,8 +45,7 @@ def prediction_rows(role, data, config, monitor, pipeline):
         raise StageUnavailable("LATENT_REPRESENTATION_REQUIRED")
     if pipeline.get("representation"):
         verify_response_representation(reference, representation)
-    verify_auxiliary_dependencies(pipeline["pool"], pipeline)
-    pool = load_auxiliary(pipeline["pool"], data, device)
+    pool = load_auxiliary(pipeline["pool"], data, device, pipeline=pipeline)
     rows = []
     for key in monitor.progress(data.condition_ids(role), desc=f"cache residual {role}"):
         # Short path components for Windows; full identities remain verified inside.
@@ -154,7 +152,8 @@ def read_prediction(row, device):
     return {key: value.to(device) if torch.is_tensor(value) else value for key, value in result.items()}
 
 
-def fit_backward(rows, data, config, monitor, pipeline, stage="backward", resume=False):
+def fit_backward(rows, data, config, monitor, pipeline):
+    stage = "backward"
     device = torch.device(config["device"])
     shape = load_checkpoint(pipeline["response"][0])["metadata"]["model_config"]
     identity = config_hash({"base": pipeline_identity(stage, data, config, residual_dependencies(pipeline)),
@@ -171,12 +170,12 @@ def fit_backward(rows, data, config, monitor, pipeline, stage="backward", resume
                       {"width": shape["d_model"], "n_genes": shape["n_genes"], "train_role": "R",
                        "reference_response_hash": file_hash(pipeline["response"][0]), "pool_hash": file_hash(pipeline["pool"]),
                        "dependencies": dependency_record(pipeline, tuple(residual_dependencies(pipeline))),
-                       "fit_groups": sorted({row["group_id"] for row in rows})}, resume=resume)
+                       "fit_groups": sorted({row["group_id"] for row in rows})})
     return model.eval().requires_grad_(False), path
 
 
-def fit_correction(rows, backward, backward_path, data, config, monitor, pipeline,
-                   stage="correction", resume=False):
+def fit_correction(rows, backward, backward_path, data, config, monitor, pipeline):
+    stage = "correction"
     device = torch.device(config["device"])
     shape = load_checkpoint(pipeline["response"][0])["metadata"]["model_config"]
     deps = {**residual_dependencies(pipeline), "backward": backward_path}
@@ -197,22 +196,17 @@ def fit_correction(rows, backward, backward_path, data, config, monitor, pipelin
                        "reference_response_hash": file_hash(pipeline["response"][0]), "pool_hash": file_hash(pipeline["pool"]),
                        "dependencies": dependency_record({**pipeline, "backward": backward_path},
                                                          (*residual_dependencies(pipeline), "backward")),
-                       "fit_groups": sorted({row["group_id"] for row in rows}), "gate_during_fit": 1}, resume=resume)
+                       "fit_groups": sorted({row["group_id"] for row in rows}), "gate_during_fit": 1})
     return model.eval().requires_grad_(False), path
 
 
 @torch.no_grad()
-def error_record(row, backward, correction, gate, data):
+def correction_error(row, backward, correction, gate, data):
     e_b = backward.diagnostic(row["population"], row["condition"], row["reference_mean"])
     output = correction(row["raw"], row["population"], row["condition"], e_b,
                         row["ensemble_variance"], gate=gate)
     output = projected(output, data)
-    discrepancy = group_expression_error(output, row["observed"], data.bandwidth)
-    mean_error = (output.mean(0) - row["observed"].mean(0)).square().mean().sqrt()
-    return {"population": row["population"].cpu(), "condition": row["condition"].cpu(),
-            "backward_error": e_b.cpu(), "ensemble_variance": row["ensemble_variance"].cpu(),
-            "gate": int(gate), "target": discrepancy.cpu(), "mean_error": mean_error.cpu(),
-            "group_id": row["group_id"], "domain": row["domain"]}
+    return group_expression_error(output, row["observed"], data.bandwidth)
 
 
 def domain_gate(rows, backward, correction, data, config):
@@ -220,8 +214,8 @@ def domain_gate(rows, backward, correction, data, config):
     domains = {}
     for descriptor in rows:
         row = read_prediction(descriptor, device)
-        before = float(error_record(row, backward, correction, False, data)["target"])
-        after = float(error_record(row, backward, correction, True, data)["target"])
+        before = float(correction_error(row, backward, correction, False, data))
+        after = float(correction_error(row, backward, correction, True, data))
         domains.setdefault(row["domain"], {}).setdefault(row["group_id"], []).append((before, after))
     results = {}
     for domain, groups in domains.items():
@@ -239,59 +233,15 @@ def domain_gate(rows, backward, correction, data, config):
     return results
 
 
-def train_uncertainty(rows, data, config, monitor, pipeline, resume=False):
-    groups = sorted({row["group_id"] for row in rows}, key=lambda group: hashlib.sha256(("residual-v1|" + group).encode()).hexdigest())
-    if len(groups) < 5:
-        raise StageUnavailable("ERROR_CALIBRATION_UNAVAILABLE: fewer than five R chemical groups; in-sample replacement forbidden")
-    device = torch.device(config["device"])
-    identity = pipeline_identity("uncertainty", data, config, pipeline)
-    fold_by_group = {group: index % 5 for index, group in enumerate(groups)}
-    oof = []
-    for fold in range(5):
-        fitting = [row for row in rows if fold_by_group[row["group_id"]] != fold]
-        heldout = [row for row in rows if fold_by_group[row["group_id"]] == fold]
-        backward, bp = fit_backward(fitting, data, config, monitor, pipeline, f"uncertainty/oof_{fold}/backward", resume)
-        correction, _ = fit_correction(fitting, backward, bp, data, config, monitor, pipeline,
-                                       f"uncertainty/oof_{fold}/correction", resume)
-        for descriptor in heldout:
-            row = read_prediction(descriptor, device)
-            for gate in (0, 1):
-                entry = error_record(row, backward, correction, gate, data)
-                entry.update({"fold": fold, "fit_groups": sorted({item["group_id"] for item in fitting})})
-                oof.append(entry)
-    atomic_save(monitor.experiment / "cache" / f"uncertainty-oof-{identity}.pt", {"identity": identity, "rows": oof})
-    width = len(oof[0]["population"])
-    model = ErrorEstimator(width).to(device)
-    # Every entity and branch has equal total weight even with unequal condition counts.
-    counts = {group: sum(row["group_id"] == group for row in oof) for group in groups}
-
-    def loss(network, row):
-        value = network(row["population"].to(device), row["condition"].to(device),
-                        row["backward_error"].to(device), row["ensemble_variance"].to(device), row["gate"])
-        weight = len(oof) / (len(groups) * counts[row["group_id"]])
-        return (value - row["target"].to(device)).square() * weight
-
-    path = fit_epochs("uncertainty", model, oof, loss, data, config, monitor, identity,
-                      {"width": width, "train_role": "R_OOF", "folds": fold_by_group,
-                       "reference_response_hash": file_hash(pipeline["response"][0]), "pool_hash": file_hash(pipeline["pool"]),
-                       "dependencies": dependency_record(pipeline, (*residual_dependencies(pipeline), "backward", "correction")),
-                       "calibration_status": "AWAITING_NUMERICAL_AUDIT", "oof_groups": groups}, resume=resume)
-    return {**pipeline, "uncertainty": path}
-
-
-def train_residual(stage, data, config, monitor, pipeline, resume=False):
+def train_residual(stage, data, config, monitor, pipeline):
     rows = prediction_rows("R", data, config, monitor, pipeline)
     if stage == "backward":
-        _, path = fit_backward(rows, data, config, monitor, pipeline, resume=resume)
+        _, path = fit_backward(rows, data, config, monitor, pipeline)
         return {**pipeline, "backward": path}
     if not pipeline.get("backward"):
         raise StageUnavailable("TRAINED_BACKWARD_REQUIRED")
-    if stage == "uncertainty":
-        if not pipeline.get("correction"):
-            raise StageUnavailable("TRAINED_CORRECTION_REQUIRED")
-        return train_uncertainty(rows, data, config, monitor, pipeline, resume)
     backward = load_auxiliary(pipeline["backward"], data, config["device"])
-    correction, path = fit_correction(rows, backward, pipeline["backward"], data, config, monitor, pipeline, resume=resume)
+    correction, path = fit_correction(rows, backward, pipeline["backward"], data, config, monitor, pipeline)
     selection = prediction_rows("G", data, config, monitor, pipeline)
     gate = {"schema_version": 1, "domains": domain_gate(selection, backward, correction, data, config),
             "data_identity": data.identity, "response_hashes": [file_hash(p) for p in pipeline["response"]],
@@ -302,58 +252,3 @@ def train_residual(stage, data, config, monitor, pipeline, resume=False):
     gate_path = monitor.weights / "correction" / "domain_gate.json"
     atomic_json(gate_path, gate)
     return {**pipeline, "correction": path, "correction_gate": str(gate_path)}
-
-
-def finalize_calibration(data, config, monitor, pipeline):
-    """Invoke only after the population-resolution audit; never inside U fitting."""
-    import json
-    if not pipeline.get("uncertainty") or not pipeline.get("correction_gate"):
-        raise StageUnavailable("FROZEN_RESIDUAL_CHAIN_REQUIRED")
-    for key in ("pool", "backward", "correction", "uncertainty"):
-        verify_auxiliary_dependencies(pipeline[key], pipeline)
-    device = config["device"]
-    backward = load_auxiliary(pipeline["backward"], data, device)
-    correction = load_auxiliary(pipeline["correction"], data, device)
-    estimator = load_auxiliary(pipeline["uncertainty"], data, device)
-    gate = json.loads(Path(pipeline["correction_gate"]).read_text(encoding="utf-8"))
-    expected_gate = {"response_hashes": [file_hash(p) for p in pipeline["response"]],
-                     "pool_hash": file_hash(pipeline["pool"]), "backward_hash": file_hash(pipeline["backward"]),
-                     "correction_hash": file_hash(pipeline["correction"]), "data_identity": data.identity,
-                     "population": config.get("population", 512),
-                     "inference_ode_steps": pipeline.get("inference_ode_steps", config["response"]["inference_ode_steps"])}
-    if any(gate.get(key) != value for key, value in expected_gate.items()):
-        raise StageUnavailable("CORRECTION_GATE_VERSION_MISMATCH")
-    path = monitor.weights / "uncertainty" / "calibration.json"
-    binding = calibration_audit_binding(data, config, pipeline)
-    # G_A can subsequently be calibrated without changing this expression-error chain.
-    binding["weights"].pop("endpoint", None)
-    frozen = {"uncertainty_hash": file_hash(pipeline["uncertainty"]),
-              "gate_hash": file_hash(pipeline["correction_gate"]), "data_identity": data.identity,
-              "frozen_binding": binding}
-    if path.exists():
-        previous = json.loads(path.read_text(encoding="utf-8"))
-        if any(previous.get(key) != value for key, value in frozen.items()):
-            raise StageUnavailable("CALIBRATION_VERSION_CHANGED: start a new experiment")
-        return {**pipeline, "uncertainty_calibration": str(path)}
-    require_population_audit(data, config, pipeline)
-    maxima, mean_maxima = {}, {}
-    for descriptor in prediction_rows("C", data, config, monitor, pipeline):
-        row = read_prediction(descriptor, device)
-        branch = gate["domains"].get(row["domain"], {}).get("enabled", False)
-        record = error_record(row, backward, correction, branch, data)
-        with torch.no_grad():
-            predicted = estimator(record["population"].to(device), record["condition"].to(device),
-                                  record["backward_error"].to(device), record["ensemble_variance"].to(device), int(branch))
-        group = row["group_id"]
-        maxima[group] = max(maxima.get(group, 0.), abs(float(predicted) - float(record["target"])))
-        mean_maxima[group] = max(mean_maxima.get(group, 0.), float(record["mean_error"]))
-    if not maxima:
-        raise StageUnavailable("ERROR_CALIBRATION_UNAVAILABLE: no C groups")
-    q_error = float(split_conformal_quantile(torch.tensor(list(maxima.values()))))
-    q_mean = float(split_conformal_quantile(torch.tensor(list(mean_maxima.values()))))
-    atomic_json(path, {"schema_version": 1, "role": "C", "groups": sorted(maxima),
-                      "q_error": q_error if np.isfinite(q_error) else "infinity",
-                      "q_mean": q_mean if np.isfinite(q_mean) else "infinity",
-                      "coverage": .9, "coverage_guarantee": False,
-                      **frozen})
-    return {**pipeline, "uncertainty_calibration": str(path)}

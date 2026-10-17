@@ -24,7 +24,6 @@ SOURCE = BASE / "endpoint-alignment-v1/source_reviews/state_function_round11/exp
 DEFAULT_VIEW = ROOT / "experiments/20261011-data-alignment-round22/science_evaluation/joint_selection/view-v1"
 SCHEMA = "retrospective-joint-selection-v1"
 SCORE_SCHEMA = "joint-selection-frozen-scores-v1"
-METHODS = {"direct_G", "simple_rank", "learned_Q"}
 OLD_FILES = {
     "plan.json": "c5621b3d4efbaaf46fdfba2a2d8fd23edd6527fdf21e4bab74f1089f4133a6d8",
     "manifest.json": "87bf7f09cbd913d69faabc386ecbf50fd757a9ce4bac9dbe0913b0fae0c599a4",
@@ -317,20 +316,21 @@ class JointSelectionEvaluation:
             require(packet[role + "_observation_ids"] == sorted(r["observation_id"] for r in self.metadata_units(role)), "JOINT_FIT_SELECTION_ROLE_MISMATCH")
         for name in ("information_artifact", "response_feature_artifact", "feedback_G_artifact"):
             checked_artifact(packet[name], root)
-        require(set(packet["methods"]) == METHODS, "FOUR_POLICY_FAMILIES_REQUIRE_G_SIMPLE_Q")
+        require(isinstance(packet["methods"], dict) and "direct_G" in packet["methods"]
+                and set(packet["methods"]).issubset({"direct_G", "simple_rank"}),
+                "DIRECT_G_WITH_OPTIONAL_SIMPLE_RANK_REQUIRED")
         ids = {r["candidate_id"] for r in self.metadata_units(packet["role"])}
         for name, method in packet["methods"].items():
             require(set(method) == {"scores", "model_artifact", "information_set_id", "feedback_G_artifact", "feature_use", "score_definition"}, "ONE_FROZEN_MODEL_PER_METHOD_REQUIRED")
             require(method["information_set_id"] == packet["information_set_id"]
                     and method["feedback_G_artifact"] == packet["feedback_G_artifact"], "SAME_INFORMATION_AND_FEEDBACK_REQUIRED")
             require(isinstance(method["feature_use"], str) and method["feature_use"].strip(), "FEATURE_USE_REQUIRED")
-            require(method["score_definition"] == ("candidate_value_same_terminal_Annexin_reward"
-                    if name == "learned_Q" else "estimated_terminal_Annexin_fraction"), "COMMON_TERMINAL_SCORE_COORDINATE_REQUIRED")
+            require(method["score_definition"] == "estimated_terminal_Annexin_fraction", "COMMON_TERMINAL_SCORE_COORDINATE_REQUIRED")
             checked_artifact(method["model_artifact"], root)
             require(isinstance(method["scores"], dict) and set(method["scores"]) == ids, "COMPLETE_JOINT_CANDIDATE_DOMAIN_REQUIRED")
             for value in method["scores"].values():
                 finite(value, fraction=name == "direct_G")
-        require(packet["methods"]["direct_G"]["model_artifact"] == packet["feedback_G_artifact"], "Q_FEEDBACK_MUST_BE_SAME_FROZEN_G")
+        require(packet["methods"]["direct_G"]["model_artifact"] == packet["feedback_G_artifact"], "DIRECT_G_ARTIFACT_MISMATCH")
         return {"schema": "joint-selection-score-receipt-v1", "packet": deepcopy(packet),
                 "packet_sha256": digest(packet), "execution_certified": False,
                 "producer_and_no_leakage_claims_independently_verified": False}
@@ -386,4 +386,4 @@ class JointSelectionEvaluation:
             "source_controls_shared_across_roles": True, "cross_figure_biological_pairing_verified": False,
             "retrospective": True, "prospective_blind": False, "execution_certified": False,
             "measured_metric_computation_performed": True, "model_execution_performed": False,
-            "G_reward_qualified": False, "global_optimum_claim": False, "whole_project_qualified": False}
+            "global_optimum_claim": False, "whole_project_qualified": False}

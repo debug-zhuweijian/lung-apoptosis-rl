@@ -11,7 +11,7 @@ from .actor_schedule import ActorSchedule
 from .contracts import DecisionState, Transition, VersionStamp
 from .networks import AffineCritic, ConditionalActor, DistributionCritic, JointActor
 from .protocol import CandidateRegistry
-from .replay import ReplayBuffer, restore_rng, rng_state
+from .replay import ReplayBuffer
 
 
 @dataclass(frozen=True)
@@ -94,28 +94,6 @@ class DAACTrainer:
             self.actor_stage_events.append({"stage": stage, "actor_step": self.actor_step,
                                            "active_parameters": self.active_actor_parameters})
         self.actor_stage = stage
-
-    def initialize_actor(self, state):
-        """Import compatible Actor weights into a fresh experiment, without its state."""
-        if self.total_transitions or self.critic_step or self.actor_step or len(self.replay):
-            raise ValueError("ACTOR_INITIALIZATION_REQUIRES_FRESH_TRAINER")
-        self._validate_actor_weights(state, "ACTOR_INITIALIZATION")
-        self.actor.load_state_dict(state["actor"])
-
-    def _validate_actor_weights(self, state, operation):
-        if (state.get("schema") != "DAAC-V1" or state.get("versions") != self.versions
-                or state.get("spec") != asdict(self.registry.spec)
-                or state.get("feature_layout", "frozen-summary-private-history-v1") != "frozen-summary-private-history-v1"
-                or state.get("config", {}).get("actor_type") != self.config.actor_type):
-            raise ValueError(operation + "_IDENTITY_MISMATCH")
-        current, source = self.actor.state_dict(), state.get("actor", {})
-        if set(current) != set(source) or any(
-                value.shape != current[name].shape or not torch.isfinite(value).all()
-                for name, value in source.items()):
-            raise ValueError(operation + "_WEIGHTS_MISMATCH")
-        if any(not torch.equal(source[name].cpu(), current[name].cpu())
-               for name in ("action_features", "stop_mask")):
-            raise ValueError(operation + "_CANDIDATE_ENCODING_MISMATCH")
 
     @property
     def epsilon(self) -> float:
@@ -221,38 +199,7 @@ class DAACTrainer:
         return metrics
 
     def state_dict(self) -> dict:
+        """Inference weights and the metadata needed to reconstruct their architecture."""
         return {"schema": "DAAC-V1", "config": asdict(self.config), "versions": self.versions,
-                "feature_layout": "frozen-summary-private-history-v1",
-                "actor_stage": self.actor_stage, "active_actor_parameters": self.active_actor_parameters,
-                "actor_stage_events": deepcopy(self.actor_stage_events),
-                "actor_schedule": self.actor_schedule.state_dict() if self.actor_schedule else None,
                 "spec": asdict(self.registry.spec), "actor": self.actor.state_dict(),
-                "critics": self.critics.state_dict(), "targets": self.targets.state_dict(),
-                "actor_optimizer": self.actor_optimizer.state_dict(),
-                "critic_optimizer": self.critic_optimizer.state_dict(), "replay": self.replay.state_dict(),
-                "generator": self.generator.get_state(), "global_rng": rng_state(),
-                "counters": {k: getattr(self, k) for k in ("total_transitions", "critic_step", "actor_step", "episodes")}}
-
-    def load_state_dict(self, state: dict) -> None:
-        if (state["schema"] != "DAAC-V1" or state["versions"] != self.versions
-                or state["config"] != asdict(self.config) or state["spec"] != asdict(self.registry.spec)):
-            raise ValueError("Cannot resume a different DA-AC architecture or scientific environment")
-        self._validate_actor_weights(state, "ACTOR_RESUME")
-        saved_schedule = state.get("actor_schedule")
-        if (saved_schedule is None) != (self.actor_schedule is None):
-            raise ValueError("ACTOR_SCHEDULE_RESUME_MISMATCH")
-        if self.actor_schedule is not None:
-            self.actor_schedule.load_state_dict(saved_schedule)
-            if self.actor_schedule.total_updates != state["counters"]["actor_step"]:
-                raise ValueError("ACTOR_SCHEDULE_GLOBAL_COUNTER_MISMATCH")
-        self.set_actor_stage(state.get("actor_stage", "joint"))
-        if (state.get("active_actor_parameters", self.active_actor_parameters) != self.active_actor_parameters
-                or self.actor_schedule and self.actor_stage != self.actor_schedule.stage):
-            raise ValueError("ACTOR_ACTIVE_PARAMETERS_RESUME_MISMATCH")
-        self.actor_stage_events = deepcopy(state.get("actor_stage_events", self.actor_stage_events))
-        for key in ("actor", "critics", "targets", "actor_optimizer", "critic_optimizer", "replay"):
-            getattr(self, key).load_state_dict(state[key])
-        self.generator.set_state(state["generator"].cpu())
-        for key, value in state["counters"].items():
-            setattr(self, key, value)
-        restore_rng(state["global_rng"])
+                "critics": self.critics.state_dict()}

@@ -18,9 +18,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from lung.data import prepare_training
 from lung.engine.config import config_hash, file_hash, read_yaml
 from lung.engine.data import EngineData
-from lung.engine.pilot import load_shifts
 from lung.engine.pilot_ridge import (LAMBDAS, POINT_SEMANTICS, chemical_mean_rmse, fit_ridge,
-                                    load_mean_predictions, raw_mean_points, run_ridge, select_ridge)
+                                    raw_mean_points, run_ridge, select_ridge)
 from lung.engine.pilot_ridge_data import features, mean_plan, require_ridge_data, stream_means
 from lung.models import physical_projection
 from test_training_data_v1 import tiny_bundle
@@ -162,7 +161,7 @@ def test_feature_axis_is_full_gene_with_frozen_drug_and_known_background(tiny_da
 
 @pytest.mark.parametrize("device", ["cpu", pytest.param("cuda:0", marks=pytest.mark.skipif(
     not torch.cuda.is_available(), reason="CUDA unavailable"))])
-def test_end_to_end_artifact_is_load_shifts_compatible_without_pickle(tiny_data, tmp_path, device):
+def test_end_to_end_artifact_preserves_gene_axis_and_raw_means_without_pickle(tiny_data, tmp_path, device):
     output = tmp_path / "experiments" / "ridge"
     output.mkdir(parents=True)
     config = {"device": device, "stream_batch_size": 13, "lambdas": list(LAMBDAS)}
@@ -171,26 +170,18 @@ def test_end_to_end_artifact_is_load_shifts_compatible_without_pickle(tiny_data,
     assert metadata["fit_artifact_sha256"] == file_hash(output / "ridge_model.npz")
     assert metadata["fit_data_sha256"] == file_hash(output / "t_condition_means.npz")
     assert metadata["fit_code_sha256"] == config_hash(identity["code_sha256"])
-    with patch.object(tiny_data.reader, "allowed_roles", frozenset({"selection"})):
-        shifts, _ = load_shifts(output / "v_delta.npz", tiny_data)
-        means, provenance = load_mean_predictions(output / "v_delta.npz", tiny_data)
-    assert set(shifts) == set(means) == set(tiny_data.condition_ids("V"))
-    assert provenance["control_summary_scope"] == "full_unique_V_control_pool_mean"
     with np.load(output / "v_delta.npz", allow_pickle=False) as artifact:
         arrays = {key: artifact[key].copy() for key in artifact.files}
         for key in artifact.files:
             assert not artifact[key].dtype.hasobject
         np.testing.assert_array_equal(artifact["gene_ids"], tiny_data.reader.gene_ids)
+        assert set(artifact["condition_ids"].astype(str)) == set(tiny_data.condition_ids("V"))
         assert artifact["point_valid"].all()
     with np.load(output / "v_condition_means.npz", allow_pickle=False) as population:
         np.testing.assert_array_equal(arrays["mean_prediction"], population["control_mean"] + arrays["delta"])
-    legacy = json.loads(arrays["metadata_json"].item())
-    assert legacy["prediction_semantics"] == POINT_SEMANTICS
-    legacy["prediction_semantics"] = "physical_projection_of_full_control_mean_plus_raw_standardized_delta"
-    np.savez(output / "legacy_projected.npz", **{**arrays, "metadata_json": np.asarray(json.dumps(legacy))})
-    with patch.object(tiny_data.reader, "allowed_roles", frozenset({"selection"})):
-        with pytest.raises(ValueError, match="RAW_GROUP_MEAN_SEMANTICS_REQUIRED"):
-            load_mean_predictions(output / "legacy_projected.npz", tiny_data)
+    provenance = json.loads(arrays["metadata_json"].item())
+    assert provenance["prediction_semantics"] == POINT_SEMANTICS
+    assert provenance["control_summary_scope"] == "full_unique_V_control_pool_mean"
     report = json.loads((output / "p1_full_population_metrics.json").read_text())
     assert all(row["mmd_u"] is None and row["variance_rmse"] is None for row in report["conditions"])
     with pytest.raises(FileExistsError):
@@ -219,7 +210,7 @@ def test_cli_preserves_failed_state_and_refuses_overwrite(tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(config), encoding="utf-8")
     output = tmp_path / "experiments" / "failed"
-    with patch("lung.engine.config.verify_interpreter"), patch("lung.engine.data.EngineData",
+    with patch("lung.engine.data.EngineData",
             side_effect=ValueError("PREPROCESSING_REQUIRED")) as opened:
         with pytest.raises(ValueError, match="PREPROCESSING_REQUIRED"):
             cli.main(["--config", str(path), "--output", str(output)])

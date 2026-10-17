@@ -1,4 +1,4 @@
-"""Atomic local checkpoints, full random state and resume identity checks."""
+"""Atomic model artifacts and random-stream isolation helpers."""
 
 import json
 import os
@@ -85,10 +85,19 @@ def load_checkpoint(path, expected=None):
     return result
 
 
-def save_training(path, model, optimizer, *, epoch, identity, metadata, counters=None,
+def save_training(path, model, *, epoch, identity, metadata, counters=None,
                   extra=None):
     atomic_save(path, {"schema_version": 1, "model": model.state_dict(),
-                      "optimizer": optimizer.state_dict() if optimizer else None,
                       "epoch": int(epoch), "identity": identity,
                       "metadata": metadata, "counters": counters or {},
-                      "rng": rng_state(), "extra": extra or {}})
+                      "extra": extra or {}})
+
+
+def finalize_training(path, completion):
+    """Attach run completion without changing selected weights or their counters."""
+    from .training_control import checkpoint_completion
+    saved = load_checkpoint(path)
+    completed = {**saved, "extra": {**saved.get("extra", {}),
+                                  "training_completion": dict(completion)}}
+    checkpoint_completion(completed, completion["target_epochs"])
+    atomic_save(path, completed)

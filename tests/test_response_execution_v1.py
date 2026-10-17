@@ -3,14 +3,13 @@
 from dataclasses import replace
 from pathlib import Path
 import sys
-from unittest.mock import Mock, patch
 
 import pytest
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from lung.models import ResponseModel, rbf_mmd
-from lung.engine.response import exact_mmd_backward, TrainingDetailProgress
+from lung.engine.response import exact_mmd_backward
 from test_models_v1 import tiny_config, neighbors, conditions
 
 
@@ -44,17 +43,3 @@ def test_batched_full_ode_mmd_gradient_equals_native(microbatch):
         assert native.cell_encoder.gene_embedding.weight.grad.abs().sum() > 0
     finally:
         torch.set_num_threads(old)
-
-
-def test_training_subprogress_throttles_but_phase_and_end_remain_visible():
-    bar = Mock()
-    with patch('lung.engine.response.time.monotonic', side_effect=[0., .1, .2, .6, .7, .8]):
-        progress = TrainingDetailProgress(bar)
-        progress('CFM', 0, 128)
-        progress('CFM', 1, 128)
-        progress('CFM', 2, 128)
-        progress('CFM', 40, 128)
-        progress('CFM', 128, 128)
-        progress('MMD', 0, 32)
-    assert bar.set_postfix_str.call_count == 4
-    assert bar.set_postfix_str.call_args.args[0] == 'MMD 0/32'

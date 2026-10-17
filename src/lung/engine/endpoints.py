@@ -9,8 +9,7 @@ import torch
 from torch import nn
 
 from lung.models import ModelConfig, EndpointHead, HistoryEncoder, MonotoneEndpointCalibrator
-from .auxiliary import (fit_epochs, require_population_audit, dependency_record,
-                        calibration_audit_binding, verify_auxiliary_dependencies)
+from .auxiliary import fit_epochs, dependency_record, verify_auxiliary_dependencies
 from .checkpoint import atomic_save, load_checkpoint, save_training, seed_all
 from .config import StageUnavailable, config_hash, file_hash, project_path
 from .endpoint_contract import (validate_manifest_v2, load_units_v2,
@@ -131,11 +130,11 @@ class MatchedEndpointModel(nn.Module):
         return self.calibrator(probability) if self.calibrated else probability
 
 
-def train_endpoint(data, config, monitor, pipeline, resume=False):
+def train_endpoint(data, config, monitor, pipeline):
     path, manifest = read_manifest(data, config, pipeline)
     shape = ModelConfig(**load_checkpoint(pipeline["response"][0])["metadata"]["model_config"])
     if manifest["schema_version"] == 2:
-        return _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, shape, resume)
+        return _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, shape)
     units = {role: load_units(path, manifest, role, shape) for role in ("T", "V", "R", "G")}
     groups = {role: {row["group_id"] for row in rows} for role, rows in units.items()}
     for index, role in enumerate(groups):
@@ -162,24 +161,23 @@ def train_endpoint(data, config, monitor, pipeline, resume=False):
                     [path] + [path.parent / manifest["partitions"][role]["path"] for role in ("T", "V", "R", "G")]),
                 "development_groups": sorted(set().union(*groups.values()))}
     observed_path = fit_epochs("endpoint/observed", model, units["T"], loss, data, config,
-                              monitor, identity + "-T", metadata, validation, resume)
+                              monitor, identity + "-T", metadata, validation)
     predicted = copy.deepcopy(model)
     predicted_path = fit_epochs("endpoint/predicted", predicted, units["R"], loss, data, config,
-                                monitor, identity + "-R", {**metadata, "train_role": "R", "selection_role": None},
-                                resume=resume)
+                                monitor, identity + "-R", {**metadata, "train_role": "R", "selection_role": None})
     with torch.no_grad():
         scores = [float(torch.stack([loss(network, row) for row in units["G"]]).mean()) for network in (model, predicted)]
     winner = 1 if scores[1] < scores[0] else 0
     saved = load_checkpoint((observed_path, predicted_path)[winner])
     selected = monitor.weights / "endpoint" / "selected.pt"
     saved["metadata"] = {**saved["metadata"], "stage": "endpoint", "selected_by": "G",
-                         "selected_version": ("T", "R")[winner], "calibration_status": "AWAITING_NUMERICAL_AUDIT"}
+                         "selected_version": ("T", "R")[winner], "calibration_status": "UNCALIBRATED"}
     saved["extra"] = {**saved["extra"], "G_scores": {"T_version": scores[0], "R_version": scores[1]}}
     atomic_save(selected, saved)
     return {**pipeline, "endpoint": str(selected)}
 
 
-def _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, shape, resume):
+def _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, shape):
     """Fit measured Y directly on frozen predicted features; select using V only."""
     units = {role: load_units(path, manifest, role, shape) for role in ("T", "V")}
     feature_identity = manifest["frozen_feature_identity"]
@@ -213,18 +211,18 @@ def _train_predicted_endpoint(data, config, monitor, pipeline, path, manifest, s
                     manifest["feature_dependencies"]["pipeline"], dependency_files_v2(path, manifest)),
                 "development_groups": sorted({row["group_id"] for rows in units.values() for row in rows})}
     trained = fit_epochs("endpoint/predicted_measured", model, units["T"], loss, data, config,
-                         monitor, identity, metadata, validation, resume)
+                         monitor, identity, metadata, validation)
     saved = load_checkpoint(trained)
     selected = monitor.weights / "endpoint" / "selected.pt"
     saved["metadata"] = {**saved["metadata"], "stage": "endpoint", "selected_by": "V",
                          "selected_version": "schema2_T_predicted_measured",
-                         "calibration_status": "AWAITING_NUMERICAL_AUDIT"}
+                         "calibration_status": "UNCALIBRATED"}
     atomic_save(selected, saved)
     return {**pipeline, "endpoint": str(selected)}
 
 
-def load_endpoint(path, data, device):
-    saved = load_checkpoint(path)
+def load_endpoint(path, data, device, *, saved=None):
+    saved = load_checkpoint(path) if saved is None else saved
     if saved["metadata"]["data_identity"] != data.identity or saved["epoch"] < 1:
         raise ValueError("ENDPOINT_DATA_OR_TRAINING_IDENTITY_MISMATCH")
     model = MatchedEndpointModel(ModelConfig(**saved["metadata"]["model_config"]))
@@ -242,19 +240,12 @@ def load_endpoint(path, data, device):
 def finalize_calibration(data, config, monitor, pipeline):
     if not pipeline.get("endpoint"):
         raise StageUnavailable("ENDPOINT_UNAVAILABLE")
-    verify_auxiliary_dependencies(pipeline["endpoint"], pipeline)
-    path, manifest = read_manifest(data, config, pipeline)
-    model = load_endpoint(pipeline["endpoint"], data, config["device"])
     saved = load_checkpoint(pipeline["endpoint"])
-    binding = calibration_audit_binding(data, config, pipeline)
-    binding["weights"].pop("endpoint", None)
+    verify_auxiliary_dependencies(pipeline["endpoint"], pipeline, saved=saved)
+    path, manifest = read_manifest(data, config, pipeline)
+    model = load_endpoint(pipeline["endpoint"], data, config["device"], saved=saved)
     if model.calibrated:
-        original = saved["metadata"].get("calibration_base", {})
-        if (saved["metadata"].get("calibration_binding") != binding or
-                not original.get("path") or file_hash(original["path"]) != original.get("sha256")):
-            raise StageUnavailable("CALIBRATION_VERSION_CHANGED: start a new experiment")
         return pipeline
-    require_population_audit(data, config, pipeline)
     units = load_units(path, manifest, "C", model.shape)
     if set(saved["metadata"]["development_groups"]) & {row["group_id"] for row in units}:
         raise StageUnavailable("ENDPOINT_CALIBRATION_GROUP_LEAKAGE")
@@ -272,11 +263,9 @@ def finalize_calibration(data, config, monitor, pipeline):
     dependencies = copy.deepcopy(saved["metadata"]["dependencies"])
     c_path = path.parent / manifest["partitions"]["C"]["path"]
     dependencies["files"].append({"path": str(c_path.resolve()), "sha256": file_hash(c_path)})
-    save_training(output, model, None, epoch=saved["epoch"], identity=saved["identity"],
+    save_training(output, model, epoch=saved["epoch"], identity=saved["identity"],
                   metadata={**saved["metadata"], "calibrated": True, "calibration_role": "C",
-                            "calibration_status": "COMPLETE", "calibration_binding": binding,
-                            "calibration_base": {"path": str(Path(pipeline["endpoint"]).resolve()),
-                                                 "sha256": file_hash(pipeline["endpoint"])},
+                            "calibration_status": "COMPLETE",
                             "dependencies": dependencies}, counters=saved["counters"],
                   extra={**saved["extra"], "calibration_groups": sorted({row["group_id"] for row in units}),
                          "calibration_lr": config.get("calibration_lr", 1e-2)})

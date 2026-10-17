@@ -4,14 +4,13 @@ import copy
 import hashlib
 import json
 import math
-import sys
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-STAGES = ("response", "pool", "state", "backward", "correction", "uncertainty",
-          "endpoint", "potential", "daac", "dlpa", "all")
+STAGES = ("response", "pool", "state", "backward", "correction",
+          "endpoint", "daac", "dlpa", "all")
 
 
 class StageUnavailable(RuntimeError):
@@ -54,12 +53,6 @@ def file_hash(path):
     return digest.hexdigest()
 
 
-def implementation_identity():
-    """Bind runs and simulated environments to executable project source content."""
-    paths = [ROOT / "train.py", ROOT / "test.py", *sorted((ROOT / "src/lung").rglob("*.py"))]
-    return config_hash({path.relative_to(ROOT).as_posix(): file_hash(path) for path in paths})
-
-
 def load_config(path=None):
     config = read_yaml(project_path(path or "configs/train.yaml"))
     for name in ("response", "daac", "dlpa"):
@@ -84,15 +77,15 @@ def validate_config(config):
         value = config['response'].get(name, 1)
         if not isinstance(value, int) or value < 1:
             raise ValueError(f'response.{name} must be a positive integer')
-    for name in ('member_workers', 'member_cpu_threads', 'condition_microbatch'):
-        value = config['response'].get(name, 1)
-        if type(value) is not int or value < 1:
-            raise ValueError(f'response.{name} must be a positive integer')
-    if not config.get("synthetic", False) and config["response"]["model"]["n_genes"] != 32461:
-        raise ValueError("The main V1 protocol requires the full 32461-gene axis")
+    n_genes = config["response"]["model"]["n_genes"]
+    if type(n_genes) is not int or n_genes < 1:
+        raise ValueError("response.model.n_genes must be a positive integer")
     forbidden = {"cost", "risk_penalty", "dose_penalty", "time_penalty", "step_penalty"}
     if forbidden.intersection(config.get("reward", {})):
         raise ValueError("V1 has no cost/risk reward penalties")
+    reward = config.get("reward", {})
+    if reward.get("gamma", 1.) != 1. or reward.get("shaping", "none") != "none":
+        raise ValueError("Unsupported reward definition")
     state_objective(config)
 
 
@@ -107,12 +100,3 @@ def state_objective(config):
     if objective != "ce_aggregate" and weight != 0:
         raise ValueError("state_aggregate_lambda must be zero unless state_loss is ce_aggregate")
     return {"state_loss": objective, "state_aggregate_lambda": float(weight)}
-
-
-def verify_interpreter():
-    expected = json.loads((ROOT / "configs/runtime.json").read_text(encoding="utf-8-sig"))
-    selected = project_path(expected["python_executable"])
-    if Path(sys.executable).resolve() != selected:
-        raise StageUnavailable(
-            f"INTERPRETER_MISMATCH: PyCharm 请选择 {selected}; 当前为 {sys.executable}")
-    return expected

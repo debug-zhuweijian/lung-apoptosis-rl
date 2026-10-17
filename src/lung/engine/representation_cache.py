@@ -105,17 +105,9 @@ def _verify_shard(directory, shard):
     return path
 
 
-def _pause_if_requested(stop_check, state, state_path):
-    if stop_check is not None and stop_check(state["step"], 0):
-        from .modular_budget import StagePaused
-        raise StagePaused("representation cache budget exhausted", state_path,
-                          stage="latent_cache", step=state["step"], cursor=state["step"])
-
-
 def build_representation_cache(data, shared, target, device, *, batch_size=512,
-                               roles=("fit", "selection"), progress=None, identity=None,
-                               stop_check=None):
-    """Resume committed chunks; publish a manifest only after every role is complete."""
+                               roles=("fit", "selection"), progress=None, identity=None):
+    """Build every shard, then publish the complete cache manifest atomically."""
     roles = _cache_roles(roles)
     actual_identity = encoder_identity(shared, shared.config)
     if identity is not None and identity != actual_identity:
@@ -131,21 +123,10 @@ def build_representation_cache(data, shared, target, device, *, batch_size=512,
     target.mkdir(parents=True, exist_ok=True)
     shared.eval()
     shared.requires_grad_(False)
-    state_path = target / "build_state.json"
-    if state_path.exists():
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        if (state.get("protocol") != PROTOCOL or state.get("registration") != registration
-                or state.get("step") != sum(len(value) for value in state.get("roles", {}).values())
-                or not set(state.get("roles", {})) <= set(roles)):
-            raise ValueError("CACHE_RESUME_IDENTITY_MISMATCH")
-    else:
-        state = {"schema_version": 1, "protocol": PROTOCOL, "registration": registration,
-                 "step": 0, "roles": {role: [] for role in roles}}
-        atomic_json(state_path, state)
-    _pause_if_requested(stop_check, state, state_path)
     reader = data.reader
+    role_blocks = {}
     for role in roles:
-        index = 0
+        shards = []
         conditions = registration["conditions"][role]
         for position, condition in enumerate(conditions):
             rows = reader.role_cells(condition, role)
@@ -154,44 +135,29 @@ def build_representation_cache(data, shared, target, device, *, batch_size=512,
             for start in range(0, len(rows), registration["batch_size"]):
                 chunk = rows.iloc[start:start + registration["batch_size"]]
                 cell_ids = np.asarray(chunk["cell_id"].astype(str).tolist(), dtype=str)
-                location = {"file": f"{role}_shard_{index:04d}.npz", "rows": len(chunk),
+                location = {"file": f"{role}_shard_{len(shards):04d}.npz", "rows": len(chunk),
                             "condition": condition, "start": start,
                             "cell_ids_sha256": _json_digest(cell_ids.tolist())}
-                committed = state["roles"].get(role, [])
-                if index < len(committed):
-                    shard = committed[index]
-                    if any(shard.get(key) != value for key, value in location.items()):
-                        raise ValueError("CACHE_RESUME_ROWS_MISMATCH")
-                    _verify_shard(target, shard)
-                else:
-                    expression = reader.normalize(reader.rows.read(chunk))
-                    with torch.no_grad():
-                        x = torch.as_tensor(expression, dtype=torch.float32, device=device)
-                        _, encoded = shared.encode_h(x)
-                        h = encoded.detach().to("cpu", torch.float32).numpy()
-                    if h.shape != (len(chunk), int(shared.config.d_model)) or not np.isfinite(h).all():
-                        raise ValueError("CACHE_ENCODED_CHUNK_INVALID")
-                    path = _shard_path(target, location["file"])
-                    temporary = path.with_suffix(".tmp.npz")
-                    with temporary.open("wb") as stream:
-                        np.savez(stream, h=h, cell_id=cell_ids,
-                                 condition_id=np.asarray([condition] * len(chunk), dtype=str))
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    temporary.replace(path)
-                    shard = {**location, "sha256": _file_digest(path)}
-                    state = {**state, "step": state["step"] + 1,
-                             "roles": {**state["roles"], role: [*committed, shard]}}
-                    atomic_json(state_path, state)
-                index += 1
-                _pause_if_requested(stop_check, state, state_path)
+                expression = reader.normalize(reader.rows.read(chunk))
+                with torch.no_grad():
+                    x = torch.as_tensor(expression, dtype=torch.float32, device=device)
+                    _, encoded = shared.encode_h(x)
+                    h = encoded.detach().to("cpu", torch.float32).numpy()
+                if h.shape != (len(chunk), int(shared.config.d_model)) or not np.isfinite(h).all():
+                    raise ValueError("CACHE_ENCODED_CHUNK_INVALID")
+                path = _shard_path(target, location["file"])
+                temporary = path.with_suffix(".tmp.npz")
+                with temporary.open("wb") as stream:
+                    np.savez(stream, h=h, cell_id=cell_ids,
+                             condition_id=np.asarray([condition] * len(chunk), dtype=str))
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                temporary.replace(path)
+                shards.append({**location, "sha256": _file_digest(path)})
             if progress is not None:
                 progress(role, position + 1, len(conditions), condition)
-        if index != len(state["roles"][role]):
-            raise ValueError("CACHE_RESUME_ROWS_MISMATCH")
-    role_blocks = {role: {"cells": sum(shard["rows"] for shard in state["roles"][role]),
-                          "conditions": len(registration["conditions"][role]),
-                          "shards": state["roles"][role]} for role in roles}
+        role_blocks[role] = {"cells": sum(shard["rows"] for shard in shards),
+                             "conditions": len(conditions), "shards": shards}
     manifest = {"schema_version": 1, "protocol": PROTOCOL, "status": "complete",
                 "data_identity": data.identity,
                 "normalization_signature": data.manifest.get("signature"),
@@ -222,13 +188,8 @@ def _manifest_matches(directory, data_identity, encoder, roles=None, normalizati
 
 
 def ensure_representation_cache(data, shared, requested_dir, device, *, batch_size=512,
-                                roles=("fit", "selection"), progress=None, stop_check=None):
-    """Reuse a matching cache, else build into a versioned directory (rework R2).
-
-    A rebuild never reuses the requested directory: it lands in
-    ``<requested>-<registration hash prefix>`` so an old completion marker can never
-    be mistaken for evidence about the new cache. Returns (directory, status).
-    """
+                                roles=("fit", "selection"), progress=None):
+    """Reuse a complete matching cache; build a new version for other identities."""
     requested = Path(requested_dir)
     roles = _cache_roles(roles)
     identity = encoder_identity(shared, shared.config)
@@ -236,20 +197,11 @@ def ensure_representation_cache(data, shared, requested_dir, device, *, batch_si
     signature = data.manifest.get("signature")
     if _manifest_matches(requested, data.identity, identity, roles, signature):
         return requested, "reused"
-    state_path = requested / "build_state.json"
-    if state_path.exists():
-        previous = json.loads(state_path.read_text(encoding="utf-8"))
-        if previous.get("registration") == registration:
-            build_representation_cache(data, shared, requested, device, batch_size=batch_size,
-                                       roles=roles, progress=progress, identity=identity,
-                                       stop_check=stop_check)
-            return requested, "built"
     versioned = requested.parent / f"{requested.name}-{_json_digest(registration)[:12]}"
     if _manifest_matches(versioned, data.identity, identity, roles, signature):
         return versioned, "reused"
     build_representation_cache(data, shared, versioned, device, batch_size=batch_size,
-                               roles=roles, progress=progress, identity=identity,
-                               stop_check=stop_check)
+                               roles=roles, progress=progress, identity=identity)
     return versioned, "built"
 
 

@@ -70,7 +70,7 @@ def test_diagnostics_reports_population_dependence(gate):
     diagnostic = FrozenExpressionDiagnostics.__new__(FrozenExpressionDiagnostics)
     diagnostic.data, diagnostic.device = None, "cpu"
     diagnostic.reference = SimpleNamespace(encode_condition=lambda **kwargs: torch.zeros(1, 2))
-    diagnostic.gates, diagnostic.calibration = {"domains": {}}, None
+    diagnostic.gates = {"domains": {}}
     diagnostic.modules = {"pool": lambda z: z.mean(0),
                           "backward": SimpleNamespace(diagnostic=lambda *args: torch.tensor(0.)),
                           "correction": lambda raw, *args, gate: raw + (raw.mean(0) if gate else 0)}
@@ -86,19 +86,6 @@ def test_diagnostics_reports_population_dependence(gate):
     assert report["member_count"] == 2 and report["control_block_count"] == 2
     assert report["member_major_order"] is True
     torch.testing.assert_close(output, baseline + (baseline.mean(0) if gate else 0))
-
-
-def test_population_mean_v_metric_never_claims_u():
-    from lung.engine.pilot_response import mixture_metrics
-    from lung.models.objectives import physical_projection
-    x = torch.tensor([[1., 2.], [3., 1.]], dtype=torch.float64)
-    mean, scale = torch.zeros(2, dtype=torch.float64), torch.ones(2, dtype=torch.float64)
-    y = physical_projection(x, mean, scale).x
-    result = mixture_metrics([x]*5, x, y, mean, scale, 1., population_dependent=True, block_size=1)
-    assert result["mmd_u"] is None
-    assert result["mmd_estimator"] == "empirical_population_V"
-    assert result["na_reasons"]["mmd_u"] == "population_dependent_reference"
-    assert result["empirical_population_mmd_v"] == pytest.approx(float(rbf_mmd(y.repeat(5, 1), y, 1.)), abs=1e-14)
 
 
 def test_diagnostics_without_correction_preserves_block_metadata():

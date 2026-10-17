@@ -1,4 +1,4 @@
-"""AE input supply, caching and exact resume; constructed cells only, not biology."""
+"""AE input supply and caching; constructed cells only, not biology."""
 
 from copy import deepcopy
 import json
@@ -12,7 +12,6 @@ import pandas as pd
 import pytest
 from scipy import sparse
 
-from conftest import assert_same as assert_identical
 from src.lung.data import TrainingData
 from src.lung.data.ae_expression_cache import NormalizedExpressionCache
 from src.lung.data import ae_expression_cache as cache_module
@@ -25,7 +24,7 @@ class DrawSupply:
         return [rng.integers(100000, size=(4, 6)) for _ in keys]
 
 
-def test_prefetch_commits_only_consumed_rng_and_resume_replays_unused_group():
+def test_prefetch_commits_only_consumed_rng_and_preserves_draw_order():
     supply = DrawSupply()
     expected_rng = np.random.default_rng(73)
     expected_first = supply.sample_group(["a", "b"], expected_rng)
@@ -41,12 +40,10 @@ def test_prefetch_commits_only_consumed_rng_and_resume_replays_unused_group():
     assert rng.bit_generator.state == committed
     for observed, expected in zip(first, expected_first):
         np.testing.assert_array_equal(observed, expected)
-    resumed_rng = np.random.default_rng()
-    resumed_rng.bit_generator.state = committed
-    with AEGroupPrefetch(supply) as resumed:
-        second = resumed.consume(["c"], resumed_rng)
+    with AEGroupPrefetch(supply) as producer:
+        second = producer.consume(["c"], rng)
     np.testing.assert_array_equal(second[0], expected_second[0])
-    assert resumed_rng.bit_generator.state == expected_rng.bit_generator.state
+    assert rng.bit_generator.state == expected_rng.bit_generator.state
 
 
 def test_prefetch_error_is_propagated_without_advancing_rng():
@@ -120,57 +117,6 @@ def test_real_reader_supply_cache_matches_original_and_validation(ae_reader):
         equal_batches([expected_v], [observed_v])
 
 
-def test_real_reader_prefetch_training_resumes_optimizer_rng_and_tail_group(ae_reader, tmp_path):
-    import torch
-    from types import SimpleNamespace
-    from src.lung.engine.latent_pipeline import run_latent_ae
-    from src.lung.engine.checkpoint import load_checkpoint
-
-    class Facade:
-        def __init__(self):
-            self.reader = ae_reader
-            self.n_genes, self.neighbors = ae_reader.n_genes, ae_reader.neighbors
-            self.identity = ae_reader.manifest["signature"]
-        def condition_ids(self, role):
-            return ae_reader.condition_ids({"T": "fit", "V": "selection"}[role])
-        def iter_response_epoch(self, role, seed):
-            keys = self.condition_ids(role)
-            return iter([keys[0], keys[1], keys[0], keys[1], keys[0]])
-
-    def monitor(name):
-        return SimpleNamespace(weights=tmp_path / name / "weights", experiment=tmp_path / name,
-                               say=lambda *_: None, record=lambda *a, **k: None)
-
-    class InterruptAfterOne:
-        exhausted = False
-        def check(self, step, epoch):
-            self.exhausted = step >= 1
-            return self.exhausted
-
-    config = {"response": {"lr": 0.001, "weight_decay": 0.0001, "grad_clip": 1.,
-                           "conditions_per_update": 2, "ot_samples": 4},
-              "epochs": 1, "early_stopping": False, "device": "cpu", "seed": 38,
-              "workflow": "modular_stage",
-              "research": {"latent": {"d_model": 8, "latent_dim": 4, "ae": {"batch": 4}},
-                           "precision": {"mode": "fp32"}}}
-    threads = torch.get_num_threads()
-    torch.set_num_threads(1)
-    try:
-        continuous, resumed = monitor("continuous"), monitor("resumed")
-        run_latent_ae(config, continuous, Facade())
-        run_latent_ae(config, resumed, Facade(), InterruptAfterOne())
-        path = resumed.weights / "latent_ae" / "last.pt"
-        partial = load_checkpoint(path)
-        assert partial["epoch"] == 0 and partial["extra"]["resume"]["next_group_start"] == 2
-        assert partial["counters"]["optimizer_step"] == 1
-        run_latent_ae(config, resumed, Facade())
-        expected = load_checkpoint(continuous.weights / "latent_ae" / "last.pt")
-        actual = load_checkpoint(path)
-        for field in ("model", "optimizer", "rng", "epoch", "identity", "counters", "extra"):
-            assert_identical(expected[field], actual[field])
-        assert actual["counters"]["optimizer_step"] == 3
-    finally:
-        torch.set_num_threads(threads)
 
 
 def sample_rows(ae_reader, role="fit"):

@@ -75,9 +75,6 @@ class EngineData:
 
 
 def open_data(config, stage, prepare=True, test=False, progress=None):
-    if config.get("synthetic", False):
-        from .synthetic import SyntheticData
-        return SyntheticData(config)
     if prepare:
         from lung.data import prepare_training
         prepare_training(ROOT, config_path=project_path(config["data"]),
@@ -85,7 +82,7 @@ def open_data(config, stage, prepare=True, test=False, progress=None):
     permitted = {
         "response": ("T", "V"), "pool": ("T", "V"), "state": ("T", "V", "C"),
         "backward": ("R",), "correction": ("R", "G"),
-        "uncertainty": ("R", "G", "C"), "endpoint": ("T", "V", "R", "G", "C"),
-        "potential": ("T", "V"), "daac": ("T", "V"), "dlpa": ("T", "V"),
+        "endpoint": ("T", "V", "R", "G", "C"),
+        "daac": ("T", "V"), "dlpa": ("T", "V"),
         "all": ("T", "V", "R", "G", "C")}
     return EngineData(config, ("E",) if test else permitted[stage], allow_test=test)

@@ -69,8 +69,9 @@ def identity_fixture(tmp_path):
     dependencies = ["drug_identity.parquet", "condition_identity.parquet", "morgan2048_chiral.npy", "sources.json"]
     write_json(directory / "manifest.json", {
         "version": "identity-v2", "status": "reference_mapping_complete_with_explicit_exclusions",
-        "inputs_sha256": {f"prepared/{name}": sha256(bundle / name)
+        "inputs_sha256": {**{f"prepared/{name}": sha256(bundle / name)
                           for name in ("drug_catalog.parquet", "tahoe_conditions.parquet")},
+                          "src/lung/data/drug_identity.py": "0" * 64},
         "outputs": {name: {"sha256": sha256(directory / name), "bytes": (directory / name).stat().st_size}
                     for name in dependencies}, "raw_response_count": 1,
     })
@@ -86,6 +87,12 @@ def test_reviewed_structures_reach_splits_and_actual_action_features(identity_fi
     root, config_path, catalog, fp = identity_fixture
     frozen_source = sha256(root / "prepared/drug_catalog.parquet")
     assets = prepare_training(root, config_path, build_preprocessing=False)
+    legacy = json.loads((assets / "manifest.json").read_text())
+    legacy["drug_identity"]["inputs"]["src/lung/data/drug_identity.py"] = "0" * 64
+    legacy["signature"] = digest_json({"config": legacy["config"],
+        "source_manifest": legacy["source_manifest_sha256"], "training_schema": 2,
+        "drug_identity": legacy["drug_identity"]})
+    write_json(assets / "manifest.json", legacy)
     reader = TrainingData(root, config_path, require_preprocessing=False)
     assert reader.manifest["schema_version"] == 2
     assert reader.manifest["drug_identity"]["manifest_sha256"] == sha256(root / "identity-v2/manifest.json")

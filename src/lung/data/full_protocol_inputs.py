@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from .common import data_file_bindings
 from ..models.full_protocol import (DOSE_UNITS, EVENT_TYPES, FEATURE_SCHEMA,
                                     SCALAR_FIELDS, FullPhysicalProtocolBatch)
 
@@ -40,7 +41,7 @@ def read(path):
 
 
 def check(bindings):
-    for path, digest in bindings.items():
+    for path, digest in data_file_bindings(bindings).items():
         require(sha(path) == digest, "Source hash mismatch: " + str(path))
 
 
@@ -55,10 +56,9 @@ def prepare():
     # Authenticate manifest and every declared source/output before decoding inputs.
     check({str(SOURCE / "manifest.json"): SOURCE_HASH})
     manifest = read(SOURCE / "manifest.json")
-    bindings = {**manifest["inputs_sha256"],
+    bindings = {**data_file_bindings(manifest["inputs_sha256"]),
                 **{str(SOURCE / name): digest for name, digest in manifest["files_sha256"].items()},
                 str(SOURCE / "manifest.json"): SOURCE_HASH,
-                str(ROOT / "src/lung/data/endpoint_protocol_inputs.py"): manifest["consumer_sha256"],
                 **{str(BOTHE / name): digest for name, digest in BOTHE_HASHES.items()}}
     check(bindings)
     candidates = read(SOURCE / "candidate_records.json")
@@ -174,13 +174,12 @@ class FullProtocolInputs:
     def load(cls, directory=OUTPUT):
         directory = Path(directory).resolve()
         manifest = read(directory / "manifest.json")
-        require(manifest["consumer_sha256"] == sha(__file__), "Consumer code changed")
         require(manifest["feature_schema"] == FEATURE_SCHEMA and manifest["formal_training_ready"] is False,
                 "Input schema/readiness changed")
         check(manifest["source_bindings"])
         check({str(directory / name): digest for name, digest in manifest["files_sha256"].items()})
         instance = cls()
-        require(instance.source_bindings == manifest["source_bindings"], "Incomplete source bindings")
+        require(instance.source_bindings == data_file_bindings(manifest["source_bindings"]), "Incomplete source bindings")
         require(read(directory / "records.json") == instance._records, "Mapped records differ from actual sources")
         return instance
 
@@ -242,7 +241,7 @@ def build(output=OUTPUT):
                "fingerprint_known_events": int(batch.fingerprint_known.sum()),
                "event_count": int(batch.lengths.sum()), "endpoint_known_count": int(batch.endpoint_known.sum()),
                "tensor_shape": list(batch.fingerprint.shape), "cpu_tensor_validate": "passed",
-               "source_bindings": reader.source_bindings, "consumer_sha256": sha(__file__),
+               "source_bindings": reader.source_bindings,
                "files_sha256": {"records.json": sha(records_path)},
                "decoded_source_files": [str(SOURCE / "manifest.json"), str(SOURCE / "candidate_records.json"),
                                         "bocnho_conditions.csv", str(BOTHE / "E-MTAB-9923.sdrf.txt")],

@@ -77,7 +77,7 @@ def main(argv=None):
             data = EngineData(config, roles=("T",), require_preprocessing=True)
             result = generate_to_directory(ROOT, data, config, pipeline, bundle, reference, mappings, output / "features",
                 reference_path=resolve(args.reference), mapping_path=resolve(args.context_map),
-                data_config_path=resolve(args.data_config), script_path=Path(__file__))
+                data_config_path=resolve(args.data_config))
         except (StageUnavailable, ValueError, FileNotFoundError) as error:
             failure = {"status": "pending", "formal_training_ready": False, "reason": str(error),
                        "no_placeholder_features_written": True}

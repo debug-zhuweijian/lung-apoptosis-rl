@@ -7,11 +7,10 @@ import random
 import torch
 from torch import Tensor, nn
 
-from .contracts import NetworkSpec, VersionStamp
+from .contracts import VersionStamp
 from .dlpa import PlanResult, TeacherNode
-from .networks import ConditionalActor, PrivateHistory, mlp
+from .networks import ConditionalActor
 from .protocol import CandidateRegistry
-from .replay import restore_rng, rng_state
 
 
 def joint_kl(teacher: Tensor, student: Tensor) -> Tensor:
@@ -78,33 +77,6 @@ class ProposalDistiller:
                 "teacher_roots": len(self.teachers)}
 
     def state_dict(self) -> dict:
+        """Export the trained proposal without its optimizer or teacher pool."""
         return {"schema": "DLPA-DISTILL-V1", "versions": self.versions,
-                "spec": asdict(self.registry.spec), "lr": self.lr, "grad_clip": self.grad_clip,
-                "proposal": self.proposal.state_dict(), "optimizer": self.optimizer.state_dict(),
-                "teachers": dict(self.teachers), "distill_step": self.distill_step,
-                "random": self.random.getstate(), "global_rng": rng_state()}
-
-    def load_state_dict(self, state: dict) -> None:
-        if (state["schema"] != "DLPA-DISTILL-V1" or state["versions"] != self.versions
-                or state["spec"] != asdict(self.registry.spec) or state["lr"] != self.lr
-                or state["grad_clip"] != self.grad_clip):
-            raise ValueError("Incompatible proposal checkpoint")
-        self.proposal.load_state_dict(state["proposal"])
-        self.optimizer.load_state_dict(state["optimizer"])
-        self.teachers = dict(state["teachers"])
-        self.distill_step = state["distill_step"]
-        self.random.setstate(state["random"])
-        restore_rng(state["global_rng"])
-
-
-class PotentialNetwork(nn.Module):
-    """Independent history for Phi; train on reference completion targets then freeze."""
-
-    def __init__(self, registry: CandidateRegistry | NetworkSpec, hidden: tuple[int, ...] = (256, 64)):
-        super().__init__()
-        spec = registry if isinstance(registry, NetworkSpec) else registry.spec
-        self.history = PrivateHistory(spec)
-        self.value = nn.Sequential(mlp((spec.state_dim, *hidden, 1)), nn.Sigmoid())
-
-    def forward(self, states) -> Tensor:
-        return self.value(self.history(states)).squeeze(-1)
+                "spec": asdict(self.registry.spec), "proposal": self.proposal.state_dict()}

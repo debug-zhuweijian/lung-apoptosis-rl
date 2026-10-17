@@ -53,20 +53,3 @@ class ActorSchedule:
         return deepcopy({"schema_version": 1, "requested": self.requested,
             "quotas": self.quotas, "choices": self.choices, "completed": self.completed,
             "stage": self.stage, "stage_updates": self.completed[self.stage]})
-
-    def load_state_dict(self, state):
-        if (state.get("schema_version") != 1 or state.get("requested") != self.requested
-                or state.get("quotas") != self.quotas or state.get("choices") != self.choices):
-            raise ValueError("ACTOR_SCHEDULE_RESUME_MISMATCH")
-        counts = state.get("completed", {})
-        if set(counts) != set(self.stages) or any(isinstance(n, bool) or not isinstance(n, int)
-                or not 0 <= n <= self.quotas[stage] for stage, n in counts.items()):
-            raise ValueError("ACTOR_SCHEDULE_COUNTER_INVALID")
-        unfinished = False
-        for stage in self.stages:
-            if unfinished and counts[stage]:
-                raise ValueError("ACTOR_SCHEDULE_COUNTER_ORDER_INVALID")
-            unfinished = unfinished or counts[stage] < self.quotas[stage]
-        self.completed = dict(counts)
-        if state.get("stage") != self.stage or state.get("stage_updates") != counts[self.stage]:
-            raise ValueError("ACTOR_SCHEDULE_STAGE_MISMATCH")

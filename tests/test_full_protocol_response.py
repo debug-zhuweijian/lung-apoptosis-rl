@@ -1,5 +1,5 @@
 """Real metadata/input checks and separately marked synthetic E/P/D checks."""
-from dataclasses import replace
+from dataclasses import asdict, replace
 from collections import OrderedDict
 import json
 
@@ -65,7 +65,7 @@ def test_preflight_preserves_all_candidates_and_pending_sources_without_model(ac
     assert sum(r["request_status"] == "pending_physical_input" for r in report["candidates"]) == 8
     assert sum(r["request_status"] == "pending_bulk_reference_context_decoder" for r in report["candidates"]) == 4
     assert report["PT_loads"] == report["model_forwards"] == report["P_outputs"] == 0
-    assert not any(r["production_qualified"] or r["source_state_numerically_encoded"] for r in report["candidates"])
+    assert not any(r["source_state_numerically_encoded"] for r in report["candidates"])
 
 
 def test_real_pulse_numeric_physical_input_retains_masks_and_explicit_proxy(actual):
@@ -156,12 +156,11 @@ def test_viel_missing_matching_assets_rejected_before_weights_and_reference(actu
     assert not list(tmp_path.iterdir())
 
 
-def test_old_response_stage_and_static_receipt_cannot_qualify(actual):
+def test_response_requires_matching_stage(actual):
     bindings = actual[3]
-    metadata = {"bindings": bindings, "qualification": "static_inspection_only"}
+    metadata = {"bindings": bindings}
     with pytest.raises(ValueError, match="MATCHING_STAGE_DATA_PENDING"):
         module.validate_metadata(metadata, bindings)
-    metadata["qualification"] = "safe_tensor_execution_audited"
     metadata["representation"] = {"stage": "latent_ae", "synthetic": False,
         "data_identity": bindings["data_identity"], "optimizer_step": 1,
         "checkpoint": "dummy.pt", "checkpoint_sha256": "a" * 64}
@@ -173,7 +172,7 @@ def test_old_response_stage_and_static_receipt_cannot_qualify(actual):
 def declaration(bindings):
     ae = {"stage": "latent_ae", "synthetic": False, "data_identity": bindings["data_identity"],
           "optimizer_step": 1, "checkpoint": "dummy-ae.pt", "checkpoint_sha256": "a" * 64}
-    return {"bindings": bindings, "qualification": "safe_tensor_execution_audited",
+    return {"bindings": bindings,
         "representation": ae, "response": {**ae, "stage": module.STAGE,
         "checkpoint": "dummy-response.pt", "checkpoint_sha256": "b" * 64,
         "representation_hash": ae["checkpoint_sha256"],
@@ -181,17 +180,54 @@ def declaration(bindings):
         "reference_contract": module.reference_contract("observed")}}
 
 
+def test_matching_parameter_files_load_directly_without_audit_registry(tmp_path, monkeypatch):
+    # Real PyTorch parameters in an isolated four-gene fixture, not biological training.
+    original = adapter().eval()
+    bindings = {"data_identity": "four-gene-fixture"}
+    metadata = declaration(bindings)
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    assets = tmp_path / module.inputs.JOINT
+    assets.mkdir(parents=True)
+    np.savez(assets / "neighbors.npz", neighbors=np.arange(4)[:, None])
+    for name in ("representation", "response"):
+        item = metadata[name]
+        actual = {"stage": item["stage"], "data_identity": bindings["data_identity"],
+            "synthetic": False, "full_response_bindings": bindings}
+        saved = {"metadata": actual, "epoch": 1, "counters": {"optimizer_step": 1}}
+        if name == "representation":
+            saved["model"] = original.shared.state_dict()
+        else:
+            actual.update({"model_config": asdict(original.shared.config),
+                "feature_schema": module.FEATURE_SCHEMA, "parameter_identity": module.PARAMETER_IDENTITY,
+                "representation_hash": metadata["representation"]["checkpoint_sha256"],
+                "training_protocol_coverage": module.PARTIAL_PROTOCOL_COVERAGE,
+                "reference_contract": module.reference_contract("observed")})
+            saved.update(model=original.full.state_dict(), shared=original.shared.state_dict())
+        path = tmp_path / item["checkpoint"]
+        torch.save(saved, path)
+        item["checkpoint_sha256"] = module.inputs.sha(path)
+    metadata["response"]["representation_hash"] = metadata["representation"]["checkpoint_sha256"]
+    context = {"gene_ids": [f"g{i}" for i in range(4)], "mean": np.ones(4), "scale": np.ones(4),
+        "context_vocabulary": {"source_id": ["a", "b"], "background_id": ["a"], "protocol_id": ["a", "b"]}}
+    loaded = module.load_model(metadata, bindings, context)
+    assert not loaded.training and all(not p.requires_grad for p in loaded.parameters())
+    assert all(module.equal_weight(v, loaded.full.state_dict()[k]) for k, v in original.full.state_dict().items())
+    args = (torch.ones(2, 4), physical(), numeric())
+    assert torch.equal(loaded(*args, noise=torch.ones(2, 3), steps=1).y,
+                       original(*args, noise=torch.ones(2, 3), steps=1).y)
+
+
 def test_parameter_namespace_does_not_grant_washout_or_recovery_supervision(actual):
     meta = declaration(actual[3])
     meta["response"]["training_protocol_coverage"] = {**module.PARTIAL_PROTOCOL_COVERAGE,
         "washout_RNA_supervision": True}
     with pytest.raises(ValueError, match="PROTOCOL_SUPERVISION_COVERAGE_REQUIRED"):
-        module.validate_model_declaration(meta, actual[3])
+        module.validate_metadata(meta, actual[3])
 
 
-def test_prediction_consumer_rejects_tamper_before_registry_or_PT(tmp_path, monkeypatch):
+def test_prediction_consumer_rejects_tamper_before_model_check(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "ROOT", tmp_path)
-    monkeypatch.setattr(module, "validate_metadata", lambda *a: pytest.fail("Reject content before registration"))
+    monkeypatch.setattr(module, "validate_metadata", lambda *a: pytest.fail("Reject content before model check"))
     folder = tmp_path / "experiments"
     folder.mkdir()
     path = folder / "prediction.json"
@@ -203,7 +239,7 @@ def test_prediction_consumer_rejects_tamper_before_registry_or_PT(tmp_path, monk
 def test_prediction_consumer_rejects_request_semantic_rewrite_without_model(tmp_path, monkeypatch, actual):
     monkeypatch.setattr(module, "ROOT", tmp_path)
     monkeypatch.setattr(module, "bound_inputs", lambda: actual)
-    monkeypatch.setattr(module, "validate_metadata", lambda *a: pytest.fail("Reject request before registration"))
+    monkeypatch.setattr(module, "validate_metadata", lambda *a: pytest.fail("Reject request before model check"))
     folder = tmp_path / "experiments"
     folder.mkdir()
     request = next(r for r in actual[1] if r["base_kwargs"] is not None)
@@ -217,12 +253,11 @@ def test_prediction_consumer_rejects_request_semantic_rewrite_without_model(tmp_
         module.read_prediction(path)
 
 
-def test_prediction_moment_reader_without_real_PT_qualification(tmp_path, monkeypatch, actual):
-    # Pure synthetic container check: mocked registration grants no real asset.
+def test_prediction_moment_reader_without_loading_weights(tmp_path, monkeypatch, actual):
+    # Descriptor container check; no model parameters are loaded.
     monkeypatch.setattr(module, "ROOT", tmp_path)
     monkeypatch.setattr(module, "bound_inputs", lambda: actual)
-    registration = {"synthetic_mock_only": True}
-    monkeypatch.setattr(module, "validate_metadata", lambda *a: registration)
+    monkeypatch.setattr(module, "validate_metadata", lambda *a: None)
     monkeypatch.setattr(module.torch, "load", lambda *a, **k: pytest.fail("Reader must not deserialize PT"))
     folder = tmp_path / "experiments"
     folder.mkdir()
@@ -235,7 +270,7 @@ def test_prediction_moment_reader_without_real_PT_qualification(tmp_path, monkey
     body = {"schema": module.VERSION, "candidate_id": request["candidate_id"], "request": request,
         "bindings": actual[3], "reference": reference, "model_metadata": {k: {"checkpoint": str(folder / n),
             "checkpoint_sha256": module.inputs.sha(folder / n)} for k, n in (("representation", "AE"), ("response", "P"))},
-        "production_registration": registration, "seed": 4, "steps": 2, "outlet": module.OUTLET,
+        "seed": 4, "steps": 2, "outlet": module.OUTLET,
         "execution_kind": "matching_full_protocol_weights", "training_protocol_coverage": module.PARTIAL_PROTOCOL_COVERAGE,
         "candidate_protocol_OOD": True, "candidate_protocol_scientifically_validated": False,
         "cross_source_transfer_validated": False, "functional_Y_read": False, "reference_target_cell_pairing": False,
@@ -263,16 +298,6 @@ def test_prediction_moment_reader_without_real_PT_qualification(tmp_path, monkey
         module.read_prediction(path)
 
 
-def test_caller_audited_text_and_caller_receipt_path_do_not_register_assets(actual, tmp_path, monkeypatch):
-    monkeypatch.setattr(module, "REGISTRY", tmp_path / "fixed_missing_ledger.json")
-    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: pytest.fail("Unregistered audit must fail before PT"))
-    metadata = {**declaration(actual[3]), "registered_audit_id": "self_approved",
-                "audit_receipt_path": str(tmp_path / "self.json"), "audit_passed": True}
-    module.validate_model_declaration(metadata, actual[3])  # necessary static check only
-    with pytest.raises(ValueError, match="REGISTERED_EXECUTION_AUDIT_PENDING"):
-        module.qualified_model(metadata, actual[3], actual[2])
-
-
 def test_boolean_actual_optimizer_counter_rejected_without_PT_or_model(actual, monkeypatch):
     metadata = declaration(actual[3])
     monkeypatch.setattr(module.inputs, "sha", lambda path: "a" * 64 if "dummy-ae" in str(path) else "b" * 64)
@@ -280,7 +305,7 @@ def test_boolean_actual_optimizer_counter_rejected_without_PT_or_model(actual, m
         "metadata": {"stage": "latent_ae", "data_identity": actual[3]["data_identity"], "synthetic": False,
                      "full_response_bindings": actual[3]}, "counters": {"optimizer_step": True}})
     with pytest.raises(ValueError, match="ACTUAL_TRAINED_COUNTER_MISMATCH"):
-        module._load_matching_model(metadata, actual[3], actual[2])
+        module.load_model(metadata, actual[3], actual[2])
 
 
 def test_boolean_context_metadata_cannot_equal_integer_bindings(actual):

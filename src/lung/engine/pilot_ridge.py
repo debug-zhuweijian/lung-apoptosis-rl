@@ -234,24 +234,3 @@ def run_ridge(data, config, output, identity, *, progress=None):
         "chemical_entity_equal_mean_rmse": score, "selected_lambda": best["model"].regularization,
         "result_type": "development_validation_used_for_selection_not_independent_final_test"})
     return provenance
-
-
-def load_mean_predictions(path, data):
-    """V report adapter: invalid points stay all-NaN, never a fake population."""
-    from .pilot import load_shifts
-    shifts, provenance = load_shifts(path, data)
-    with np.load(path, allow_pickle=False) as artifact:
-        points = np.asarray(artifact["mean_prediction"], dtype=np.float64)
-        valid = artifact["point_valid"]
-        conditions = artifact["condition_ids"].astype(str).tolist()
-    metadata = provenance["metadata"]
-    if (metadata.get("prediction_semantics") != POINT_SEMANTICS
-            or metadata.get("control_summary_scope") != "full_unique_V_control_pool_mean"):
-        raise ValueError("P1_RAW_GROUP_MEAN_SEMANTICS_REQUIRED: projected-cell-mean artifacts are not compatible")
-    if (points.shape != (len(shifts), data.n_genes) or valid.shape != (len(shifts),)
-            or valid.dtype != np.dtype(bool) or not np.isfinite(points[valid]).all()
-            or not np.isnan(points[~valid]).all()):
-        raise ValueError("P1_POINT_VALIDITY_OR_GENE_AXIS_MISMATCH")
-    return dict(zip(conditions, points)), {**provenance,
-        "control_summary_scope": metadata["control_summary_scope"], "prediction_semantics": POINT_SEMANTICS,
-        "distribution_metrics": "not_applicable_mean_only"}

@@ -272,7 +272,7 @@ def completed_namespace(view, response_run):
     declaration = read(run / 'model_declaration.json')
     manifest, plan = read(run / 'run_manifest.json'), read(assets / 'run_manifest.json')
     _, _, _, bindings = producer.bound_inputs()
-    producer.validate_model_declaration(declaration, bindings)
+    producer.validate_metadata(declaration, bindings)
     meta = manifest['metadata']; ae = plan['AE_declaration']
     origin = Path(ae['weights']).resolve().parents[2]
     require(origin.is_relative_to(ROOT / 'experiments'), 'AE_SOURCE_PROJECT_BOUNDARY')
@@ -280,7 +280,6 @@ def completed_namespace(view, response_run):
     require(meta['synthetic'] is False and meta['stage'] == producer.STAGE and meta['data_identity'] == view.identity
             and meta['full_response_bindings'] == bindings and meta['training_protocol_coverage'] == learning.COVERAGE
             and manifest['schema'] == learning.SCHEMA and manifest['protocol_identity'] == view.protocol_identity
-            and manifest['execution_dependencies'] == plan['execution_dependencies'] == learning.execution_dependencies()
             and plan['config'] == view.config and plan['protocol_identity'] == view.protocol_identity
             and plan['bindings'] == bindings
             and manifest['settings'] == plan['settings'] == learning.settings_from_config(view.config)
@@ -289,13 +288,12 @@ def completed_namespace(view, response_run):
     require(origin.is_relative_to(ROOT / 'experiments') and read(origin / 'AE_result.json') == ae
             and ae_manifest['schema'] == learning.SCHEMA + ':joint-AE'
             and ae_manifest['config'] == learning.joint_ae_config(view.config)
-            and ae_manifest['data_identity'] == view.identity
-            and ae_manifest['execution_dependencies'] == learning.execution_dependencies(),
+            and ae_manifest['data_identity'] == view.identity,
             'COMPLETED_SOURCE_AE_DECLARATION')
     learning.verify_completed_ae_result(ae, origin, view.identity)
     files = {run / 'model_declaration.json', run / 'run_manifest.json', assets / 'run_manifest.json',
-             origin / 'AE_result.json', origin / 'run_manifest.json', run / 'last.pt',
-             Path(ae['weights']).resolve(), Path(ae['last_checkpoint']).resolve()}
+             origin / 'AE_result.json', origin / 'run_manifest.json', run / 'final.pt',
+             Path(ae['weights']).resolve(), Path(ae['final_checkpoint']).resolve()}
     require(Path(declaration['representation']['checkpoint']).resolve() == assets / 'representation_weights.pt'
             and Path(declaration['response']['checkpoint']).resolve() == run / 'response_weights.pt'
             and read(assets / 'representation_declaration.json') == declaration['representation']
@@ -306,10 +304,10 @@ def completed_namespace(view, response_run):
         require(sha(path) == declaration[name]['checkpoint_sha256'], 'SERVING_FILE_CHANGED_BEFORE_PT')
         files.add(path)
     before = {str(p): sha(p) for p in files}
-    last = load_checkpoint(run / 'last.pt', config_hash(manifest))
+    last = load_checkpoint(run / 'final.pt', config_hash(manifest))
     extra = last['extra']
     require(last['metadata'] == meta and extra.get('training_completion', {}).get('status') == 'complete'
-            and extra.get('resume') is None and extra.get('selected_weights_sha256') == declaration['response']['checkpoint_sha256']
+            and extra.get('selected_weights_sha256') == declaration['response']['checkpoint_sha256']
             and type(extra.get('best_optimizer_step')) is int and extra['best_optimizer_step'] > 0
             and extra['best_optimizer_step'] == declaration['response']['optimizer_step']
             and type(extra.get('best_epoch')) is int and extra['best_epoch'] > 0,
@@ -321,7 +319,7 @@ def completed_namespace(view, response_run):
     require(exported['metadata'].get('source_checkpoint_sha256') == ae['checkpoint_sha256']
             and exported['metadata'].get('context_cardinality_expansion_changes_no_AE_tensor') is True,
             'ACTUAL_EXPORTED_COMPLETED_AE_SOURCE')
-    model = producer._load_matching_model(declaration, bindings, view.context, device=view.config['device'])
+    model = producer.load_model(declaration, bindings, view.context, device=view.config['device'])
     require(model.reference_contract == meta['reference_contract'] == declaration['response']['reference_contract'],
             'ACTUAL_TRAINED_REFERENCE_CONTRACT')
     require(all(sha(p) == digest for p, digest in before.items()), 'NAMESPACE_CHANGED_DURING_MODEL_READ')
@@ -547,7 +545,7 @@ def comparison_namespace(view, plan, result):
              assets / 'representation_declaration.json', origin / 'AE_result.json', origin / 'run_manifest.json'}
     recorded = result['frozen_model_hashes']
     require(all(recorded.get(str(p)) == sha(p) for p in files), 'COMPARISON_CLOSED_NAMESPACE_JSON_CHANGED')
-    producer.validate_model_declaration(declared, meta['full_response_bindings'])
+    producer.validate_metadata(declared, meta['full_response_bindings'])
     contract = result['trained_reference_contract']
     variant = producer.declared_reference_variant({'reference_contract': contract})
     require(meta['synthetic'] is False and meta['stage'] == producer.STAGE and meta['data_identity'] == view.identity
@@ -555,7 +553,6 @@ def comparison_namespace(view, plan, result):
             and declared['bindings']['data_identity'] == view.identity
             and manifest['schema'] == learning.SCHEMA and manifest['protocol_identity'] == training['protocol_identity'] == view.protocol_identity
             and meta['training_protocol_coverage'] == learning.COVERAGE
-            and manifest['execution_dependencies'] == training['execution_dependencies'] == learning.execution_dependencies()
             and settings == training['settings'] == learning.settings_from_config(training['config'])
             and settings['reference_variant'] == variant
             and meta['reference_contract'] == declared['response']['reference_contract'] == plan['trained_reference_contract'] == contract
@@ -565,10 +562,9 @@ def comparison_namespace(view, plan, result):
             and ae['data_identity'] == view.identity and ae['training_completion']['status'] == 'complete'
             and ae_manifest['schema'] == learning.SCHEMA + ':joint-AE'
             and ae_manifest['config'] == learning.joint_ae_config(training['config'])
-            and ae_manifest['data_identity'] == view.identity
-            and ae_manifest['execution_dependencies'] == learning.execution_dependencies(), 'COMPARISON_ORIGINAL_COMPLETED_AE')
-    expected_pt = {run / 'last.pt', run / 'response_weights.pt', assets / 'representation_weights.pt',
-                   Path(ae['weights']).resolve(), Path(ae['last_checkpoint']).resolve()}
+            and ae_manifest['data_identity'] == view.identity, 'COMPARISON_ORIGINAL_COMPLETED_AE')
+    expected_pt = {run / 'final.pt', run / 'response_weights.pt', assets / 'representation_weights.pt',
+                   Path(ae['weights']).resolve(), Path(ae['final_checkpoint']).resolve()}
     require(all(p.is_relative_to(ROOT / 'experiments') and isinstance(recorded.get(str(p)), str)
                 and len(recorded[str(p)]) == 64 for p in expected_pt), 'COMPARISON_RECORDED_PT_IDENTITIES')
     require(Path(declared['representation']['checkpoint']).resolve() == assets / 'representation_weights.pt'
@@ -577,7 +573,7 @@ def comparison_namespace(view, plan, result):
             and recorded[str(assets / 'representation_weights.pt')] == declared['representation']['checkpoint_sha256'] == meta['representation_hash']
             and recorded[str(run / 'response_weights.pt')] == declared['response']['checkpoint_sha256']
             and recorded[str(Path(ae['weights']).resolve())] == ae['checkpoint_sha256']
-            and recorded[str(Path(ae['last_checkpoint']).resolve())] == ae['last_checkpoint_sha256'], 'COMPARISON_RECORDED_MODEL_SOURCE_BINDING')
+            and recorded[str(Path(ae['final_checkpoint']).resolve())] == ae['final_checkpoint_sha256'], 'COMPARISON_RECORDED_MODEL_SOURCE_BINDING')
     family = {'original_AE_run': str(origin), 'AE_declaration': ae, 'AE_manifest': ae_manifest,
         'training_config': without_reference_variant(training['config']), 'training_settings': {k: v for k, v in settings.items() if k != 'reference_variant'},
         'P_metadata': {k: v for k, v in meta.items() if k not in ('reference_contract', 'representation_hash')}, 'cache_encoder': manifest['cache_encoder'],

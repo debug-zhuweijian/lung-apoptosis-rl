@@ -1,5 +1,4 @@
 """Decision-stage orchestration against an explicitly synthetic callback environment."""
-from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -9,9 +8,9 @@ import torch
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from lung.engine import decision, potential
+from lung.engine import decision
 from lung.engine.checkpoint import load_checkpoint
-from lung.rl import (Candidate, CandidateRegistry, DecisionState, NetworkSpec, PotentialNetwork,
+from lung.rl import (Candidate, CandidateRegistry, DecisionState, NetworkSpec,
                      ProtocolSpec, RootContext, SimulationAdapter, VersionStamp)
 
 
@@ -71,13 +70,10 @@ def synthetic_world(monkeypatch):
     world = SimpleNamespace(registry=registry, adapter=adapter, biological_identity="test-biology",
                             roots=lambda role: [RootContext(f"{role}-root-{i}", role) for i in range(2)])
     monkeypatch.setattr(decision, "BiologicalWorld", lambda *args, **kwargs: world)
-    monkeypatch.setattr(potential, "_prepare_world", lambda data, config, monitor, pipeline: (world, dict(pipeline)))
     config = {"task": "PROXY-A549-V1", "device": "cpu", "epochs": 1, "seed": 31,
               "synthetic": True, "policy_seeds": [0], "population": 3,
-              "scoring_repeats": 2, "save_period": 1, "validation_candidates": 4,
+              "scoring_repeats": 2, "validation_candidates": 4,
               "decision_validation_repeats": 2, "diagnostic_repeats": 2,
-              "potential_train_prefixes": 4, "potential_val_prefixes": 2,
-              "potential_continuations": 2, "potential_batch": 2,
               "daac": {"episodes_per_epoch": 4, "warmup_transitions": 2, "batch_size": 2,
                        "replay_capacity": 32, "validation_roots": 2, "checkpoint_units": 1},
               "dlpa": {"roots_per_epoch": 2, "distill_updates": 2, "batch_size": 2,
@@ -86,37 +82,8 @@ def synthetic_world(monkeypatch):
     return world, config, data, calls
 
 
-def test_potential_fixed_reference_cache_split_isolation_and_resume(synthetic_world, monkeypatch, tmp_path):
-    world, config, data, calls = synthetic_world
-    forward_roles = []
-
-    class RecordingPotential(PotentialNetwork):
-        def forward(self, states):
-            forward_roles.append((self.training, tuple(s.role for s in states)))
-            return super().forward(states)
-
-    monkeypatch.setattr(potential, "PotentialNetwork", RecordingPotential)
-    monitor = Monitor(tmp_path)
-    pipeline = potential.train_potential(data, config, monitor, {})
-    saved = load_checkpoint(pipeline["potential"])
-    assert saved["epoch"] == 1 and saved["metadata"]["biological_identity"] == world.biological_identity
-    assert saved["metadata"]["synthetic"] is True
-    assert all(all(role == ("T" if fitting else "V") for role in roles) for fitting, roles in forward_roles)
-    assert {call[1] for call in calls} == {"T", "V"}
-    cache_files = list((monitor.experiment / "cache").glob("potential-*.pt"))
-    assert len(cache_files) == 2
-    rows = [row for path in cache_files for row in torch.load(path, weights_only=False)["rows"]]
-    assert len(rows) == 6 and all(row["continuations"] == 2 for row in rows)
-    calls_before = len(calls)
-    extended = {**config, "epochs": 2}
-    potential.train_potential(data, extended, monitor, pipeline, resume=True)
-    assert len(calls) == calls_before  # Frozen target cache is reused; V never becomes fit.
-    last = load_checkpoint(monitor.weights / "potential/last.pt")
-    assert last["epoch"] == 2 and last["counters"]["optimizer_step"] == 4
-
-
 @pytest.mark.parametrize("stage", ["daac", "dlpa"])
-def test_decision_epochs_real_counters_curves_and_resume(synthetic_world, tmp_path, stage):
+def test_decision_epochs_real_counters_curves_and_fresh_restart(synthetic_world, tmp_path, stage):
     _, config, data, _ = synthetic_world
     monitor = Monitor(tmp_path)
     pipeline = decision.train_decision(stage, data, config, monitor, {})
@@ -124,8 +91,9 @@ def test_decision_epochs_real_counters_curves_and_resume(synthetic_world, tmp_pa
     best = load_checkpoint(pipeline[stage][0])
     assert best["metadata"]["stage"] == stage and best["metadata"]["train_role"] == "T"
     assert best["metadata"]["selection_role"] == "V" and best["epoch"] == 1
-    assert "learner" in best and best["extra"]["cursor"]["unit"] == 0
-    checkpoint = monitor.weights / stage / "seed_0/last.pt"
+    assert "learner" in best and "cursor" not in best["extra"]
+    assert best["extra"]["training_completion"]["status"] == "complete"
+    checkpoint = monitor.weights / stage / "seed_0/final.pt"
     old = load_checkpoint(checkpoint)
     if stage == "daac":
         assert old["counters"]["episodes"] == 4
@@ -136,38 +104,22 @@ def test_decision_epochs_real_counters_curves_and_resume(synthetic_world, tmp_pa
         assert old["counters"]["distill_step"] == 2
     epoch_metrics = [row[2] for row in monitor.records if row[3] == "epoch"]
     assert len(epoch_metrics) == 1 and "val/score" in epoch_metrics[0]
-    decision.train_decision(stage, data, {**config, "epochs": 2}, monitor, pipeline, resume=True)
+    decision.train_decision(stage, data, {**config, "epochs": 2}, monitor, pipeline)
     new = load_checkpoint(checkpoint)
     assert new["epoch"] == 2
     assert new["counters"]["episodes" if stage == "daac" else "root_count"] == (8 if stage == "daac" else 4)
-    assert (checkpoint.parent / "epoch_2.pt").exists()
-    with pytest.raises(ValueError, match="CHECKPOINT_IDENTITY_MISMATCH"):
-        decision.train_decision(stage, data, {**config, "seed": 999}, monitor, pipeline, resume=True)
-
-
-@pytest.mark.parametrize("stage,fail", [("daac", ("env_step", 3)), ("dlpa", ("plan_iteration", 3))])
-def test_interruption_resumes_committed_complete_units_exactly(synthetic_world, tmp_path, stage, fail):
-    _, config, data, _ = synthetic_world
-    uninterrupted = Monitor(tmp_path / "uninterrupted")
-    decision.train_decision(stage, data, config, uninterrupted, {})
-    interrupted = Monitor(tmp_path / "resumed", fail=fail)
-    with pytest.raises(KeyboardInterrupt):
-        decision.train_decision(stage, data, config, interrupted, {})
-    committed = load_checkpoint(interrupted.weights / stage / "seed_0/last.pt")
-    assert committed["epoch"] == 0 and committed["extra"]["cursor"]["unit"] < (
-        config[stage]["episodes_per_epoch"] if stage == "daac" else config[stage]["roots_per_epoch"])
-    interrupted.fail = None
-    decision.train_decision(stage, data, config, interrupted, {}, resume=True)
-    complete1 = load_checkpoint(uninterrupted.weights / stage / "seed_0/last.pt")
-    complete2 = load_checkpoint(interrupted.weights / stage / "seed_0/last.pt")
-    assert complete1["counters"] == complete2["counters"]
-    assert all(torch.equal(value, complete2["model"][key]) for key, value in complete1["model"].items())
+    assert not (checkpoint.parent / "epoch_2.pt").exists()
+    decision.train_decision(stage, data, config, monitor, pipeline)
+    fresh = load_checkpoint(checkpoint)
+    assert fresh["counters"] == old["counters"]
+    for name, value in old["model"].items():
+        torch.testing.assert_close(value, fresh["model"][name], atol=0, rtol=0)
 
 
 def test_five_seed_default_and_no_test_role_training(synthetic_world, monkeypatch, tmp_path):
     world, config, data, _ = synthetic_world
     seen = []
-    monkeypatch.setattr(decision, "_train_seed", lambda stage, data, cfg, monitor, w, roots, seed, resume:
+    monkeypatch.setattr(decision, "_train_seed", lambda stage, data, cfg, monitor, w, roots, seed:
                         seen.append((seed, tuple(root.role for root in roots))) or f"seed-{seed}.pt")
     formal = {key: value for key, value in config.items() if key != "policy_seeds"}
     formal["synthetic"] = False

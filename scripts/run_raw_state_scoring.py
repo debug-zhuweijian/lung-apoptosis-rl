@@ -24,15 +24,12 @@ def main(argv=None):
     modes.add_argument("--score", action="store_true")
     modes.add_argument("--final-preflight", action="store_true")
     modes.add_argument("--evaluate-final", action="store_true")
-    parser.add_argument("--resume", action="store_true")
     parser.add_argument("--prediction", type=Path)
     parser.add_argument("--state-declaration", type=Path)
     parser.add_argument("--final-plan", type=Path)
     parser.add_argument("--microbatch", type=int, default=64)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args(argv)
-    if args.resume and not args.fit:
-        parser.error("--resume is only for explicit C fitting")
     if (args.fit or args.score or args.evaluate_final) and args.output is None:
         parser.error("Model operations require a new project experiment output")
     if args.fit and args.ae_run is None:
@@ -59,7 +56,7 @@ def main(argv=None):
             state.require(result["fit_inputs_ready"], "MATCHING_AE_REQUIRED_BEFORE_REAL_FIT")
             candidate = state.state_config(config)
             data = EngineData(candidate, roles=("T", "V", "C"), allow_test=False)
-            result = state.fit_state(data, candidate, ae_run, output, resume=args.resume)
+            result = state.fit_state(data, candidate, ae_run, output)
         elif output:
             state.require(not output.exists(), "NEW_PREFLIGHT_OUTPUT_REQUIRED")
             output.mkdir(parents=True)

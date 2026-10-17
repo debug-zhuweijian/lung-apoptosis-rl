@@ -1,7 +1,6 @@
 """State ablations and native decisions have observable, separate evaluation semantics."""
 from dataclasses import replace
 from pathlib import Path
-import json
 import sys
 
 import numpy as np
@@ -10,7 +9,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.engine.config import load_config
-from lung.engine.synthetic import SyntheticData, smoke_config
+from synthetic_data import SyntheticData, smoke_config
 from lung.engine.decision_evaluation import load_policy_models, native_sequence
 from lung.engine.response import exact_mmd_backward
 from lung.models import ModelConfig, ResponseModel, rbf_mmd
@@ -99,40 +98,3 @@ def test_E_population_metric_does_not_claim_iid_for_shared_mean(tmp_path, mode):
     assert np.isfinite(rows.population_mmd_v).all()
     assert report["mmd_estimator"] == "empirical_population_V_not_unbiased_population_estimate"
     assert rows.shared_control_mmd_u.isna().all() if mode == "population_mean" else rows.shared_control_mmd_u.notna().all()
-
-
-def test_suite_contains_matching_input_ablations_and_frozen_test():
-    from lung.engine.suite_plan import task_graph, RESUMABLE
-    graph = task_graph({})
-    branches = {"response_condition_only", "response_population_mean", "response_random_product"}
-    assert branches <= set(graph["response_final_test"]) and branches <= RESUMABLE
-    assert graph["tahoe_auxiliary"] == ["response_cfm_mmd", "state_weighted_ce"]
-
-
-def test_frozen_ridge_E_comparison_does_not_fit(tmp_path, monkeypatch):
-    from lung.engine.suite_reports import synthetic_ridge
-    from lung.engine.suite_evaluation import baseline_final_test
-    from lung.engine import pilot_ridge
-    cfg = smoke_config(load_config())
-    result = synthetic_ridge({"config": cfg, "job_dir": tmp_path})
-    def forbidden(*args, **kwargs):
-        raise AssertionError("E must not fit or select lambda")
-    monkeypatch.setattr(pilot_ridge, "fit_ridge", forbidden)
-    monkeypatch.setattr(pilot_ridge, "select_ridge", forbidden)
-    report = baseline_final_test(SyntheticData(cfg), cfg, result["weights"])
-    assert report["role"] == "E" and report["model_updates"] == 0
-    assert {r["method"] for r in report["rows"]} == {"no_change", "ridge_shift", "ridge_mean"}
-
-
-def test_streamed_time_error_keeps_every_observed_cell():
-    from lung.timecourse.auxiliary import population_error
-    rng = np.random.default_rng(277)
-    predicted = rng.normal(size=(129, 7)).astype(np.float32)
-    observed = rng.normal(size=(151, 7)).astype(np.float32)
-    streamed = population_error(predicted, observed, .7, device_cache_bytes=0)
-    cached = population_error(predicted, observed, .7)
-    x, y = torch.tensor(predicted).double(), torch.tensor(observed).double()
-    expected = float(rbf_mmd(x, y, .7, unbiased=False))
-    assert streamed["mmd_v"] == pytest.approx(expected, abs=1e-12)
-    assert streamed["mean_mse"] == pytest.approx(float((x.mean(0)-y.mean(0)).square().mean()), abs=1e-12)
-    assert streamed == cached

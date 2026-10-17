@@ -1,7 +1,6 @@
 """Fixed-sequence numerical re-evaluation; no policy callback exists in this interface."""
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import math
@@ -85,32 +84,3 @@ def audit_winners(adapter: SimulationAdapter, root: RootContext, evaluation: Fix
     audit = reevaluate_fixed_sequences(adapter, root, tuple(winners.values()), seed=seed,
                                        repeats=repeats, namespace="report-audit")
     return {"winners": winners, "audit": audit, "reselected_after_audit": False}
-
-
-@torch.no_grad()
-def critic_mc_diagnostic(actor, adapter: SimulationAdapter, root: RootContext,
-                         first_action: str, phi_current: float, seed: int = 0,
-                         repeats: int = 64) -> dict:
-    """Root-state frozen-policy diagnostic, never used as an extra policy objective."""
-    if repeats < 1:
-        raise ValueError("Diagnostic repetitions must be positive")
-    snapshot = deepcopy(actor).requires_grad_(False).eval()
-    mask = adapter.protocol.legal_mask(adapter.registry, ())
-    if first_action not in adapter.registry.by_id or not mask[adapter.registry.by_id[first_action]]:
-        raise ValueError("Diagnostic first action is not legal")
-    returns = []
-    for repeat in range(repeats):
-        prefix = (first_action,)
-        planning_seed = stream_seed(seed, "diagnostic-planning", repeat)
-        generator = torch.Generator().manual_seed(stream_seed(seed, "diagnostic-actions", repeat))
-        while not adapter.protocol.position(adapter.registry, prefix)[2]:
-            state = adapter.observe(root, prefix, planning_seed)
-            legal = adapter.protocol.legal_mask(adapter.registry, prefix)
-            p = snapshot([state], legal[None])[0].cpu()
-            ai = int(torch.multinomial(p, 1, generator=generator))
-            prefix = (*prefix, adapter.registry.candidates[ai].action_id)
-        scores = adapter.score(root, prefix, (stream_seed(seed, "diagnostic-score", repeat),))
-        returns.append(float(scores[0]))
-    base = sum(returns) / repeats
-    return {"base_target": base, "shaped_target": base - phi_current,
-            "repeats": repeats, "scope": "frozen_policy_frozen_model_diagnostic"}

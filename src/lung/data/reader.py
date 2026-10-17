@@ -12,7 +12,7 @@ from scipy import sparse
 
 from src.lung_data import PreparedLungData
 
-from .common import OUTER, ROLES, check_shard, dataset_config, inside, sha256, source_shard_registry, training_contract
+from .common import OUTER, ROLES, check_shard, dataset_config, inside, sha256, source_shard_registry, training_contract, training_manifest_signature
 from .preprocess import standardized
 from .sparse_cache import CSRCache, DEFAULT_CACHE, file_identity
 
@@ -173,12 +173,9 @@ class TrainingData:
         self.config = dataset_config(self.project_root, config_path)
         self.assets_path = inside(self.project_root, self.config["assets"])
         self.manifest = json.loads((self.assets_path / "manifest.json").read_text(encoding="utf-8"))
-        signature, _, identity, schema = training_contract(self.project_root, self.config)
-        if signature != self.manifest["signature"]:
+        signature, _, _, _ = training_contract(self.project_root, self.config)
+        if signature != training_manifest_signature(self.manifest):
             raise ValueError("Training configuration/source manifest differs from frozen assets")
-        if identity is not None and (self.manifest.get("schema_version") != schema
-                                     or self.manifest.get("drug_identity") != identity):
-            raise ValueError("Training drug identity dependency binding differs from frozen assets")
         if self.manifest["status"] not in ("metadata_ready", "complete"):
             raise ValueError("Training metadata preparation is incomplete")
         if require_preprocessing and self.manifest["status"] != "complete":

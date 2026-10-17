@@ -1,85 +1,10 @@
-# 模块化预训练实施回执与 PyCharm 启动说明
+# 模块化预训练实施回执
 
-日期：2026-10-07（Asia/Shanghai）。执行主目录：`I:/科研/肺癌细胞凋亡-强化学习/`。
+当前启动方式见 [训练运行说明](训练运行说明.md)。2026-10-15 按用户要求删除所有训练断点恢复、暂停预算、自动复用已训练阶段和 TensorBoard；只保留从头训练、完整数据缓存复用和模型权重导出。同一次新运行的上游模型仍供后续阶段加载。默认阶段已精简为 AE/cache/P/pool/C/DA-AC，Phi 与完整数值审计不再强制前置；U 五折误差估计旁支与多层权重副本已删除。
 
-W1–W5 的实现、W6 的测试与启动文档已交付。合成数据完整链和有界真实全基因组件已运行；**完整真实数值审计、受审计 World 的真实小批 Actor/Critic 更新尚未运行，计划六项工程开训标准未全部通过**。本回执不将组件单步更新解释为收敛、药效或训练提速结论。
+下文是 **2026-10-07 的历史验证记录**，保留当时的命令、数字和限制；涉及已删除接口的命令不再适用，不是当前执行要求。
 
-依据：[已确认实施计划](G:/研究生科研文件/paperstudy/02-notes/Modular_Pretraining_RL_Implementation_Plan_2026-10-07.md)。旧一次性训练路线已被淘汰；默认图不重跑旧链，不包含优越性或提速比例准入条件。正式长时间训练由用户在 PyCharm 启动。
-
-## 实际实现
-
-| 工作包 | 改动与接口 |
-|---|---|
-| W1 | `engine/representation.py` 独立加载已更新 AE；pool/state 优先读取 `pipeline.representation`，消费 h，依赖及缓存绑定 AE 文件哈希。纯速度网络变化不使这些模块失效。 |
-| W2 | `engine/response_loader.py` 统一传统与潜空间响应加载；adapter 补齐 `encode_cells` 和 `condition_encoder`；World 核对所有潜空间成员的 AE 身份，再共享同一冻结表征。 |
-| W3 | `rl/actor_schedule.py` 与 `rl/daac.py` 接入同 Actor、同 Adam 的 drug/dose/joint 参数选择；双 Critic 持续学习，冻结头保留输入梯度，没有合法选择的头跳过，配额归 joint。 |
-| W4 | `engine/decision.py` 区分 Actor-only `init_from` 和严格 `resume`；保存完整阶段、计数、优化器、replay、随机流和计时。 |
-| W5 | 根 `train_modular_research.py`、`engine/modular_config.py`、`engine/modular_research.py`、独立 YAML；每模块独立 run ID、缓存与检查点，完成组件校验后复用。 |
-| W6 | 新增模块化整链、身份拒绝、梯度、阶段恢复、辅助准备、缓存、数值审计恢复及真实视图测试；新增真实有界验证脚本和本回执。 |
-
-缓存分块持久化，`manifest.json` 只在全部完成后发布。pool 特征按条件保存抽样 RNG；state 的角色缓存和温度优化器可以恢复；potential 的参考目标按 prefix 保存。数值审计保留原协议，ODE 样本和人口重复完成后保存，手动中断后可恢复。
-
-未完成 `last.pt` 不能作为完成组件登记。`modular_completion.py` 将最终训练完成证明绑定到选中的权重，生成独立不可变产物；即使选中的 best 早于最终 epoch，后续也不需要依赖可变的 `last.pt`。state 额外核对校准身份、有限正温度及模型 buffer 一致性。
-
-## 默认入口与阶段
-
-PyCharm 设置：
-
-1. 解释器：`F:/anaconda/envs/study/python.exe`。
-2. Script path：`I:/科研/肺癌细胞凋亡-强化学习/train_modular_research.py`。
-3. Parameters 留空；默认读取 `configs/modular_research.yaml`。
-4. Working directory 可设为项目根；入口本身按文件位置定位配置。
-
-默认阶段为：
-
-```text
-ae → cache → response → pool → state → ode_audit
-   → assemble（人口数值审计、所需校准及冻结证书）
-   → potential → daac（drug 20 → dose 20 → joint 160）
-```
-
-默认只训练一个响应成员和一个策略 seed。全基因轴保留 32,461；h/z 初值均为 256，测试另外覆盖异维 h=8/z=4。CFM 使用 128 样本、16 条件一次更新；初始关闭 B4。单次 24 h 条件选择、完整合法候选、现有状态代理奖励及固定生物环境保持原协议。
-
-pool/state 可在 AE 完成后单独启动，不必等待 CFM。`backward/correction/uncertainty` 保留独立阶段能力及依赖检查，不进入首轮最低必要图。五成员接口做了微型兼容验证，没有启动五成员正式训练。默认不运行消融、DLPA 对照或旧套件。
-
-仅读依赖与恢复状态预览：
-
-```powershell
-F:/anaconda/envs/study/python.exe train_modular_research.py --dry-run
-```
-
-单独执行阶段（前置组件必须存在于本次 pipeline 或明确提供的兼容产物中）：
-
-```powershell
-F:/anaconda/envs/study/python.exe train_modular_research.py --stage ae
-F:/anaconda/envs/study/python.exe train_modular_research.py --stage pool
-```
-
-`modular.artifacts` 可显式指定已有组件，或用顶层 `pipeline` 指向已有 `pipeline.json`。这些路径都会核验数据、表征、候选、依赖、训练完成及校准状态；路径存在不代表可以复用。真实有界验证产物绑定不同视图身份，不能作为正式全量训练产物导入。
-
-## 保存与恢复
-
-根实验保存 `modular_state.json`、`pipeline.json` 和 `modular_report.json`。每个阶段另有 `<root-run-id>-<stage>` 实验目录和权重目录。中断时保留当前模块的检查点和恢复位置；已完成上游产物继续保留。
-
-默认自动恢复科学配置和源码身份相同的最近模块化实验。也可显式指定根 run ID：
-
-```powershell
-F:/anaconda/envs/study/python.exe train_modular_research.py --resume <root-run-id>
-```
-
-2026-10-07 按用户要求移除正式模块化训练的时间预算控制。AE、响应模型、辅助模块、缓存、审计、势函数及分阶段 DA-AC 均不因墙钟时间自动暂停；训练沿用早停、最大 epoch 和 Actor 更新日程。计时仅用于记录耗时。旧 `response_budget.json`、`module_budget.json` 和检查点中的旧预算字段不再限制续训，无需清零或删除权重。
-
-单独恢复 AE：
-
-```powershell
-F:/anaconda/envs/study/python.exe train_modular_research.py --resume <root-run-id> --stage ae
-```
-
-`--budget-seconds` 已从此入口移除。PyCharm 无参数启动自动恢复兼容的原实验。IDE 强制终止可能丢失尚未持久化的当前更新；已经保存的模型、优化器、随机流和组游标继续使用。数据、模型坐标、候选、奖励或已登记日程变化必须新建实验；新实验可明确复用兼容上游产物。
-
-`daac.init_from` 只在新策略实验导入同一冻结环境下的兼容 Actor，重建 Critic/targets、优化器、replay、随机流和计数。严格恢复继续旧实验全部状态。两者互斥；阶段切换不会调用 `init_from`。增加已完成 Actor 日程的更新配额属于新日程版本，不静默改变旧实验身份。
-
-## 实际验证
+## 当时的验证
 
 联合 CPU 回归（执行时关闭 CUDA）：16 个相关测试文件 **222 passed，49.56 秒**，覆盖新增模块化路径及传统 World、RL、decision、state 和 response 接口。完成证明专项 `tests/test_modular_completion.py` 另外 **15 passed，5.55 秒**；最终预算标记刷新后，五项整链测试复跑 **5 passed，12.64 秒**。CPU 共覆盖 237 项不同测试，复跑不重复计数。
 

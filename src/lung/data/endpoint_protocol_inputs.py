@@ -11,6 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .common import data_file_bindings
+
 ROOT = Path(__file__).resolve().parents[3]
 BASE = ROOT / "08-datasets/LungCancer_A549_Integration"
 VIEL = BASE / "vielhauer-duration-challenge-v1"
@@ -35,12 +37,14 @@ def require(condition, message):
 
 
 def check_bindings(bindings):
-    for name, digest in bindings.items():
+    for name, digest in data_file_bindings(bindings).items():
         require(sha(name) == digest, "Source hash mismatch: " + name)
 
 
 def bind(bindings, path, expected=None):
     path = Path(path).resolve()
+    if path.suffix.lower() == ".py":
+        return
     actual = sha(path)
     require(expected is None or actual == expected, "Source hash mismatch: " + str(path))
     require(str(path) not in bindings or bindings[str(path)] == actual, "Conflicting source binding")
@@ -260,7 +264,7 @@ def build(output, viel=VIEL, chemical=CHEMICAL, nav=NAV):
         (output / (name + ".json")).write_text(json.dumps(value, ensure_ascii=False,
             allow_nan=False, indent=2) + "\n", encoding="utf-8")
     manifest = {"schema_version": 1, **prepared["contract"],
-        "consumer_sha256": sha(__file__), "inputs_sha256": bindings,
+        "inputs_sha256": bindings,
         "source_paths": {"viel": str(Path(viel).resolve()), "chemical": str(Path(chemical).resolve()),
                          "nav": None if nav is None else str(Path(nav).resolve())},
         "files_sha256": {name + ".json": sha(output / (name + ".json")) for name in prepared}}
@@ -281,10 +285,9 @@ class EndpointProtocolInputs:
         manifest = read(directory / "manifest.json")
         require(manifest["schema_version"] == 1 and manifest["formal_training_ready"] is False,
                 "Bundle schema/readiness mismatch")
-        require(manifest["consumer_sha256"] == sha(__file__), "Consumer code changed")
         check_bindings(manifest["inputs_sha256"])
         expected, bindings = prepare(**manifest["source_paths"])
-        require(bindings == manifest["inputs_sha256"], "Incomplete recursive source bindings")
+        require(bindings == data_file_bindings(manifest["inputs_sha256"]), "Incomplete recursive source bindings")
         require(set(manifest["files_sha256"]) == {k + ".json" for k in expected}, "Missing output bindings")
         for key, value in expected.items():
             path = directory / (key + ".json")

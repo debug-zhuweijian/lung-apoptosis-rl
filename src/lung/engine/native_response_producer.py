@@ -63,8 +63,8 @@ def protocol_status(request):
     return 'native_single_exposure_endpoint_only'
 
 
-def validate_metadata(metadata, bindings, *, execution=False):
-    """Static metadata is necessary, never an execution qualification by itself."""
+def validate_metadata(metadata, bindings):
+    """Check declared expression coordinates and matching AE/response weights."""
     require(isinstance(metadata, dict), 'MODEL_METADATA_REQUIRED')
     require(metadata.get('bindings') == bindings, 'MODEL_BINDINGS_MISMATCH')
     for name, stages in (('representation', {'latent_ae'}), ('response', {'latent_cfm', 'latent_members'})):
@@ -77,12 +77,10 @@ def validate_metadata(metadata, bindings, *, execution=False):
         require(stage.get('context_vocabulary') == bindings['context_vocabulary'], 'MODEL_CONTEXT_VOCABULARY_MISMATCH')
         require(stage.get('base_transform') == BASE and stage.get('units') == UNIT, 'MODEL_BASE_UNITS_MISMATCH')
         require(stage.get('synthetic') is False, 'REAL_TRAINING_REQUIRED')
+        require(isinstance(stage.get('checkpoint'), str) and bool(stage['checkpoint']), 'CHECKPOINT_PATH_REQUIRED')
         require(isinstance(stage.get('checkpoint_sha256'), str) and len(stage['checkpoint_sha256']) == 64, 'CHECKPOINT_HASH_REQUIRED')
     require(metadata.get('response', {}).get('representation_checkpoint_sha256') ==
             metadata['representation']['checkpoint_sha256'], 'AE_RESPONSE_BINDING_MISMATCH')
-    if execution:
-        require(metadata.get('qualification') == 'safe_tensor_execution_audited', 'STATIC_INSPECTION_NOT_EXECUTION_QUALIFICATION')
-    return True
 
 
 def preflight(requests, bindings, metadata=None):
@@ -92,14 +90,14 @@ def preflight(requests, bindings, metadata=None):
         statuses[status] = statuses.get(status, 0) + 1
     reasons = []
     if metadata is None:
-        reasons.append('matching_AE_response_metadata_not_registered')
+        reasons.append('matching_AE_response_metadata_missing')
     else:
         try:
-            validate_metadata(metadata, bindings, execution=True)
+            validate_metadata(metadata, bindings)
         except ValueError as error:
             reasons.append(str(error))
     return {'schema': VERSION, 'status_counts': statuses, 'bindings': bindings,
-            'execution_qualified': False, 'matching_metadata_valid': not reasons,
+            'matching_metadata_valid': not reasons,
             'pending': reasons, 'weights_read': False, 'model_created': False,
             'forward_called': False, 'actual_model_inference': False,
             'actual_descriptors': 0, 'pool_C_required_for_expression_production': False}
@@ -139,8 +137,7 @@ class NativeMetadata:
                     'normalization_sha256': sha(asset / 'normalization.npz'),
                     'neighbors_sha256': sha(asset / 'neighbors.npz'), 'base_transform': BASE, 'units': UNIT,
                     'context_vocabulary': vocab, 'native_units_manifest_sha256': sha(units.asset / 'manifest.json'),
-                    'source_bindings': read(units.asset / 'manifest.json')['source_bindings'],
-                    'producer_sha256': sha(__file__)}
+                    'source_bindings': read(units.asset / 'manifest.json')['source_bindings']}
         for a in (mean, scale, fp):
             a.setflags(write=False)
         return cls(bindings, genes, mean, scale, conditions, fp)
@@ -162,48 +159,14 @@ class NativeMetadata:
                 **{name: vocab[name].index(request[name]) for name in vocab}, 'is_vehicle': False}
 
 
-class AuditMockBackend:
-    """Typed test-only backend. Its outputs never carry native execution authority."""
-    def __init__(self, adapter, metadata):
-        self.adapter, self.metadata = adapter, metadata
-        self.device = 'cpu'
-
-    @property
-    def execution_kind(self):
-        return 'audit_mock'
-
-
-@dataclass(frozen=True, init=False)
-class _QualifiedAdapter:
-    """Internal result, constructed only after safe checkpoint validation."""
-    adapter: object
-    metadata_json: str
-    binding_digest: str
-    device: str
-
-    def __init__(self, *args, **kwargs):
-        raise TypeError('NATIVE_P_INTERNAL_FACTORY_ONLY')
-
-    @property
-    def metadata(self):
-        return json.loads(self.metadata_json)
-
-    @property
-    def execution_kind(self):
-        return 'native'
-
-
-def _qualified_adapter(root, metadata, coordinates, *, device='cpu'):
-    """Explicit future entry. Safe weights-only load precedes model construction.
-
-    Static-inspection receipts are rejected before opening PT. Never invokes the
-    project's legacy unsafe checkpoint loader. Only AE + response are required.
-    """
-    validate_metadata(metadata, coordinates.bindings, execution=True)
+def load_adapter(root, metadata, coordinates, *, device='cpu'):
+    """Load AE and response parameters directly in the declared coordinates."""
+    validate_metadata(metadata, coordinates.bindings)
     import torch
     from lung.models import ModelConfig
     from lung.models.latent_staged import SharedAutoencoder, LatentMember
     from .latent_pipeline import LatentMemberAdapter
+    from .full_protocol_response import equal_weight, finite_weights
     snapshots = {}
     for name in ('representation', 'response'):
         item = metadata[name]
@@ -215,9 +178,9 @@ def _qualified_adapter(root, metadata, coordinates, *, device='cpu'):
         require(actual.get('stage') == item['stage'] and actual.get('data_identity') == item['data_identity'], 'ACTUAL_STAGE_DATA_MISMATCH')
         require(saved.get('counters', {}).get('optimizer_step') == item['optimizer_step'], 'ACTUAL_COUNTER_MISMATCH')
         require(actual.get('native_bindings') == coordinates.bindings, 'ACTUAL_NATIVE_BINDINGS_REQUIRED')
-        for state_name in ('model', 'shared'):
-            for value in saved.get(state_name, {}).values():
-                require(isinstance(value, torch.Tensor) and torch.isfinite(value).all().item(), 'FINITE_TENSOR_WEIGHTS_REQUIRED')
+        finite_weights(saved.get('model'))
+        if name == 'response':
+            finite_weights(saved.get('shared'))
         snapshots[name] = saved
     saved = snapshots['response']
     require(saved['metadata'].get('representation_hash') == metadata['representation']['checkpoint_sha256'], 'ACTUAL_AE_RESPONSE_BINDING_MISMATCH')
@@ -231,18 +194,13 @@ def _qualified_adapter(root, metadata, coordinates, *, device='cpu'):
         neighbors = torch.as_tensor(data['neighbors'].copy(), dtype=torch.long)
     shared = SharedAutoencoder(shape, neighbors)
     shared.load_state_dict(snapshots['representation']['model'], strict=True)
-    require(set(saved['shared']) == set(shared.state_dict()) and all(torch.equal(saved['shared'][k], v)
+    require(set(saved['shared']) == set(shared.state_dict()) and all(equal_weight(saved['shared'][k], v)
             for k, v in shared.state_dict().items()), 'EMBEDDED_AE_WEIGHTS_MISMATCH')
     member = LatentMember(shape, shared)
     member.load_state_dict(saved['model'], strict=True)
     shared.to(device).eval().requires_grad_(False)
     member.to(device).eval().requires_grad_(False)
-    backend = object.__new__(_QualifiedAdapter)
-    object.__setattr__(backend, 'adapter', LatentMemberAdapter(shared, member, shape))
-    object.__setattr__(backend, 'metadata_json', json.dumps(metadata, sort_keys=True, allow_nan=False))
-    object.__setattr__(backend, 'binding_digest', digest(coordinates.bindings))
-    object.__setattr__(backend, 'device', device)
-    return backend
+    return LatentMemberAdapter(shared, member, shape)
 
 
 @dataclass(frozen=True)
@@ -260,8 +218,7 @@ def produce(units, coordinates, request, metadata, output, *, role, seed, steps=
             microbatch=64, ablation='full_reference', device='cpu'):
     """Public native production: caller supplies metadata, never an adapter.
 
-    Reopen source-bound coordinates before qualifying real AE/response weights.
-    Public constructors or self-reported qualification cannot inject an adapter.
+    Reopen source-bound coordinates before loading matching AE/response weights.
     """
     from lung.data.native_response_units import NativeResponseUnits
     require(type(units) is NativeResponseUnits and type(coordinates) is NativeMetadata,
@@ -276,30 +233,19 @@ def produce(units, coordinates, request, metadata, output, *, role, seed, steps=
     require(actual.bindings == coordinates.bindings, 'SOURCE_COORDINATES_CHANGED')
     require(reopened.request(request['request_id'], role=role) == request, 'FROZEN_REQUEST_MISMATCH')
     require(protocol_status(request) == 'native_single_exposure_endpoint_only', 'NATIVE_PROTOCOL_OR_DECODER_PENDING')
-    # Clone ordinary metadata to prevent caller mutation during qualification.
+    # Keep the declared weight and coordinate identities fixed during generation.
     frozen_metadata = json.loads(json.dumps(metadata, allow_nan=False))
-    backend = _qualified_adapter(units.root, frozen_metadata, actual, device=device)
-    return _produce(reopened, actual, request, backend, output, role=role, seed=seed,
-                    steps=steps, microbatch=microbatch, ablation=ablation)
+    adapter = load_adapter(units.root, frozen_metadata, actual, device=device)
+    return _produce(reopened, actual, request, adapter, frozen_metadata, output, role=role, seed=seed,
+                    steps=steps, microbatch=microbatch, ablation=ablation, device=device)
 
 
-def produce_audit_mock(units, coordinates, request, backend, output, *, role, seed,
-                       steps=32, microbatch=64, ablation='full_reference'):
-    """Separate test entry; its results always fail the default native loader."""
-    require(type(backend) is AuditMockBackend, 'AUDIT_MOCK_BACKEND_REQUIRED')
-    return _produce(units, coordinates, request, backend, output, role=role, seed=seed,
-                    steps=steps, microbatch=microbatch, ablation=ablation)
-
-
-def _produce(units, coordinates, request, backend, output, *, role, seed, steps=32,
-            microbatch=64, ablation='full_reference'):
+def _produce(units, coordinates, request, adapter, metadata, output, *, role, seed, steps=32,
+            microbatch=64, ablation='full_reference', device='cpu'):
     """Full same-role reference mixture; mean ablation uses identical rows/noise."""
-    require(type(backend) in (AuditMockBackend, _QualifiedAdapter), 'TYPED_BACKEND_REQUIRED')
-    native = type(backend) is _QualifiedAdapter
-    validate_metadata(backend.metadata, coordinates.bindings, execution=native)
+    validate_metadata(metadata, coordinates.bindings)
     binding_digest = digest(coordinates.bindings)
-    metadata_digest = digest(backend.metadata)
-    require(not native or backend.binding_digest == binding_digest, 'FACTORY_BINDINGS_CHANGED')
+    metadata_digest = digest(metadata)
     require(role == request['role'], 'REQUEST_ROLE_MISMATCH')
     require(units.request(request['request_id'], role=role) == request, 'FROZEN_REQUEST_MISMATCH')
     require(protocol_status(request) == 'native_single_exposure_endpoint_only', 'NATIVE_PROTOCOL_OR_DECODER_PENDING')
@@ -328,80 +274,77 @@ def _produce(units, coordinates, request, backend, output, *, role, seed, steps=
     if ablation == 'same_reference_mean':
         x = np.broadcast_to(weights @ x.astype(np.float64), x.shape).astype(np.float32).copy()
     import torch
-    from .response import condition_kwargs, projected
+    from .response import condition_kwargs, tensor
+    from lung.models.objectives import physical_projection
     batch = {**action}
-    generator = torch.Generator(device=backend.device).manual_seed(seed)
+    generator = torch.Generator(device=device).manual_seed(seed)
     # Draw once so both ablations and different microbatch sizes share row noise.
-    xt = torch.as_tensor(x, device=backend.device)
-    noise = backend.adapter.sample_noise(xt, generator=generator)
+    xt = torch.as_tensor(x, device=device)
+    noise = adapter.sample_noise(xt, generator=generator)
+    mean, scale = tensor(coordinates.mean, device), tensor(coordinates.scale, device)
     outputs = []
     with torch.no_grad():
         for start in range(0, len(x), microbatch):
             end = min(start + microbatch, len(x))
-            condition = backend.adapter.encode_condition(**condition_kwargs(batch, end-start,
-                backend.device, elapsed=0., horizon=action['duration']))
-            raw = backend.adapter.sample(xt[start:end], condition, noise=noise[start:end], steps=steps)
-            projection_data = type('Coordinates', (), {'mu': coordinates.mean, 'scale': coordinates.scale})()
-            outputs.append(projected(raw, projection_data).cpu().numpy())
+            condition = adapter.encode_condition(**condition_kwargs(batch, end-start,
+                device, elapsed=0., horizon=action['duration']))
+            raw = adapter.sample(xt[start:end], condition, noise=noise[start:end], steps=steps)
+            projected = physical_projection(raw, mean, scale)
+            if not projected.valid.all():
+                raise FloatingPointError('INVALID_GENERATED_MASS: no fallback, dropping or fake zero')
+            outputs.append(projected.x.cpu().numpy())
     generated = np.concatenate(outputs).astype(np.float64)
     require(generated.shape == x.shape and np.isfinite(generated).all(), 'GENERATED_AXIS_INVALID')
     mean = weights @ generated
     variance = weights @ ((generated - mean) ** 2)
     names = tuple('expression_mean:' + g for g in coordinates.gene_ids) + tuple('expression_variance:' + g for g in coordinates.gene_ids)
     vector = np.concatenate((mean, variance))
-    require(digest(coordinates.bindings) == binding_digest and digest(backend.metadata) == metadata_digest,
+    require(digest(coordinates.bindings) == binding_digest and digest(metadata) == metadata_digest,
             'GENERATION_BINDINGS_CHANGED')
-    if native:
-        # File identities are checked again before any cache is written.
-        from lung.data.native_response_units import NativeResponseUnits
-        current_units = NativeResponseUnits(units.root, units.asset,
-            allowed_roles=(role,), allow_test=role == 'final_test')
-        current = NativeMetadata.from_joint(units.root, current_units)
-        require(digest(current.bindings) == backend.binding_digest, 'SOURCE_CHANGED_DURING_GENERATION')
-        for item in backend.metadata.values():
-            if isinstance(item, dict) and 'checkpoint' in item:
-                require(sha(Path(units.root) / item['checkpoint']) == item['checkpoint_sha256'],
-                        'MODEL_CHANGED_DURING_GENERATION')
+    # File identities are checked again before any cache is written.
+    from lung.data.native_response_units import NativeResponseUnits
+    current_units = NativeResponseUnits(units.root, units.asset,
+        allowed_roles=(role,), allow_test=role == 'final_test')
+    current = NativeMetadata.from_joint(units.root, current_units)
+    require(digest(current.bindings) == binding_digest, 'SOURCE_CHANGED_DURING_GENERATION')
+    for item in metadata.values():
+        if isinstance(item, dict) and 'checkpoint' in item:
+            require(sha(Path(units.root) / item['checkpoint']) == item['checkpoint_sha256'],
+                    'MODEL_CHANGED_DURING_GENERATION')
     provenance = {'reference_ids': ids, 'reference_rows': rows, 'reference_weights': weights.tolist(),
                   'reference_semantics': request['reference_semantics'], 'same_cell_fate_supervision': False}
     body = {'schema': SCHEMA, 'producer_version': VERSION, 'request': request, 'bindings': coordinates.bindings,
-            'model_metadata': backend.metadata, 'model_metadata_sha256': digest(backend.metadata),
+            'model_metadata': metadata, 'model_metadata_sha256': digest(metadata),
             'role': role, 'seed': seed, 'steps': steps, 'ODE': 'native_adapter_Heun', 'ablation': ablation,
             'reference': provenance, 'feature_names': names, 'vector': vector.tolist(),
             'summary_definition': 'same_reference_weighted_projected_expression_mean_variance',
-            'execution_kind': backend.execution_kind, 'target_expression_used': False,
+            'execution_kind': 'native', 'target_expression_used': False,
             'functional_Y_used': False, 'scientific_effect_verified': False}
     body['cache_identity'] = digest(body)
     path = Path(output) / (body['cache_identity'] + '.json')
     write_new(path, body)
-    write_new(path.with_suffix('.receipt.json'), {'schema': SCHEMA, 'cache_sha256': sha(path),
-        'cache_identity': body['cache_identity'], 'producer_sha256': sha(__file__),
-        'execution_kind': backend.execution_kind})
-    return load_native_descriptor(path, coordinates.bindings, allow_audit_mock=type(backend) is AuditMockBackend)
+    return load_native_descriptor(path, coordinates.bindings)
 
 
-def load_native_descriptor(path, expected_bindings, *, allow_audit_mock=False):
+def load_native_descriptor(path, expected_bindings):
     """Strict cache loading, never caller-vector certification or standard fallback.
 
-    expected_bindings must be reconstructed from the native source/model plan by
-    the consumer. Hash receipts prove file consistency, not cryptographic origin.
+    expected_bindings come from the consumer's current data/model plan.
+    Content identity checks consistency; it does not establish scientific validity.
     """
-    body, receipt = read(path), read(Path(path).with_suffix('.receipt.json'))
+    body = read(path)
     fields = {'schema', 'producer_version', 'request', 'bindings', 'model_metadata',
         'model_metadata_sha256', 'role', 'seed', 'steps', 'ODE', 'ablation', 'reference',
         'feature_names', 'vector', 'summary_definition', 'execution_kind',
         'target_expression_used', 'functional_Y_used', 'scientific_effect_verified', 'cache_identity'}
-    require(set(body) == fields and set(receipt) == {'schema', 'cache_sha256', 'cache_identity',
-        'producer_sha256', 'execution_kind'}, 'FIXED_CACHE_FIELDS_MISMATCH')
-    require(body.get('schema') == receipt.get('schema') == SCHEMA, 'DESCRIPTOR_SCHEMA_MISMATCH')
+    require(set(body) == fields, 'FIXED_CACHE_FIELDS_MISMATCH')
+    require(body.get('schema') == SCHEMA, 'DESCRIPTOR_SCHEMA_MISMATCH')
     require(expected_bindings and body.get('bindings') == expected_bindings, 'DESCRIPTOR_BINDINGS_MISMATCH')
-    require(body['bindings']['producer_sha256'] == sha(__file__) == receipt.get('producer_sha256'), 'PRODUCER_CODE_CHANGED')
-    require(receipt.get('cache_sha256') == sha(path), 'CACHE_BYTES_CHANGED')
     identity = digest({k: v for k, v in body.items() if k != 'cache_identity'})
-    require(identity == body.get('cache_identity') == receipt.get('cache_identity'), 'CACHE_IDENTITY_CHANGED')
+    require(identity == body.get('cache_identity'), 'CACHE_IDENTITY_CHANGED')
     kind = body.get('execution_kind')
-    require(kind == receipt.get('execution_kind') and (kind == 'native' or (allow_audit_mock and kind == 'audit_mock')), 'NATIVE_EXECUTION_REQUIRED')
-    validate_metadata(body['model_metadata'], expected_bindings, execution=kind == 'native')
+    require(kind == 'native', 'NATIVE_EXECUTION_REQUIRED')
+    validate_metadata(body['model_metadata'], expected_bindings)
     require(body['model_metadata_sha256'] == digest(body['model_metadata']), 'MODEL_METADATA_CHANGED')
     require(body['target_expression_used'] is False and body['functional_Y_used'] is False
             and body['role'] == body['request']['role'], 'TARGET_OR_ROLE_CONTAMINATION')

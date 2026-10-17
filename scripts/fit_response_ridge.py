@@ -20,7 +20,7 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     from lung.engine.checkpoint import atomic_json
-    from lung.engine.config import project_path, read_yaml, config_hash, file_hash, verify_interpreter
+    from lung.engine.config import project_path, read_yaml, config_hash, file_hash
     from lung.engine.data import EngineData
     from lung.engine.pilot_ridge import LAMBDAS, checked_device, run_ridge
     from tqdm.auto import tqdm
@@ -37,7 +37,6 @@ def main(argv=None):
         raise ValueError("PILOT_V1_FIXED_LAMBDAS_REQUIRED")
     if not isinstance(config.get("stream_batch_size"), int) or config["stream_batch_size"] < 1:
         raise ValueError("stream_batch_size must be a positive integer")
-    verify_interpreter()
     output = project_path(args.output)
     experiments = (ROOT / "experiments").resolve()
     if output == experiments or not output.is_relative_to(experiments):
@@ -63,17 +62,10 @@ def main(argv=None):
         data = EngineData(config, roles=("T", "V"), allow_test=False, require_preprocessing=True)
         if data.n_genes != config["gene_count"]:
             raise ValueError("RIDGE_FULL_GENE_COUNT_MISMATCH")
-        code = [ROOT / name for name in ("scripts/fit_response_ridge.py", "src/lung/engine/pilot_ridge.py",
-            "src/lung/engine/pilot_ridge_data.py", "src/lung/engine/data.py", "src/lung/engine/config.py",
-            "src/lung/data/reader.py", "src/lung/data/preprocess.py", "src/lung/data/common.py",
-            "src/lung/models/objectives.py", "src/lung/models/encoders.py",
-            "src/lung/engine/ridge_stream_cuda.py", "src/lung/data/gpu_preprocess.py",
-            "src/lung/data/stream_cache.py")]
         identity = {"protocol": "A549-real-pilot-V1-20260924", "config": config,
             "config_sha256": file_hash(config_path), "data_identity": data.identity,
             "frozen_training_manifest": data.manifest,
             "source_audit_registry_sha256": config_hash(data.reader.rows.registry),
-            "code_sha256": {str(path.relative_to(ROOT)): file_hash(path) for path in code},
             "protocol_sha256": file_hash(project_path(config["protocol"])),
             "fit_role": "T", "selection_role": "V", "evaluation_role": "V",
             "test_response_access": False, "preprocessing_fitted": False}

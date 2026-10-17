@@ -1,8 +1,0 @@
-# Fixed endpoint snapshots; no single-cell temporal pairing.
-source: 08-datasets/sciPlex3/GSM4150378/extracted/v1
-assets: 08-datasets/sciPlex3/GSM4150378/timecourse-v1
-epochs: 1000
-neighbors: 32
-response:
-  members: 5
-  mmd_weight: 1.0

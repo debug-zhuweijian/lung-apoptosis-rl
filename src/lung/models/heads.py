@@ -87,16 +87,6 @@ class EndpointHead(nn.Module):
         return self.network(features).squeeze(-1).sigmoid()
 
 
-class PotentialHead(EndpointHead):
-    def forward(self, features, terminal=None):
-        values = super().forward(features)
-        if terminal is not None:
-            if terminal.shape != values.shape:
-                raise ValueError("Terminal mask must match the population batch.")
-            values = torch.where(terminal.bool(), torch.zeros_like(values), values)
-        return values
-
-
 class MonotoneEndpointCalibrator(nn.Module):
     def __init__(self):
         super().__init__()
@@ -163,21 +153,3 @@ class CorrectionModel(nn.Module):
         if raw.ndim == shift.ndim + 1:
             shift = shift.unsqueeze(-2)
         return raw + shift
-
-
-class ErrorEstimator(nn.Module):
-    def __init__(self, width=256):
-        super().__init__()
-        self.network = mlp([2 * width + 3, max(1, width // 2), 1])
-
-    def forward(self, population, condition, backward_error, ensemble_variance, gate):
-        features = diagnostic_features(population, condition, backward_error, ensemble_variance)
-        gate = torch.as_tensor(gate, device=features.device, dtype=features.dtype)
-        if not ((gate == 0) | (gate == 1)).all():
-            raise ValueError("Error-estimator gate must describe a binary correction branch.")
-        gate = torch.broadcast_to(gate, features.shape[:-1])
-        return F.softplus(self.network(torch.cat((features, gate[..., None]), dim=-1)).squeeze(-1))
-
-    @staticmethod
-    def interval(error, group_quantile):
-        return (error - group_quantile).clamp_min(0), error + group_quantile

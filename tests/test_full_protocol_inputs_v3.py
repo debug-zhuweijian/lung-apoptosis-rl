@@ -21,7 +21,6 @@ def test_actual_source_tensor_and_old_v2_unchanged(inputs):
     batch.validate()
     old = module.base.FullProtocolInputs.load()
     assert old.tensor_batch(old.candidate_ids).fingerprint_known.sum() == 20
-    assert module.base.sha(module.base.__file__) == module.BASE_CODE_HASH
 
 
 def test_four_actual_dex_events_match_source_array(inputs):

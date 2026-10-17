@@ -2,7 +2,6 @@
 
 import copy
 import importlib.util
-import io
 import json
 from pathlib import Path
 import sys
@@ -10,7 +9,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-import yaml
 
 import numpy as np
 import torch
@@ -112,72 +110,26 @@ class IntegrationReviewTests(unittest.TestCase):
                 with self.assertRaisesRegex(StageUnavailable, "AUX_DEPENDENCY_MISMATCH"):
                     BiologicalWorld(SimpleNamespace(identity="test"),
                                     {"device": "cpu", "task": "PROXY-A549-V1"},
-                                    pipeline, require_resolution=False)
+                                    pipeline)
                 loader.assert_not_called()
 
-    def test_resume_inherits_last_saved_epoch_target(self):
-        from lung.engine.config import load_config
-        from lung.engine.synthetic import smoke_config
-        from lung.engine.train import parser, resolve
-        from lung.monitoring import RunMonitor
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            config = {**smoke_config(load_config()), "epochs": 2}
-            with patch("lung.monitoring.run.ROOT", root):
-                first = RunMonitor(config, run_id="synthetic-resume-contract")
-                first.close("interrupted")
-                extended = RunMonitor({**config, "epochs": 7}, run_id="synthetic-resume-contract", resume=True)
-                extended.close("interrupted")
-            with patch("lung.engine.train.ROOT", root):
-                restored = resolve(parser().parse_args(["--resume", "synthetic-resume-contract"]))
-            self.assertEqual(restored["epochs"], 7,
-                             "Resume must keep the latest explicit target, not revert to the original config")
 
-    def test_dashboard_reuses_registered_healthy_log_directory(self):
-        from lung.monitoring.dashboard import launch_dashboard
-        with tempfile.TemporaryDirectory() as directory:
-            logs = Path(directory) / "logs"
-            status = logs / "run" / "dashboard.json"
-            status.parent.mkdir(parents=True)
-            status.write_text(json.dumps({"status": "running", "url": "http://127.0.0.1:6006",
-                                           "pid": 123, "logdir": str(logs)}), encoding="utf-8")
-            environment = io.BytesIO(json.dumps({"data_location": str(logs)}).encode())
-            with patch("lung.monitoring.dashboard.urllib.request.urlopen", return_value=environment), \
-                    patch("lung.monitoring.dashboard.healthy", return_value=True), \
-                    patch("lung.monitoring.dashboard.subprocess.Popen") as launch:
-                process, record = launch_dashboard(logs, status, open_browser=False)
-            self.assertIsNone(process)
-            self.assertTrue(record["reused"])
-            launch.assert_not_called()
 
-    def test_resume_cannot_change_real_run_to_synthetic(self):
-        from lung.engine.config import load_config
-        from lung.engine.train import parser, resolve
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            experiment = root / "experiments" / "real-run"
-            experiment.mkdir(parents=True)
-            saved = load_config()
-            saved["synthetic"] = False
-            (experiment / "resolved_config.yaml").write_text(yaml.safe_dump(saved), encoding="utf-8")
-            with patch("lung.engine.train.ROOT", root):
-                with self.assertRaises((ValueError, RuntimeError)):
-                    resolve(parser().parse_args(["--resume", "real-run", "--smoke"]))
 
-    def test_published_pipeline_survives_mutable_best_update(self):
-        from lung.engine.train import publish_stage, write_pipeline, read_pipeline
+    def test_pipeline_rejects_changed_selected_weights(self):
+        from lung.engine.train import write_pipeline, read_pipeline
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             best = root / "best.pt"
             best.write_bytes(b"synthetic-selected-version-one")
-            pipeline = publish_stage("response", {"response": [str(best)]})
-            published = Path(pipeline["response"][0])
-            self.assertNotEqual(published, best)
+            pipeline = {"response": [str(best)]}
             monitor = SimpleNamespace(experiment=root, config={"synthetic": True, "task": "RESPONSE-A549-V1"})
             write_pipeline(monitor, SimpleNamespace(identity="synthetic-data"), pipeline)
-            best.write_bytes(b"synthetic-new-best-during-interrupted-extension")
             restored = read_pipeline({"pipeline": str(root / "pipeline.json")})
-            self.assertEqual(Path(restored["response"][0]).read_bytes(), b"synthetic-selected-version-one")
+            self.assertEqual(restored["response"], [str(best)])
+            best.write_bytes(b"synthetic-changed-selected-weights")
+            with self.assertRaisesRegex(ValueError, "FROZEN_PIPELINE_ARTIFACT_CHANGED"):
+                read_pipeline({"pipeline": str(root / "pipeline.json")})
 
 
 if __name__ == "__main__":

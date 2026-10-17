@@ -8,7 +8,7 @@ import numpy as np
 from ..data.endpoint_protocol_inputs import request_for
 from .checkpoint import atomic_json, load_checkpoint
 from .config import StageUnavailable, config_hash
-from .endpoint_contract import FEATURE_KEYS, feature_dependencies_v2, frozen_feature_identity_v2
+from .endpoint_contract import FEATURE_KEYS, data_feature_dependencies, feature_dependencies_v2, frozen_feature_identity_v2
 from .endpoint_features import (CONTEXT_KEYS, ExternalConditionWorld, checked, record,
                                generate_feature_rows, validate_reference)
 from .representation import require_finite_state, require_trained
@@ -170,11 +170,6 @@ def validate_rows(rows, requests, shape, reference_identity, feature_identity):
             require(a.shape == dimensions and np.isfinite(a).all(), "TABLE_SHAPE_OR_FINITE_MISMATCH")
 
 
-def producer_sources():
-    root = Path(__file__).resolve().parents[3]
-    return [record(p) for p in sorted((root / "src/lung").rglob("*.py"))] + [record(root / "scripts/generate_endpoint_protocol_features.py")]
-
-
 def runtime_identity():
     import torch
     return {"torch_version": torch.__version__, "float32_matmul_precision": torch.get_float32_matmul_precision(),
@@ -195,11 +190,10 @@ def generate_standard_cache(input_bridge, *, reference_path, mapping_path, data_
     assets_dir = base / cfg["assets"]
     input_dir = Path(input_bridge.directory)
     input_files = [record(input_dir / n) for n in ("manifest.json", "candidate_records.json", "p_descriptor_requests.json")]
-    sources = producer_sources()
     assets = {"gene_axis": [record(assets_dir / "genes.parquet")],
         "preprocessing": [record(assets_dir / n) for n in ("manifest.json", "normalization.npz", "neighbors.npz", "bandwidths.npz")],
         "chemical_identity": list({v["fingerprint_record"]["path"]: v["fingerprint_record"] for v in requests.values()}.values()),
-        "feature_generator": sources, "condition_inputs": input_files + [record(mapping_path), record(data_config_path)],
+        "condition_inputs": input_files + [record(mapping_path), record(data_config_path)],
         "initial_state": [record(reference_path), reference["cell_index"], *reference["source_files"]]}
     dependencies = feature_dependencies_v2(pipeline, assets, base=base)
     generation = {"producer": PRODUCER_VERSION, "definition": DESCRIPTOR_DEFINITION, "config": config,
@@ -242,7 +236,7 @@ def generate_standard_cache(input_bridge, *, reference_path, mapping_path, data_
     receipt = {"producer_version": PRODUCER_VERSION, "descriptor_definition": DESCRIPTOR_DEFINITION,
         "shape": shape, "data_identity": data.identity, "reference_identity": reference["reference_id"],
         "feature_identity": identity, "feature_dependencies": dependencies, "generation": generation,
-        "pipeline": pipeline, "qualifications": report["checkpoints"], "producer_sources": sources,
+        "pipeline": pipeline, "qualifications": report["checkpoints"],
         "input_files": input_files, "features": record(output / "features.json"),
         "reference_population": record(output / "reference_population.npy"), "reference_draw": record(output / "reference_draw.json"),
         "measured_endpoint_values_read": False, "formal_training_ready": False}
@@ -254,14 +248,15 @@ def load_standard_cache(cache_manifest_path, input_bridge):
     path = Path(cache_manifest_path).resolve()
     m = read(path)
     require(m.get("producer_version") == PRODUCER_VERSION and m.get("descriptor_definition") == DESCRIPTOR_DEFINITION
-            and m.get("producer_sources") == producer_sources() and m.get("measured_endpoint_values_read") is False
+            and m.get("measured_endpoint_values_read") is False
             and m.get("formal_training_ready") is False, "PRODUCER_UNVERIFIED")
     for item in m["input_files"]:
         checked(item, path.parent)
     require(m["input_files"] == [record(Path(input_bridge.directory) / n) for n in
             ("manifest.json", "candidate_records.json", "p_descriptor_requests.json")], "INPUT_CHANGED")
     dependencies = feature_dependencies_v2(m["pipeline"], m["feature_dependencies"]["assets"], base=path.parent)
-    require(dependencies == m["feature_dependencies"] and frozen_feature_identity_v2(m["data_identity"], dependencies,
+    require(dependencies == data_feature_dependencies(m["feature_dependencies"])
+            and frozen_feature_identity_v2(m["data_identity"], m["feature_dependencies"],
             m["generation"]) == m["feature_identity"], "FEATURE_IDENTITY_MISMATCH")
     require(validate_weights(m["pipeline"], m["data_identity"]) == m["qualifications"], "WEIGHT_QUALIFICATION_CHANGED")
     generation = m["generation"]

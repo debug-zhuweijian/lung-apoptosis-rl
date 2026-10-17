@@ -187,14 +187,3 @@ def physical_projection(raw, mean, scale):
 def group_expression_error(generated, observed, bandwidth):
     """Condition-level residual objective; no subtraction of unpaired cell rows."""
     return rbf_mmd(generated, observed, bandwidth) + (generated.mean(0) - observed.mean(0)).square().mean()
-
-
-def split_conformal_quantile(group_scores, coverage=0.9):
-    """Caller must first reduce each entire group by max, using held-out C only."""
-    values = torch.as_tensor(group_scores)
-    if values.ndim != 1 or not len(values) or not torch.isfinite(values).all() or (values < 0).any():
-        raise ValueError("Finite nonnegative independent group scores are required.")
-    if not 0 < coverage < 1:
-        raise ValueError("Coverage must lie in (0,1).")
-    order = math.ceil((len(values) + 1) * coverage)
-    return values.new_tensor(float("inf")) if order > len(values) else values.sort().values[order - 1]

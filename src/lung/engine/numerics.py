@@ -1,10 +1,8 @@
 """Registered numeric policy for response research runs (implementation task W4).
 
-The policy is data, not ambient state: it is stored in run configs, checkpoint
-metadata and resume identities, and is applied identically at training,
-validation, member initialisation and restore. ``seed_all`` keeps its legacy
-default (IEEE FP32, TF32 off) so existing suite paths are untouched; research
-entries pass their policy explicitly.
+The policy is stored in run configs and model metadata, and is applied
+consistently at training, validation and member initialisation. ``seed_all``
+defaults to IEEE FP32 with TF32 off; research entries pass their policy explicitly.
 
 Registered meaning per mode:
 
@@ -55,8 +53,7 @@ class PrecisionPolicy:
     def apply(self):
         """Set the global matmul/cudnn flags registered by this policy.
 
-        Called after ``seed_all`` (and again at resume) by the research entry;
-        legacy entries never call it, so their behaviour is unchanged.
+        Called after ``seed_all`` by the research entry.
         """
         if self.mode == "tf32":
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -84,8 +81,8 @@ class PrecisionPolicy:
 def policy_autocast(model, device):
     """Wrap one dense forward in the model's registered policy (no-op if unset).
 
-    Legacy suite paths never set ``model.precision_policy``; research runs set
-    it after construction. Loss reductions stay on the caller's registered
+    Research runs set ``model.precision_policy`` after construction.
+    Loss reductions stay on the caller's registered
     precision because call sites cast results with ``.float()`` before use.
     """
     policy = getattr(model, "precision_policy", None)
@@ -96,7 +93,7 @@ def apply_seed(seed, policy=None):
     """Seed all streams, then re-apply the registered numeric policy.
 
     ``seed_all`` resets matmul/cudnn precision to its legacy defaults; research
-    paths call this helper at every seeding, resume and validation boundary so
+    paths call this helper at every seeding and validation boundary so
     a registered TF32/BF16 policy is never silently undone (rework R6).
     """
     from .checkpoint import seed_all

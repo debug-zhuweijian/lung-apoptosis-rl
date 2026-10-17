@@ -18,10 +18,7 @@ def main(argv=None):
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--metadata", type=Path)
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args(argv)
-    if args.resume and not args.execute:
-        parser.error("--resume needs explicit --execute")
     if args.execute:
         if args.metadata is None or args.output is None:
             parser.error("--execute requires reviewed --metadata and independent --output")
@@ -29,7 +26,7 @@ def main(argv=None):
         metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
         result = full_protocol_batch.produce_all(metadata, ROOT / args.output,
             seed=config["seed"], steps=config["response"]["inference_ode_steps"],
-            microbatch=config["response"]["microbatch"], device=config["device"], resume=args.resume)
+            microbatch=config["response"]["microbatch"], device=config["device"])
     else:
         result = full_protocol_batch.preflight()
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))

@@ -15,7 +15,7 @@ from rdkit.Chem import rdFingerprintGenerator
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.lung.data.common import inside, sha256
+from src.lung.data.common import inside, sha256, data_file_bindings
 from src.lung.data.drug_identity import compare_structures, describe_structure, map_conditions
 
 BASE = ROOT / "08-datasets/LungCancer_A549_Integration"
@@ -37,12 +37,12 @@ def verify_manifest(path, expected=None):
         raise ValueError(f"Pinned manifest changed: {path.name}")
     manifest = json.loads(path.read_text(encoding="utf-8"))
     dependencies = {path.relative_to(ROOT).as_posix(): sha256(path)}
-    for name, record in manifest["outputs"].items():
+    for name, record in data_file_bindings(manifest["outputs"]).items():
         file = inside(path.parent, name)
         if sha256(file) != record["sha256"] or file.stat().st_size != record["bytes"]:
             raise ValueError(f"Frozen output changed: {file}")
         dependencies[file.relative_to(ROOT).as_posix()] = record["sha256"]
-    for name, expected_hash in manifest.get("inputs_sha256", manifest.get("frozen_inputs_sha256", {})).items():
+    for name, expected_hash in data_file_bindings(manifest.get("inputs_sha256", manifest.get("frozen_inputs_sha256", {}))).items():
         file = inside(ROOT, name)
         if sha256(file) != expected_hash:
             raise ValueError(f"Frozen input changed: {file}")
@@ -193,7 +193,7 @@ def freeze(directory, version, status, inputs, **extra):
             raise ValueError(f"Source changed while building: {name}")
     save_json(directory / "manifest.json", {"version": version, "status": status,
               "created_utc": datetime.now(timezone.utc).isoformat(), "inputs_sha256": inputs,
-              "builder_sha256": sha256(Path(__file__)), "outputs": outputs, **extra})
+              "outputs": outputs, **extra})
 
 
 def build():

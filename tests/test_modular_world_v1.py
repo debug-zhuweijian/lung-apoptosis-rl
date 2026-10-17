@@ -11,8 +11,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from lung.engine import diagnostics
-from lung.engine.auxiliary import (calibration_audit_binding, feature_cache, load_auxiliary,
+from lung.engine.auxiliary import (feature_cache, load_auxiliary,
                                    pipeline_identity, train_auxiliary,
                                    verify_auxiliary_dependencies)
 from lung.engine.checkpoint import atomic_save, load_checkpoint, save_training
@@ -22,13 +21,12 @@ from lung.engine.representation import load_representation
 from lung.engine.representation_cache import encoder_identity
 from lung.engine.response import condition_kwargs, tensor
 from lung.engine.response_loader import load_response
-from lung.engine.response_research import _load_for_comparison
 from lung.engine.residuals import prediction_rows
-from lung.engine.synthetic import SyntheticData
+from synthetic_data import SyntheticData
 from lung.engine.world import BiologicalWorld
 from lung.models import ModelConfig, ResponseModel
 from lung.models.latent_staged import LatentMember, SharedAutoencoder
-from lung.rl import ModelRollout, PotentialNetwork
+from lung.rl import ModelRollout
 
 
 class Monitor:
@@ -75,7 +73,7 @@ def components(tmp_path):
     config = {"device": "cpu", "task": "PROXY-A549-V1", "epochs": 1,
               "seed": 107, "population": 3, "synthetic": True,
               "history_support": "single_exposure_only", "aux_batch": 2,
-              "state_batch": 6, "aux_lr": 1e-3, "save_period": 1,
+              "state_batch": 6, "aux_lr": 1e-3,
               "calibration_steps": 2, "state_fold": "1_to_8",
               "research": {"latent": {"d_model": 8, "latent_dim": 4}},
               "response": {"model": asdict(shape), "inference_ode_steps": 2,
@@ -87,7 +85,7 @@ def components(tmp_path):
     shared.reconstruction_loss(tensor(np.concatenate([batch["control"], batch["target"]]), "cpu")).backward()
     optimizer.step()
     path = tmp_path / "ae.pt"
-    save_training(path, shared, optimizer, epoch=1, identity="SYNTHETIC-modular-ae",
+    save_training(path, shared, epoch=1, identity="SYNTHETIC-modular-ae",
                   metadata={"stage": "latent_ae", "model_config": asdict(shape),
                             "data_identity": data.identity, "synthetic": True},
                   counters={"optimizer_step": 1})
@@ -116,7 +114,7 @@ def member_checkpoint(components, name="response", *, stage="latent_cfm", old=Fa
         metadata.update(representation_hash=representation.checkpoint_hash,
                         representation_identity=representation.identity,
                         cache=encoder_identity(shared, shape))
-    save_training(path, member, optimizer, epoch=1, identity="SYNTHETIC-modular-member",
+    save_training(path, member, epoch=1, identity="SYNTHETIC-modular-member",
                   metadata=metadata, counters={"optimizer_step": 1})
     saved = load_checkpoint(path)
     atomic_save(path, {**saved, "shared": shared.state_dict()})
@@ -168,7 +166,6 @@ def test_changed_ae_rejects_auxiliary_and_feature_cache_even_with_same_tensors(c
         verify_auxiliary_dependencies(pipeline["pool"], changed)
     with pytest.raises(ValueError, match="FEATURE_CACHE_IDENTITY_MISMATCH"):
         feature_cache(cache, pipeline_identity("pool", data, config, changed), lambda: None)
-    assert calibration_audit_binding(data, config, changed) != calibration_audit_binding(data, config, pipeline)
 
 
 @pytest.mark.parametrize("change,error", [
@@ -205,17 +202,26 @@ def test_shared_training_loader_checks_ae_and_requested_dimensions(components):
 
 
 @pytest.mark.parametrize("stage", ["latent_cfm", "latent_members"])
-def test_latent_loader_and_comparison_forward_h_and_condition_encoder(components, stage):
+def test_latent_loader_forwards_h_and_condition_encoder(components, stage, monkeypatch):
     data, _, _, _, reference = components
     path = member_checkpoint(components, stage=stage)
-    for loader in (load_response, _load_for_comparison):
-        model = loader(path, data, "cpu")
-        assert model.condition_encoder is model.member.condition_encoder
-        x = torch.randn(2, 8)
-        assert model.encode_cells(x)[1].shape == (2, 8)
-        assert model.sample_noise(x).shape == (2, 4)
-        assert all(not p.requires_grad for p in model.shared.parameters())
-        torch.testing.assert_close(model.encode_cells(x)[1], reference.encode_cells(x)[1])
+    reads = []
+    original_load = torch.load
+
+    def read_once(*args, **kwargs):
+        reads.append(args[0])
+        return original_load(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(torch, "load", read_once)
+        model = load_response(path, data, "cpu")
+    assert len(reads) == 1
+    assert model.condition_encoder is model.member.condition_encoder
+    x = torch.randn(2, 8)
+    assert model.encode_cells(x)[1].shape == (2, 8)
+    assert model.sample_noise(x).shape == (2, 4)
+    assert all(not p.requires_grad for p in model.shared.parameters())
+    torch.testing.assert_close(model.encode_cells(x)[1], reference.encode_cells(x)[1])
     saved = load_checkpoint(path)
     saved["counters"]["optimizer_step"] = 0
     atomic_save(path, saved)
@@ -247,24 +253,12 @@ def test_latent_world_observe_scores_and_single_step_environment(components, mem
     before_cache = len(world._score_cache.values)
     torch.testing.assert_close(world.adapter.score(root, sequence, seeds), batched, rtol=0, atol=0)
     assert len(world._score_cache.values) == before_cache
-    potential = PotentialNetwork(world.registry.spec)
-    optimizer = torch.optim.Adam(potential.parameters(), lr=1e-3)
-    (potential([state])[0] - batched.mean().float()).square().backward()
-    optimizer.step()
-    potential_path = monitor.weights / "potential.pt"
-    save_training(potential_path, potential, optimizer, epoch=1, identity="SYNTHETIC-potential",
-                  counters={"optimizer_step": 1}, metadata={"stage": "potential",
-                  "biological_identity": world.biological_identity, "synthetic": True})
-    pipeline["potential"] = str(potential_path)
-    final = BiologicalWorld(data, config, pipeline)
-    rollout = ModelRollout(final.adapter, root, seed=9, score_repeats=2)
+    rollout = ModelRollout(world.adapter, root, seed=9, score_repeats=2)
     mask = rollout.legal_mask
     transition = rollout.step(int(torch.nonzero(mask)[0]), mask.float() / mask.sum())
-    assert transition.terminated and transition.next_state is None and transition.phi_next == 0
-    assert np.isfinite(transition.reward) and 0 <= transition.base_reward <= 1
-    assert all(not p.requires_grad for member in final.members for p in member.member.parameters())
-    with pytest.raises(StageUnavailable, match="POPULATION_RESOLUTION_UNRESOLVED"):
-        BiologicalWorld(data, {**config, "synthetic": False}, {k: v for k, v in pipeline.items() if k != "potential"})
+    assert transition.terminated and transition.next_state is None
+    assert transition.reward == transition.base_reward and 0 <= transition.reward <= 1
+    assert all(not p.requires_grad for member in world.members for p in member.member.parameters())
 
 
 def test_world_rejects_inconsistent_shared_ae_and_accepts_old_embedded_weights(components):
@@ -321,10 +315,9 @@ def test_original_response_checkpoint_still_dispatches(components):
     model.cfm_loss(tensor(batch["control"], "cpu"), tensor(batch["target"], "cpu"), condition).backward()
     optimizer.step()
     path = monitor.weights / "legacy.pt"
-    save_training(path, model, optimizer, epoch=1, identity="SYNTHETIC-legacy",
+    save_training(path, model, epoch=1, identity="SYNTHETIC-legacy",
                   metadata={"stage": "response", "data_identity": data.identity,
                             "model_config": asdict(shape)}, counters={"optimizer_step": 1})
     restored = load_response(path, data, "cpu")
     assert isinstance(restored, ResponseModel)
-    assert diagnostics.load_response is load_response
     assert restored.encode_cells(tensor(batch["control"], "cpu"))[1].shape == (3, 8)

@@ -133,12 +133,3 @@ def test_escape_is_rejected_and_disabled_cache_keeps_sha_path(tmp_path):
     (tmp_path / "assets" / "manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="remain inside"):
         reader(tmp_path, {**config, "data_loading": {"row_cache": {"use_disk_cache": True}}})
-
-
-def test_synthetic_entrypoint_never_constructs_disk_reader(tmp_path):
-    config = {"synthetic": True, "response": {"model": {"n_genes": 4}},
-              "timecourse": {"synthetic_development_drugs": 2}}
-    with patch("lung.timecourse.data.SparseRows", side_effect=AssertionError("synthetic must not use disk")):
-        data = TimeData(tmp_path, config, [], [], "inference")
-        data.sample_target(data.condition_ids("T")[0], role="T")
-    assert list(tmp_path.iterdir()) == []

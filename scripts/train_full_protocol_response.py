@@ -1,7 +1,7 @@
 """Default data-only full-P preflight; explicit future --fit-ae or --fit.
 
 Every real model operation still needs the user's separate model-run authority.
-Preparation never activates this authority or resumes any legacy experiment.
+Preparation never activates this authority.
 """
 import argparse
 import json
@@ -28,10 +28,7 @@ def main(argv=None):
     mode.add_argument("--fit-ae", action="store_true")
     mode.add_argument("--fit", action="store_true")
     parser.add_argument("--ae-run", type=Path)
-    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args(argv)
-    if args.resume and not (args.fit or args.fit_ae):
-        parser.error("--resume needs an explicit fitting mode")
     if (args.fit or args.fit_ae) and args.output is None:
         parser.error("Explicit fitting requires an independent experiment output")
     if args.fit and args.ae_run is None:
@@ -41,7 +38,7 @@ def main(argv=None):
         parser.error("Output must remain in this project's experiments directory")
     config = load_config(args.config)
     if args.fit_ae:
-        result = learning.fit_matching_ae(config, output, resume=args.resume)
+        result = learning.fit_matching_ae(config, output)
     else:
         data = learning.NativeProtocolData(config)
         settings = learning.settings_from_config(config)
@@ -51,16 +48,11 @@ def main(argv=None):
             learning.require(ae_run.is_relative_to(ROOT / "experiments"), "AE_RUN_PROJECT_BOUNDARY")
             declaration = json.loads((ae_run / "AE_result.json").read_text(encoding="utf-8"))
             plan = {"config": learning.joint_config(config), "bindings": report["bindings"],
-                "protocol_identity": data.protocol_identity, "execution_dependencies": learning.execution_dependencies(),
+                "protocol_identity": data.protocol_identity,
                 "AE_declaration": declaration, "settings": settings}
             assets = output.with_name(output.name + "-assets")
-            # This equality is checked before the first real PT or model access.
-            learning._new_or_resume(assets, plan, args.resume)
-            if args.resume:
-                completed = learning.completed_response_before_cache(output, data, settings, report["bindings"], assets)
-                if completed is not None:
-                    print(json.dumps(completed, ensure_ascii=False, indent=2, allow_nan=False))
-                    return 0
+            # Require independent output before the first real PT or model access.
+            learning._new_experiment(assets, plan)
             shared, ae_path, _ = learning.export_matching_ae(declaration["weights"], data, assets, report["bindings"], config)
             shared.to(settings["device"]).eval().requires_grad_(False)
             from lung.engine.representation_cache import ensure_representation_cache, load_representation_cache, encoder_identity
@@ -68,7 +60,7 @@ def main(argv=None):
             cache = load_representation_cache(directory, settings["device"], expected_data_identity=data.identity,
                 expected_encoder=encoder_identity(shared, shared.config))
             result = learning.fit_response(data, shared, settings, output, bindings=report["bindings"],
-                representation_path=ae_path, cache=cache, resume=args.resume)
+                representation_path=ae_path, cache=cache)
             representation = json.loads((assets / "representation_declaration.json").read_text(encoding="utf-8"))
             atomic_json(output / "model_declaration.json", {"bindings": report["bindings"],
                 "representation": representation, "response": {"stage": producer.STAGE, "synthetic": False,
@@ -77,7 +69,7 @@ def main(argv=None):
                     "optimizer_step": result["selected_optimizer_step"],
                     "representation_hash": representation["checkpoint_sha256"],
                     "training_protocol_coverage": learning.COVERAGE,
-                    "reference_contract": result["reference_contract"]}, "registered_audit_id": None})
+                    "reference_contract": result["reference_contract"]}})
         else:
             result = report
             if output is not None:
@@ -86,7 +78,7 @@ def main(argv=None):
                 atomic_json(output / "preflight.json", report)
                 (output / "matching_joint_AE.yaml").write_text(yaml.safe_dump(learning.joint_ae_config(config),
                     allow_unicode=True, sort_keys=False), encoding="utf-8")
-    print(json.dumps({k: v for k, v in result.items() if k not in ("bindings", "execution_dependencies")},
+    print(json.dumps({k: v for k, v in result.items() if k not in ("bindings",)},
         ensure_ascii=False, indent=2, allow_nan=False))
     return 0
 

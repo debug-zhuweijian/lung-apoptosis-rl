@@ -22,12 +22,9 @@ def main():
     parser.add_argument('--width', type=int, default=32)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--fit', action='store_true')
-    parser.add_argument('--resume', action='store_true')
     args = parser.parse_args()
-    if args.resume and not args.fit:
-        parser.error('--resume requires --fit')
     if args.fit and not args.output:
-        parser.error('--fit requires a new experiment output or the explicitly resumed output')
+        parser.error('--fit requires a new experiment output')
     output = (args.output if args.output.is_absolute() else ROOT / args.output).resolve() if args.output else None
     if output is not None and not output.is_relative_to(ROOT / 'experiments'):
         parser.error('Output must stay within the project experiments directory')
@@ -35,7 +32,7 @@ def main():
     settings = settings_from_config(config, width=args.width)
     fit, selection = prepare_fold(ROOT, system='cycle', fold_id=args.fold_id)
     if args.fit:
-        result = fit_source(fit, selection, settings, output, resume=args.resume)
+        result = fit_source(fit, selection, settings, output)
     else:
         result = preflight(fit, selection, settings)
         if output is not None:

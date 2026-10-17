@@ -1,4 +1,4 @@
-"""Build metadata or evaluate explicitly frozen scores; never execute models."""
+"""Build metadata or evaluate frozen G/simple-rank scores; never execute models."""
 import argparse
 from pathlib import Path
 import sys

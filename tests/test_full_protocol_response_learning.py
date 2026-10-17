@@ -1,4 +1,4 @@
-"""Only synthetic optimization/restore; real RNA/weights never reach a model."""
+"""Only synthetic optimization/export; real RNA/weights never reach a model."""
 from copy import deepcopy
 from dataclasses import asdict
 import json
@@ -62,12 +62,12 @@ def settings(refine=False):
             "switch_epoch": 1, "weight": 1.}}
 
 
-def run(tmp_path, name="run", *, refine=False, resume=False, hook=None):
+def run(tmp_path, name="run", *, refine=False):
     ae = tmp_path / "synthetic_AE.pt"
     if not ae.exists():
         torch.save({"synthetic_fixture_only": True}, ae)
     return module.fit_response(ToyData(), shared(), settings(refine), tmp_path / name,
-        bindings={"synthetic": True}, representation_path=ae, synthetic=True, resume=resume, after_update=hook)
+        bindings={"synthetic": True}, representation_path=ae, synthetic=True)
 
 
 def assert_state(left, right):
@@ -116,9 +116,10 @@ def test_independent_joint_config_does_not_mutate_active_configuration():
 
 def test_synthetic_CFM_optimizes_new_namespace_and_freezes_AE_decoder(tmp_path):
     result = run(tmp_path)
-    saved = load_checkpoint(tmp_path / "run/last.pt")
+    saved = load_checkpoint(tmp_path / "run/final.pt")
     original = shared().state_dict()
     assert result["optimizer_steps"] == 4
+    assert "optimizer" not in saved and "rng" not in saved
     assert saved["metadata"]["training_protocol_coverage"] == module.COVERAGE
     assert saved["metadata"]["stage"] == module.producer.STAGE
     assert any(k.startswith("full_protocol.history.") for k in saved["model"])
@@ -131,92 +132,29 @@ def test_synthetic_CFM_optimizes_new_namespace_and_freezes_AE_decoder(tmp_path):
     assert not result["production_registered"] and not result["scientific_qualified"]
 
 
-@pytest.mark.parametrize("refine,cut", [(False, 1), (True, 2), (True, 3)])
-def test_synthetic_interrupted_exact_restore_including_B4_switch(tmp_path, refine, cut):
-    run(tmp_path, "complete", refine=refine)
-    def stop(step):
-        if step == cut:
-            raise KeyboardInterrupt("synthetic durable update interrupt")
-    with pytest.raises(KeyboardInterrupt):
-        run(tmp_path, "resumed", refine=refine, hook=stop)
-    result = run(tmp_path, "resumed", refine=refine, resume=True)
-    left, right = [load_checkpoint(tmp_path / name / "last.pt") for name in ("complete", "resumed")]
-    assert result["optimizer_steps"] == 4
-    assert_state(left["model"], right["model"])
-    assert_state(left["optimizer"], right["optimizer"])
-    assert_state(left["shared"], right["shared"])
-    assert left["extra"] == right["extra"]
-    if refine:
-        assert len(right["optimizer"]["param_groups"]) == 2
-        original = shared().state_dict()
-        assert any(not module.producer.equal_weight(v, original[k.replace("member.decoder.", "decoder.")])
-            for k, v in right["model"].items() if k.startswith("member.decoder."))
-
-
-def test_resume_dependency_drift_refuses_before_PT_or_new_model(tmp_path, monkeypatch):
-    run(tmp_path)
-    monkeypatch.setattr(module, "execution_dependencies", lambda: {"changed": True})
-    monkeypatch.setattr(module, "LatentMember", lambda *a, **k: pytest.fail("Must fail before model construction"))
-    monkeypatch.setattr(module, "load_checkpoint", lambda *a, **k: pytest.fail("Must fail before PT load"))
-    with pytest.raises(ValueError, match="PRE_PT_RESUME_IDENTITY_CHANGED"):
-        run(tmp_path, resume=True)
-
-
-def test_completed_early_stop_resume_returns_selected_asset_without_new_fit(tmp_path, monkeypatch):
-    data, cfg = ToyData(), settings()
-    cfg.update({"epochs": 4, "early_stopping": {"enabled": True, "patience": 1,
-        "min_delta": 0., "min_updates": 0}})
-    monkeypatch.setattr(module, "_validation", lambda *a: 1.)
-    ae = tmp_path / "synthetic_AE.pt"
-    torch.save({"synthetic_fixture_only": True}, ae)
-    output = tmp_path / "stopped"
-    kwargs = {"bindings": {"synthetic": True}, "representation_path": ae, "synthetic": True}
-    result = module.fit_response(data, shared(), cfg, output, **kwargs)
-    before = {n: module.producer.inputs.sha(output / n) for n in ("last.pt", "response_weights.pt")}
-    assert result["optimizer_steps"] == 4
-    assert load_checkpoint(output / "last.pt")["epoch"] == 2
-    monkeypatch.setattr(module, "LatentMember", lambda *a, **k: pytest.fail("Completed resume must not construct P"))
-    monkeypatch.setattr(module.torch.optim, "AdamW", lambda *a, **k: pytest.fail("Completed resume must not construct optimizer"))
-    resumed = module.fit_response(data, shared(), cfg, output, **kwargs, resume=True)
-    assert resumed == result
-    assert all(module.producer.inputs.sha(output / n) == h for n, h in before.items())
-    with (output / "response_weights.pt").open("ab") as stream:
-        stream.write(b"synthetic selected-file drift")
-    with pytest.raises(ValueError, match="COMPLETED_RESPONSE_PROOF_PENDING"):
-        module.fit_response(data, shared(), cfg, output, **kwargs, resume=True)
-
-
-def test_completed_new_AE_wrapper_checks_best_and_last_without_old_loop_or_PT(tmp_path, monkeypatch):
+def test_completed_new_AE_wrapper_checks_best_and_final(tmp_path, monkeypatch):
     config = load_config("configs/modular_research.yaml")
     output = tmp_path / "experiments/new-AE"
     monkeypatch.setattr(module, "ROOT", tmp_path)
     monkeypatch.setattr(module, "EngineData", lambda *a, **k: SimpleNamespace(identity="synthetic-wrapper-only"))
-    monkeypatch.setattr(module, "execution_dependencies", lambda: {"synthetic_mock_only": True})
+
     def fake_B1(cfg, monitor, data):
         folder = monitor.weights / "latent_ae"
         folder.mkdir(parents=True)
         common = {"schema_version": 1, "model": {"weight": torch.ones(1)}, "identity": "synthetic-wrapper-only",
             "epoch": 2, "counters": {"optimizer_step": 1}, "extra": {"best": 1.,
-                "early_stop": {"best": 1., "bad": 1, "updates": 2, "steps": 1},
                 "training_completion": {"status": "complete"}}}
         torch.save({**common, "epoch": 1}, folder / "best.pt")
-        torch.save(common, folder / "last.pt")
+        torch.save(common, folder / "final.pt")
         return {"weights": str(folder / "best.pt"), "best": 1., "identity": "synthetic-wrapper-only"}
     monkeypatch.setattr(module, "run_latent_ae", fake_B1)
     result = module.fit_matching_ae(config, output)
-    assert result["checkpoint_sha256"] != result["last_checkpoint_sha256"]
-    original_load = module.load_checkpoint
-    monkeypatch.setattr(module, "run_latent_ae", lambda *a, **k: pytest.fail("Completed AE must not reenter old loop"))
-    monkeypatch.setattr(module, "load_checkpoint", lambda *a, **k: pytest.fail("Completed AE receipt should not load PT"))
-    assert module.fit_matching_ae(config, output, resume=True) == result
-    with (output / "weights/latent_ae/last.pt").open("ab") as stream:
-        stream.write(b"synthetic completed-last drift")
+    assert result["checkpoint_sha256"] != result["final_checkpoint_sha256"]
+    module.verify_completed_ae_result(result, output, "synthetic-wrapper-only")
+    with (output / "weights/latent_ae/final.pt").open("ab") as stream:
+        stream.write(b"synthetic completed-final drift")
     with pytest.raises(ValueError, match="COMPLETED_AE_CHECKPOINT_CHANGED"):
-        module.fit_matching_ae(config, output, resume=True)
-    (output / "AE_result.json").unlink()
-    monkeypatch.setattr(module, "load_checkpoint", original_load)
-    with pytest.raises(ValueError, match="COMPLETED_AE_RECEIPT_MISSING_NO_RETRAIN"):
-        module.fit_matching_ae(config, output, resume=True)
+        module.verify_completed_ae_result(result, output, "synthetic-wrapper-only")
 
 
 def test_synthetic_weights_cannot_export_as_real_matching_AE(tmp_path, monkeypatch):
@@ -237,7 +175,7 @@ def test_synthetic_B1_checkpoint_format_export_keeps_every_tensor_and_safe_snaps
     data.context_sizes = {"n_sources": 2, "n_backgrounds": 1, "n_protocols": 2}
     data.neighbors = np.arange(4)[:, None]
     monkeypatch.setattr(module, "ROOT", tmp_path)
-    monkeypatch.setattr(module, "execution_dependencies", lambda: {"synthetic_mock_only": True})
+
     source_shape = module._model_config(config, module.latent_settings(config), 4)
     model = SharedAutoencoder(source_shape, torch.arange(4)[:, None])
     folder = tmp_path / "experiments/fixture/weights/latent_ae"
@@ -246,14 +184,14 @@ def test_synthetic_B1_checkpoint_format_export_keeps_every_tensor_and_safe_snaps
     ae = folder / "best.pt"
     torch.save({"schema_version": 1, "identity": "synthetic-format-fixture", "model": model.state_dict(),
         "metadata": {"stage": "latent_ae", "model_config": asdict(source_shape), "data_identity": data.identity},
-        "epoch": 1, "counters": {"optimizer_step": 1}, "extra": {"budget_exhausted": False}}, ae)
+        "epoch": 1, "counters": {"optimizer_step": 1}, "extra": {"training_completion": {"status": "complete"}}}, ae)
     (origin / "run_manifest.json").write_text(json.dumps({"schema": module.SCHEMA + ":joint-AE",
-        "config": module.joint_config(config), "execution_dependencies": module.execution_dependencies()}), encoding="utf-8")
-    last = folder / "last.pt"
+        "config": module.joint_config(config)}), encoding="utf-8")
+    last = folder / "final.pt"
     last.write_bytes(ae.read_bytes())
     declaration = {"schema": module.AE_RESULT_SCHEMA, "stage": "latent_ae", "weights": str(ae),
-        "checkpoint_sha256": module.producer.inputs.sha(ae), "last_checkpoint": str(last),
-        "last_checkpoint_sha256": module.producer.inputs.sha(last),
+        "checkpoint_sha256": module.producer.inputs.sha(ae), "final_checkpoint": str(last),
+        "final_checkpoint_sha256": module.producer.inputs.sha(last),
         "identity": "synthetic-format-fixture", "data_identity": data.identity,
         "training_completion": {"status": "complete"}}
     (origin / "AE_result.json").write_text(json.dumps(declaration), encoding="utf-8")
@@ -279,21 +217,6 @@ def test_synthetic_B1_checkpoint_format_export_keeps_every_tensor_and_safe_snaps
         module.export_matching_ae(ae, data, output, bound, config)
 
 
-@pytest.mark.parametrize("change", ["role", "mask", "settings"])
-def test_changed_learning_contract_cannot_resume(tmp_path, change):
-    run(tmp_path)
-    data, cfg = ToyData(), settings()
-    if change == "role":
-        data.protocol_identity = "changed-selection-assignment"
-    elif change == "mask":
-        data.protocol_identity = "falsely-known-exposure"
-    else:
-        cfg["microbatch"] = 2
-    with pytest.raises(ValueError, match="PRE_PT_RESUME_IDENTITY_CHANGED"):
-        module.fit_response(data, shared(), cfg, tmp_path / "run", bindings={"synthetic": True},
-            representation_path=tmp_path / "synthetic_AE.pt", synthetic=True, resume=True)
-
-
 @pytest.mark.parametrize("variant", ("observed", "zero_h", "mean_h"))
 def test_three_independent_reference_train_selection_and_B4_inputs_share_the_same_variant(tmp_path, monkeypatch, variant):
     cfg = settings(refine=True)
@@ -316,31 +239,6 @@ def test_three_independent_reference_train_selection_and_B4_inputs_share_the_sam
         assert all((h == 0).all() for _, h in calls)
     elif variant == "mean_h":
         assert all((h == h[0]).all() for _, h in calls)
-
-
-def test_reference_variant_resume_drift_rejects_before_PT_and_synthetic_exact_restore(tmp_path, monkeypatch):
-    cfg = settings()
-    cfg["reference_variant"] = "mean_h"
-    ae = tmp_path / "toyAE.pt"
-    torch.save({"synthetic_only": True}, ae)
-    def run_one(name, resume=False, after_update=None):
-        return module.fit_response(ToyData(), shared(), cfg, tmp_path / name,
-            bindings={"synthetic_only": True}, representation_path=ae, synthetic=True,
-            resume=resume, after_update=after_update)
-    run_one("full")
-    def stop(step):
-        if step == 1:
-            raise KeyboardInterrupt("synthetic interruption")
-    with pytest.raises(KeyboardInterrupt):
-        run_one("resumed", after_update=stop)
-    run_one("resumed", resume=True)
-    a, b = [load_checkpoint(tmp_path / p / "last.pt") for p in ("full", "resumed")]
-    for key in ("model", "optimizer", "shared", "metadata", "extra"):
-        assert_state(a[key], b[key])
-    cfg["reference_variant"] = "zero_h"
-    monkeypatch.setattr(module, "load_checkpoint", lambda *a, **k: pytest.fail("variant drift must reject before PT"))
-    with pytest.raises(ValueError, match="PRE_PT_RESUME_IDENTITY_CHANGED"):
-        run_one("resumed", resume=True)
 
 
 def test_P_variant_settings_do_not_change_shared_AE_or_C_configs():

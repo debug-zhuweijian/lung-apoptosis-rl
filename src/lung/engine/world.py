@@ -12,10 +12,9 @@ import torch
 from lung.models import biological_features, physical_projection
 from lung.rl import (Candidate, CandidateRegistry, DecisionState, NetworkSpec,
                      ProtocolSpec, RootContext, SimulationAdapter, VersionStamp, stream_seed)
-from .auxiliary import load_auxiliary, encode_vectors, verify_auxiliary_dependencies
+from .auxiliary import load_auxiliary, encode_vectors
 from .scoring import ScalarScoreCache
-from .checkpoint import load_checkpoint
-from .config import StageUnavailable, config_hash, file_hash, project_path, implementation_identity
+from .config import StageUnavailable, config_hash, file_hash, project_path
 from .response import condition_kwargs, tensor, projected
 from .response_loader import load_response
 from .representation import load_representation, verify_response_representation
@@ -68,7 +67,7 @@ class FixedInitialState:
 class BiologicalWorld:
     """Every returned state has only planned summaries; scores replay fixed actions."""
 
-    def __init__(self, data, config, pipeline, *, require_resolution=True):
+    def __init__(self, data, config, pipeline):
         self.data, self.config, self.pipeline = data, config, pipeline
         self.device = torch.device(config["device"])
         self._initial_cache = None
@@ -80,9 +79,6 @@ class BiologicalWorld:
         missing = [key for key in required if not pipeline.get(key)]
         if missing:
             raise StageUnavailable(f"PIPELINE_INCOMPLETE: train these stages first: {missing}")
-        for name in ("pool", "state", "backward", "correction", "uncertainty", "endpoint"):
-            if pipeline.get(name):
-                verify_auxiliary_dependencies(pipeline[name], pipeline)
         if config["task"] == "ANNEXIN-A549-V1" and not pipeline.get("endpoint"):
             raise StageUnavailable("ENDPOINT_UNAVAILABLE: matched expression/outcome chain is absent")
         self.inference_microbatch = config["response"].get("inference_microbatch", 1)
@@ -108,10 +104,10 @@ class BiologicalWorld:
                 object.__setattr__(member.member, "_shared_ref", self.representation.shared)
         if self.representation.config.d_model != self.shape.d_model:
             raise StageUnavailable("REPRESENTATION_WIDTH_MISMATCH")
-        self.pool = load_auxiliary(pipeline["pool"], data, self.device)
-        self.classifier = load_auxiliary(pipeline["state"], data, self.device)
-        self.backward = load_auxiliary(pipeline["backward"], data, self.device) if pipeline.get("backward") else None
-        self.correction = load_auxiliary(pipeline["correction"], data, self.device) if pipeline.get("correction") else None
+        self.pool = load_auxiliary(pipeline["pool"], data, self.device, pipeline=pipeline)
+        self.classifier = load_auxiliary(pipeline["state"], data, self.device, pipeline=pipeline)
+        self.backward = load_auxiliary(pipeline["backward"], data, self.device, pipeline=pipeline) if pipeline.get("backward") else None
+        self.correction = load_auxiliary(pipeline["correction"], data, self.device, pipeline=pipeline) if pipeline.get("correction") else None
         self.gate_table = json.loads(Path(pipeline["correction_gate"]).read_text(encoding="utf-8")) if pipeline.get("correction_gate") else None
         if self.gate_table is not None:
             expected_gate = {"data_identity": data.identity,
@@ -127,7 +123,7 @@ class BiologicalWorld:
         self.endpoint = None
         endpoint_scope = {}
         if config["task"] == "ANNEXIN-A549-V1":
-            self.endpoint = load_auxiliary(pipeline["endpoint"], data, self.device)
+            self.endpoint = load_auxiliary(pipeline["endpoint"], data, self.device, pipeline=pipeline)
             endpoint_scope = endpoint_inference_scope(self.endpoint, config, pipeline)
         self.endpoint_call_kwargs = ({"endpoint_protocol_id": endpoint_scope["endpoint_protocol_id"]}
                                      if endpoint_scope else {})
@@ -135,44 +131,19 @@ class BiologicalWorld:
         weights = {key: [file_hash(path) for path in (pipeline[key] if isinstance(pipeline[key], list) else [pipeline[key]])]
                    for key in biological_keys if pipeline.get(key)}
         self.biological_identity = config_hash({"weights": weights, "data": data.identity,
-            "implementation": implementation_identity(),
             "population": self.n_pop, "steps": self.steps, "protocol": self.protocol.version,
             "initial_state_interface": INITIAL_STATE_VERSION,
             "initial_state_seed": config.get("seed", 20260923),
             "inference_microbatch": self.inference_microbatch, "score_batch_size": self.score_batch_size,
             "task": config["task"], "history_support": config["history_support"], **endpoint_scope})
-        self.potential = None
-        if pipeline.get("potential"):
-            from lung.rl import PotentialNetwork
-            saved = load_checkpoint(pipeline["potential"])
-            if saved["metadata"].get("biological_identity") != self.biological_identity:
-                raise StageUnavailable("POTENTIAL_VERSION_MISMATCH")
-            self.potential = PotentialNetwork(self.registry.spec).to(self.device)
-            self.potential.load_state_dict(saved["model"])
-            self.potential.eval().requires_grad_(False)
-        resolution_passed = bool(config.get("synthetic", False))
-        if pipeline.get("numerical_audit"):
-            audit = json.loads(Path(pipeline["numerical_audit"]).read_text(encoding="utf-8"))
-            resolution_passed = audit.get("passed") is True and audit.get("biological_identity") == self.biological_identity
-            if not resolution_passed and pipeline.get("freeze_certificate"):
-                certificate = json.loads(Path(pipeline["freeze_certificate"]).read_text(encoding="utf-8"))
-                resolution_passed = (
-                    audit.get("passed") is True
-                    and certificate.get("audit_sha256") == file_hash(pipeline["numerical_audit"])
-                    and certificate.get("precalibration_identity") == audit.get("biological_identity")
-                    and certificate.get("frozen_identity") == self.biological_identity
-                    and certificate.get("calibration_after_diagnostic") is True)
-        if require_resolution and not resolution_passed:
-            raise StageUnavailable("POPULATION_RESOLUTION_UNRESOLVED: run the potential stage to perform the V-only numerical audit first")
         version = VersionStamp(self.biological_identity, self.protocol.version,
                                config_hash({"task": config["task"], "weights": weights.get("state"),
-                                            "endpoint": weights.get("endpoint"),
-                                            "potential": file_hash(pipeline["potential"]) if pipeline.get("potential") else None}),
+                                            "endpoint": weights.get("endpoint")}),
                                self.registry.version)
         self.adapter = SimulationAdapter(self.registry, self.protocol, version,
-            self.observe, self.score, self.phi if self.potential is not None else None,
+            self.observe, self.score,
             task_id=config["task"], endpoint_available=True,
-            population_resolution_passed=resolution_passed, n_pop=self.n_pop,
+            n_pop=self.n_pop,
             evidence={"synthetic_test": config.get("synthetic", False),
                       "transfer_status": "unvalidated", "history_support": config["history_support"],
                       "coupling_assumption": "minibatch_entropic_ot_prior",
@@ -372,8 +343,10 @@ class BiologicalWorld:
             raw = [self._generate_member(model, prior[i], batch, seed, step, i, elapsed, n, ode_steps)
                    for i, model in enumerate(self.members)]
             temporary = [projected(value, self.data) for value in raw]
-            variance = torch.stack([value.mean(0) for value in temporary]).var(0, correction=0).mean()
-            if self.backward is not None and self.correction is not None:
+            gate = self.backward is not None and self.correction is not None and self._gate(batch)
+            if gate:
+                variance = (temporary[0].new_zeros(()) if len(temporary) == 1 else
+                            torch.stack([value.mean(0) for value in temporary]).var(0, correction=0).mean())
                 vectors = encode_vectors(self.representation, torch.cat(temporary), self.device,
                                          batch_size=self.inference_microbatch, output_device=self.device)
                 zb = self.pool(vectors)
@@ -381,9 +354,10 @@ class BiologicalWorld:
                        self.protocol.horizon_ticks / self.protocol.ticks_per_hour))[0]
                 reference_mean = torch.stack([value.mean(0) for value in prior]).mean(0)
                 e_b = (self.backward(zb, ca) - reference_mean).square().mean()
-                gate = self._gate(batch)
                 raw = [self.correction(value, zb, ca, e_b, variance, gate=gate) for value in raw]
-            populations = [projected(value, self.data) for value in raw]
+                populations = [projected(value, self.data) for value in raw]
+            else:
+                populations = temporary
             elapsed += batch["duration"]
         result = torch.cat(populations) if scoring_member is None else populations[scoring_member]
         return result, context
@@ -482,11 +456,13 @@ class BiologicalWorld:
             by_member = [self._generate_requests(model, [p[i] for p in prior], batch,
                          seeds, step, i, elapsed, n, ode_steps) for i, model in enumerate(self.members)]
             next_populations = []
+            gate = self.backward is not None and self.correction is not None and self._gate(batch)
             for request, previous in enumerate(prior):
                 raw = [rows[request] for rows in by_member]
                 temporary = [projected(value, self.data) for value in raw]
-                variance = torch.stack([value.mean(0) for value in temporary]).var(0, correction=0).mean()
-                if self.backward is not None and self.correction is not None:
+                if gate:
+                    variance = (temporary[0].new_zeros(()) if len(temporary) == 1 else
+                                torch.stack([value.mean(0) for value in temporary]).var(0, correction=0).mean())
                     vectors = encode_vectors(self.representation, torch.cat(temporary), self.device,
                         batch_size=self.inference_microbatch, output_device=self.device)
                     zb = self.pool(vectors)
@@ -494,8 +470,9 @@ class BiologicalWorld:
                         elapsed, self.protocol.horizon_ticks / self.protocol.ticks_per_hour))[0]
                     reference_mean = torch.stack([value.mean(0) for value in previous]).mean(0)
                     e_b = (self.backward(zb, ca) - reference_mean).square().mean()
-                    raw = [self.correction(value, zb, ca, e_b, variance, gate=self._gate(batch)) for value in raw]
-                next_populations.append([projected(value, self.data) for value in raw])
+                    raw = [self.correction(value, zb, ca, e_b, variance, gate=gate) for value in raw]
+                    temporary = [projected(value, self.data) for value in raw]
+                next_populations.append(temporary)
             populations = next_populations
             elapsed += batch["duration"]
         scores = []
@@ -514,36 +491,24 @@ class BiologicalWorld:
     def score(self, root, sequence, seeds, *, n=None, ode_steps=None):
         return self.score_many(root, ((sequence, seeds),), n=n, ode_steps=ode_steps)[0]
 
-    def score_many(self, root, requests, *, n=None, ode_steps=None):
-        return self._score_many(root, requests, n=n, ode_steps=ode_steps, diagnostic=False)
-
-    def score_diagnostic(self, root, sequence, seeds, *, n=None, ode_steps=None):
-        """V-only numerical sensitivity; these outputs are not formal rewards."""
-        if root.role != "V":
-            raise StageUnavailable("ENDPOINT_NUMERICAL_DIAGNOSTIC_REQUIRES_V")
-        return self._score_many(root, ((sequence, seeds),), n=n, ode_steps=ode_steps,
-                                diagnostic=True)[0]
-
     def _check_endpoint_resolution(self, n, steps):
         if getattr(self.endpoint, "endpoint_schema_version", 1) == 2:
             recorded = self.endpoint.feature_generation["world_inference"]
             if n != recorded["population"] or steps != recorded["inference_ode_steps"]:
                 raise StageUnavailable("ENDPOINT_SCORING_RESOLUTION_OUTSIDE_FROZEN_SCOPE")
 
-    def _score_many(self, root, requests, *, n, ode_steps, diagnostic):
+    def score_many(self, root, requests, *, n=None, ode_steps=None):
         n = self.n_pop if n is None else n
         steps = self.steps if ode_steps is None else ode_steps
         if isinstance(steps, bool) or not isinstance(steps, int) or steps < 1:
             raise ValueError("SCORING_ODE_STEPS_INVALID")
-        if not diagnostic:
-            self._check_endpoint_resolution(n, steps)
+        self._check_endpoint_resolution(n, steps)
         # Validate the immutable root even when all requested scalars are cached.
         self._initial(root, n)
         result = []
         for sequence, seeds in requests:
             seeds = tuple(seeds)
-            keys = [(('V_diagnostic',) if diagnostic else ()) +
-                    (root.root_id, root.role, root.payload.identity, self.adapter.versions,
+            keys = [(root.root_id, root.role, root.payload.identity, self.adapter.versions,
                      self.biological_identity, self.protocol.version, tuple(sequence),
                      n, steps, int(seed)) for seed in seeds]
             values = [self._score_cache.get(key) for key in keys]
@@ -558,9 +523,3 @@ class BiologicalWorld:
                         values[i] = self._score_cache.put(keys[i], value)
             result.append(torch.tensor(values, dtype=torch.float64))
         return tuple(result)
-
-    def phi(self, state):
-        if self.potential is None:
-            raise StageUnavailable("POTENTIAL_UNAVAILABLE")
-        with torch.no_grad():
-            return float(self.potential([state])[0])

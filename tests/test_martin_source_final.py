@@ -148,26 +148,22 @@ def test_final_completion_metadata_drift_rejects_before_pt(tmp_path, cpu_only, m
         f.load_frozen_model(directory, context, 'cpu')
 
 
-def test_final_actual_last_counter_must_match_completion(tmp_path, cpu_only):
+def test_final_actual_counter_must_match_completion(tmp_path, cpu_only):
     directory, context = synthetic_run(tmp_path)
-    last = learning.load_checkpoint(directory / 'last.pt')
+    last = f.load_checkpoint(directory / 'final.pt')
     last['counters']['optimizer_step'] += 1
-    learning.atomic_save(directory / 'last.pt', last)
+    learning.atomic_save(directory / 'final.pt', last)
     result = f.read(directory / 'result.json')
-    result['last_checkpoint']['sha256'] = sha(directory / 'last.pt')
+    result['final_checkpoint']['sha256'] = sha(directory / 'final.pt')
     learning.atomic_json(directory / 'result.json', result)
-    with pytest.raises(ValueError, match='FINAL_ACTUAL_COMPLETED_LAST'):
+    with pytest.raises(ValueError, match='FINAL_ACTUAL_COMPLETED_CHECKPOINT'):
         f.load_frozen_model(directory, context, 'cpu')
 
 
-@pytest.mark.parametrize('surface', ('selected_history', 'selected_cursor_bool'))
-def test_final_selected_snapshot_must_match_its_saved_selection_epoch(tmp_path, cpu_only, surface):
+def test_final_selected_snapshot_must_match_its_saved_selection_epoch(tmp_path, cpu_only):
     directory, context = synthetic_run(tmp_path)
-    selected = learning.load_checkpoint(directory / 'best.pt')
-    if surface == 'selected_history':
-        selected['extra']['history'] = []
-    else:
-        selected['extra']['cursor'] = False
+    selected = f.load_checkpoint(directory / 'best.pt')
+    selected['counters']['optimizer_step'] = 1
     learning.atomic_save(directory / 'best.pt', selected)
     result = f.read(directory / 'result.json')
     result['selected_checkpoint']['sha256'] = sha(directory / 'best.pt')
@@ -186,7 +182,7 @@ def test_final_uses_frozen_fit_weights_and_deduplicated_true_final_units(tmp_pat
     monkeypatch.setattr(torch.optim, 'AdamW', forbidden)
     model, _ = f.load_frozen_model(directory, context, 'cpu')
     assert not model.training and all(not p.requires_grad for p in model.parameters())
-    before = {name: sha(directory / name) for name in ('best.pt', 'last.pt', 'result.json', 'run_manifest.json')}
+    before = {name: sha(directory / name) for name in ('best.pt', 'final.pt', 'result.json', 'run_manifest.json')}
     report = f.evaluate_final(tmp_path, fold_id=context.fold_id, trained_run=directory,
         output=tmp_path / 'experiments' / 'synthetic_final')
     assert context.closed and context.checked

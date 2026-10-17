@@ -9,10 +9,10 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.models import (ModelConfig, ResponseModel, PopulationPool, StateClassifier,
-                         EndpointHead, PotentialHead, BackwardModel, CorrectionModel,
-                         ErrorEstimator, HistoryEncoder, entropic_ot, sample_ot_pairs,
+                         EndpointHead, BackwardModel, CorrectionModel,
+                         HistoryEncoder, entropic_ot, sample_ot_pairs,
                          physical_projection, rbf_mmd, rbf_kernel, heun_integrate,
-                         biological_features, average_gene_ranks, split_conformal_quantile)
+                         biological_features, average_gene_ranks)
 from lung.models.sparse import SparseAttention, validate_neighbors
 
 
@@ -201,20 +201,18 @@ def test_history_pool_and_diagnostic_heads():
     summary = pool(cells)
     pool.reconstruction_loss(cells).backward()
     assert pool.encoder[0].weight.grad.abs().sum() > 0
-    cond, e_b, uncertainty = torch.randn(2, 8), torch.ones(2), torch.ones(2) * .2
-    backward, correction, estimator = BackwardModel(7, 8), CorrectionModel(7, 8), ErrorEstimator(8)
+    cond, e_b, ensemble_variance = torch.randn(2, 8), torch.ones(2), torch.ones(2) * .2
+    backward, correction = BackwardModel(7, 8), CorrectionModel(7, 8)
     assert backward(summary, cond).shape == (2, 7)
     assert backward.diagnostic(summary, cond, None) is None
     raw = torch.randn(2, 4, 7)
     assert correction(raw, summary, cond, gate=False) is raw
-    adjusted = correction(raw, summary.detach(), cond, e_b, uncertainty, training_candidate=True)
+    adjusted = correction(raw, summary.detach(), cond, e_b, ensemble_variance, training_candidate=True)
     torch.testing.assert_close(adjusted, raw)
     (adjusted + 1).square().mean().backward()
     assert correction.network[-1].weight.grad.abs().sum() > 0
-    assert (estimator(summary, cond, e_b, uncertainty, torch.tensor([0, 1])) > 0).all()
     features = torch.randn(2, cfg.state_dim)
     assert EndpointHead(cfg.state_dim, 8)(features).shape == (2,)
-    assert PotentialHead(cfg.state_dim, 8)(features, torch.tensor([True, False]))[0] == 0
 
 
 def test_state_class_order_proxy_and_program_masks():
@@ -230,5 +228,3 @@ def test_state_class_order_proxy_and_program_masks():
     assert features.shape == (27,) and scores.shape == (1, 3)
     torch.testing.assert_close(features[21:24], torch.tensor([0., 1., 1.]))
     torch.testing.assert_close(features[24:], torch.ones(3))
-    assert split_conformal_quantile(torch.ones(3)).isinf()
-    assert split_conformal_quantile(torch.arange(10.).float()) == 9

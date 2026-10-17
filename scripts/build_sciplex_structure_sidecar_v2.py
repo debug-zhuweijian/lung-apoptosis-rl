@@ -91,7 +91,7 @@ def main():
     if OUTPUT.exists():
         raise FileExistsError("Keep published versions; choose a new output for changes")
     inputs = [v1.SOURCE, v1.V3 / "chemicals.parquet", v1.V3 / "conditions.parquet", v1.V3 / "manifest.json",
-              ROOT / "src/lung/data/drug_identity.py", Path(v1.__file__), Path(__file__), SDF,
+              SDF,
               REVIEW / "independent_review.md", REVIEW / "independent_acquisition.json",
               REVIEW / "independent_structure_comparison.json", REVIEW / "PubChem_CAS4548-34-9.json"]
     before = {path.relative_to(ROOT).as_posix(): v1.digest(path) for path in inputs}

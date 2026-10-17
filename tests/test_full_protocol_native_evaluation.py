@@ -265,11 +265,10 @@ def comparison_fixture(tmp_path, monkeypatch):
     origin = tmp_path / 'experiments/shared-AE'; origin.mkdir(parents=True)
     ae = {'schema': module.learning.AE_RESULT_SCHEMA, 'stage': 'latent_ae', 'data_identity': view.identity,
         'training_completion': {'status': 'complete'}, 'weights': str(origin / 'weights/latent_ae/best.pt'),
-        'last_checkpoint': str(origin / 'weights/latent_ae/last.pt'), 'checkpoint_sha256': 'a'*64, 'last_checkpoint_sha256': 'd'*64}
-    deps = module.learning.execution_dependencies()
+        'final_checkpoint': str(origin / 'weights/latent_ae/final.pt'), 'checkpoint_sha256': 'a'*64, 'final_checkpoint_sha256': 'd'*64}
     module.write(origin / 'AE_result.json', ae)
     module.write(origin / 'run_manifest.json', {'schema': module.learning.SCHEMA + ':joint-AE',
-        'config': module.learning.joint_ae_config(config), 'data_identity': view.identity, 'execution_dependencies': deps})
+        'config': module.learning.joint_ae_config(config), 'data_identity': view.identity})
     directories = []
     for variant, score in [('observed', 0.), ('zero_h', 1.), ('mean_h', 2.)]:
         run = tmp_path / ('experiments/P-' + variant); assets = run.with_name(run.name + '-assets')
@@ -283,9 +282,9 @@ def comparison_fixture(tmp_path, monkeypatch):
             'full_response_bindings': bindings, 'representation_hash': 'b'*64, 'reference_contract': contract,
             'training_protocol_coverage': module.learning.COVERAGE, 'model_config': {'latent_dim': 2}}
         module.write(run / 'run_manifest.json', {'schema': module.learning.SCHEMA, 'metadata': meta,
-            'settings': train_settings, 'execution_dependencies': deps, 'protocol_identity': view.protocol_identity, 'cache_encoder': 'fixture-cache'})
+            'settings': train_settings, 'protocol_identity': view.protocol_identity, 'cache_encoder': 'fixture-cache'})
         module.write(assets / 'run_manifest.json', {'config': current_config, 'bindings': bindings, 'protocol_identity': view.protocol_identity,
-            'execution_dependencies': deps, 'AE_declaration': ae, 'settings': train_settings})
+            'AE_declaration': ae, 'settings': train_settings})
         rep = {'stage': 'latent_ae', 'synthetic': False, 'data_identity': view.identity, 'optimizer_step': 1,
             'checkpoint': str(assets / 'representation_weights.pt'), 'checkpoint_sha256': 'b'*64}
         declaration = {'bindings': bindings, 'representation': rep, 'response': {'stage': module.producer.STAGE,
@@ -296,8 +295,8 @@ def comparison_fixture(tmp_path, monkeypatch):
         json_paths = [run / 'model_declaration.json', run / 'run_manifest.json', assets / 'run_manifest.json',
             assets / 'representation_declaration.json', origin / 'AE_result.json', origin / 'run_manifest.json']
         model_hashes = {str(p): module.sha(p) for p in json_paths}
-        model_hashes.update({str(run / 'last.pt'): 'e'*64, str(run / 'response_weights.pt'): module.config_hash(variant),
-            str(assets / 'representation_weights.pt'): 'b'*64, ae['weights']: 'a'*64, ae['last_checkpoint']: 'd'*64})
+        model_hashes.update({str(run / 'final.pt'): 'e'*64, str(run / 'response_weights.pt'): module.config_hash(variant),
+            str(assets / 'representation_weights.pt'): 'b'*64, ae['weights']: 'a'*64, ae['final_checkpoint']: 'd'*64})
         settings = module.evaluation_settings(config); key = module.config_hash(list(module.context_key(records[0])))
         np.save(directory / ('fit-mean-' + key + '.npy'), np.full(3, .5, np.float32), allow_pickle=False)
         baseline = [{'context': list(module.context_key(records[0])), 'status': 'actual_fit_context_target_mean', 'conditions': 1,

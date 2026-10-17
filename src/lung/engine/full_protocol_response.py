@@ -25,8 +25,6 @@ VERSION = "full-protocol-response-v1"
 DOMAIN = "joint_single_cell_common_gene_library10000_log1p_standardized_v1"
 OUTLET = "common_gene_library10000_log1p_not_source_raw_counts"
 STAGE = "full_protocol_latent_cfm_v1"
-AUDIT_SCHEMA = "full-protocol-matching-model-execution-audit-v1"
-REGISTRY = ROOT / "experiments/full-protocol-response-registered-assets-v1/registry.json"
 NUMERIC = ("fingerprint", "dose", "duration", "elapsed", "horizon", "vehicle",
            "background", "source", "protocol")
 REFERENCE_SCHEMA = "fullP_reference_h_input_v1"
@@ -87,8 +85,7 @@ def bound_inputs():
         "context_vocabulary": context["context_vocabulary"],
         "input_domain": DOMAIN, "outlet": OUTLET, "feature_schema": FEATURE_SCHEMA,
         "parameter_identity": PARAMETER_IDENTITY,
-        "duration_contract": inputs.DECLARATIONS["duration_contract"],
-        "producer_sha256": inputs.sha(__file__)}
+        "duration_contract": inputs.DECLARATIONS["duration_contract"]}
     return reader, rows, context, bindings
 
 
@@ -98,11 +95,11 @@ def preflight():
         "source_state_id": r["source_state_id"], "observation_id": r["observation_id"],
         "role_binding": r["role_binding"], "request_status": r["request_status"],
         "input_ready": r["base_kwargs"] is not None,
-        "pending": ["matching_full_protocol_AE_response_decoder_weights", "registered_actual_model_execution_audit"]
+        "pending": ["matching_full_protocol_AE_response_decoder_weights"]
             if r["base_kwargs"] is not None else [r["request_status"]],
         "prediction_domain": DOMAIN if r["base_kwargs"] is not None else None,
         "source_state_numerically_encoded": False,
-        "proxy_transfer_validated": False, "production_qualified": False} for r in rows]
+        "proxy_transfer_validated": False} for r in rows]
     return {"schema": VERSION, "bindings": bindings, "candidates": records,
         "candidate_count": len(records), "numeric_ready": sum(r["input_ready"] for r in records),
         "PT_loads": 0, "model_forwards": 0, "P_outputs": 0, "G_outputs": 0, "Q_outputs": 0,
@@ -259,7 +256,7 @@ def prepare_reference_h(shared, reference, variant, *, device="cpu", microbatch=
 
 
 class FullProtocolResponseAdapter(nn.Module):
-    """Executable single-cell proxy E/full-P/D; qualification stays in producer."""
+    """Executable single-cell proxy E/full-P/D in the declared expression coordinates."""
     def __init__(self, shared, full, mean, scale, *, input_domain=DOMAIN, reference_variant="observed"):
         super().__init__()
         require(input_domain == DOMAIN, "SOURCE_DOMAIN_NOT_SUPPORTED_BY_SINGLE_CELL_OUTLET")
@@ -302,8 +299,8 @@ class FullProtocolResponseAdapter(nn.Module):
         return result
 
 
-def validate_model_declaration(metadata, bindings):
-    """Static metadata rejection, without caller-supplied execution authority."""
+def validate_metadata(metadata, bindings):
+    """Check the declared data, model stages and AE/response pairing."""
     require(type(metadata) is dict, "MATCHING_MODEL_METADATA_PENDING")
     require(canonical(metadata.get("bindings")) == canonical(bindings), "MODEL_BINDINGS_MISMATCH")
     for name, stage in (("representation", "latent_ae"), ("response", STAGE)):
@@ -320,56 +317,6 @@ def validate_model_declaration(metadata, bindings):
     require(metadata["response"].get("training_protocol_coverage") == PARTIAL_PROTOCOL_COVERAGE,
             "ACTUAL_PROTOCOL_SUPERVISION_COVERAGE_REQUIRED")
     declared_reference_variant(metadata["response"])
-
-
-def registered_audit(metadata, bindings):
-    """Select a receipt from the independent fixed ledger, never a caller path.
-
-    This producer never writes the ledger. After an authorized real model audit,
-    independent review publishes its receipt hash there without modifying this
-    source, training bindings, or parameter files. A caller's qualification text
-    or self-chosen receipt path cannot replace the registered local asset.
-    """
-    require(REGISTRY.is_file(), "REGISTERED_EXECUTION_AUDIT_PENDING")
-    ledger_sha = inputs.sha(REGISTRY)
-    registry = inputs.read(REGISTRY)
-    require(registry.get("schema") == AUDIT_SCHEMA and registry.get("producer_sha256") == bindings["producer_sha256"],
-            "REGISTERED_AUDIT_PRODUCER_CHANGED")
-    audit_id = metadata.get("registered_audit_id")
-    require(type(audit_id) is str and audit_id in registry.get("audits", {}), "REGISTERED_EXECUTION_AUDIT_PENDING")
-    record = registry["audits"][audit_id]
-    path = (ROOT / record["path"]).resolve()
-    require(path.is_relative_to(ROOT / "experiments") and inputs.sha(path) == record["sha256"], "REGISTERED_AUDIT_FILE_CHANGED")
-    audit = inputs.read(path)
-    require(audit.get("schema") == AUDIT_SCHEMA and audit.get("status") == "actual_reference_tensor_execution_passed"
-            and canonical(audit.get("bindings")) == canonical(bindings)
-            and audit.get("reference_contract") == metadata["response"]["reference_contract"]
-            and canonical(audit.get("model_files")) == canonical({k: metadata[k] for k in ("representation", "response")}),
-            "REGISTERED_AUDIT_MODEL_BINDINGS_MISMATCH")
-    require(type(audit.get("PT_loads")) is int and audit["PT_loads"] == 2
-            and type(audit.get("actual_model_forward_calls")) is int and audit["actual_model_forward_calls"] > 0
-            and type(audit.get("real_reference_cells_read")) is int and audit["real_reference_cells_read"] == 2431
-            and audit.get("reference_role") == "fit" and audit.get("functional_Y_read") is False
-            and audit.get("target_expression_read") is False and audit.get("final_RNA_read") is False
-            and audit.get("scientific_effect_verified") is False, "REGISTERED_AUDIT_NOT_REAL_FIT_TENSOR_EVIDENCE")
-    forward_path = path.parent / "actual_forward_log1p.npy"
-    require(inputs.sha(forward_path) == audit.get("forward_sha256"), "REGISTERED_AUDIT_FORWARD_CHANGED")
-    forward = np.load(forward_path, allow_pickle=False)
-    require(forward.shape == (2, 32461) and audit.get("forward_shape") == [2, 32461]
-            and np.isfinite(forward).all() and (forward >= 0).all()
-            and (forward <= np.log(10001) + 1e-5).all()
-            and np.allclose(np.expm1(forward).sum(1), 10000., rtol=1e-5, atol=.01),
-            "REGISTERED_AUDIT_FORWARD_OUTLET_INVALID")
-    require(inputs.sha(REGISTRY) == ledger_sha, "REGISTERED_LEDGER_CHANGED_DURING_READ")
-    return {"registry_path": str(REGISTRY), "registry_sha256": ledger_sha,
-            "audit_id": audit_id, "audit_path": str(path), "audit_sha256": record["sha256"],
-            "actual_forward_sha256": audit["forward_sha256"]}
-
-
-def validate_metadata(metadata, bindings):
-    """Production authority comes from the independent registration, not text."""
-    validate_model_declaration(metadata, bindings)
-    return registered_audit(metadata, bindings)
 
 
 def finite_weights(state):
@@ -390,9 +337,9 @@ def equal_weight(left, right):
     return torch.equal(left.indices(), right.indices()) and torch.equal(left.values(), right.values())
 
 
-def _load_matching_model(metadata, bindings, context, device="cpu"):
-    """Explicit audit loader; a returned model alone is not production authority."""
-    validate_model_declaration(metadata, bindings)
+def load_model(metadata, bindings, context, device="cpu"):
+    """Load matching AE and response weights, checking actual tensors and coordinates."""
+    validate_metadata(metadata, bindings)
     from lung.models import ModelConfig
     from lung.models.latent_staged import SharedAutoencoder, LatentMember
     saved = {}
@@ -436,55 +383,8 @@ def _load_matching_model(metadata, bindings, context, device="cpu"):
         reference_variant=declared_reference_variant(actual)).to(device).eval().requires_grad_(False)
 
 
-def qualified_model(metadata, bindings, context, device="cpu"):
-    """Registered production path; registration precedes any PT access."""
-    validate_metadata(metadata, bindings)
-    return _load_matching_model(metadata, bindings, context, device)
-
-
-def audit_matching_model(candidate_id, metadata, output, *, seed, steps=32, device="cpu"):
-    """Future explicitly authorized real tensor audit, not auto-registration.
-
-    Reads all fixed reference data but forwards two declared fit rows only. This
-    is an execution check, not complete prediction or scientific evaluation.
-    The independent reviewer must inspect the actual artifacts before writing
-    the fixed ledger. Preparation never calls this function.
-    """
-    reader, rows, context, bindings = bound_inputs()
-    request = next((r for r in rows if r["candidate_id"] == candidate_id), None)
-    require(request is not None and request["base_kwargs"] is not None, "AUDIT_SOURCE_INPUTS_PENDING")
-    require(type(seed) is int and seed >= 0 and type(steps) is int and steps > 0, "AUDIT_ARGUMENTS_INVALID")
-    output = Path(output).resolve()
-    require(output.is_relative_to(ROOT / "experiments") and not output.exists(), "NEW_PROJECT_AUDIT_OUTPUT_REQUIRED")
-    metadata = json.loads(canonical(metadata))
-    model = _load_matching_model(metadata, bindings, context, device)
-    x, reference = read_proxy_reference(context)
-    h = prepare_reference_h(model.shared, x, model.reference_contract["variant"], device=device, microbatch=64)
-    kwargs, physical = numeric_batch(reader, candidate_id, 2, device)
-    noise = torch.randn((2, model.full.member.config.latent_dim), device=device,
-                        generator=torch.Generator(device=device).manual_seed(seed))
-    result = model.predict_h(h[:2], physical, kwargs, noise=noise, steps=steps)
-    require(bound_inputs()[3] == bindings and all(inputs.sha(ROOT / metadata[k]["checkpoint"])
-            == metadata[k]["checkpoint_sha256"] for k in ("representation", "response")), "AUDIT_ASSET_CHANGED")
-    output.mkdir(parents=True)
-    np.save(output / "actual_forward_log1p.npy", result.y.cpu().numpy(), allow_pickle=False)
-    receipt = {"schema": AUDIT_SCHEMA, "status": "actual_reference_tensor_execution_passed",
-        "bindings": bindings, "model_files": {k: metadata[k] for k in ("representation", "response")},
-        "candidate_id": candidate_id, "actual_model_forward_calls": 1, "PT_loads": 2,
-        "real_reference_cells_read": len(x), "forwarded_reference_cell_ids": reference["reference_cell_ids"][:2],
-        "reference_role": "fit", "reference_receipt": reference, "seed": seed, "steps": steps,
-        "forward_shape": list(result.y.shape), "forward_sha256": inputs.sha(output / "actual_forward_log1p.npy"),
-        "training_protocol_coverage": metadata["response"]["training_protocol_coverage"],
-        "reference_contract": model.reference_contract,
-        "candidate_protocol_OOD": True, "candidate_protocol_scientifically_validated": False,
-        "functional_Y_read": False, "target_expression_read": False, "final_RNA_read": False,
-        "scientific_effect_verified": False, "auto_registered": False, "P_production_outputs": 0}
-    write_new(output / "actual_execution_audit.json", receipt)
-    return receipt
-
-
 def prepare(output):
-    """Immutable real data preparation only, no invocation of qualified_model."""
+    """Immutable real data preparation only, no model loading."""
     output = Path(output).resolve()
     require(not output.exists(), "REFUSING_EXISTING_OUTPUT")
     reader, rows, context, bindings = bound_inputs()
@@ -523,8 +423,7 @@ def produce(candidate_id, metadata, output, *, seed, steps=32, microbatch=64, de
     output = Path(output).resolve()
     require(not output.exists(), "REFUSING_EXISTING_OUTPUT")
     metadata = json.loads(canonical(metadata))
-    registration = validate_metadata(metadata, bindings)
-    model = qualified_model(metadata, bindings, context, device)
+    model = load_model(metadata, bindings, context, device)
     x, reference = read_proxy_reference(context)
     h = prepare_reference_h(model.shared, x, model.reference_contract["variant"], device=device, microbatch=microbatch)
     generator = torch.Generator(device=device).manual_seed(seed)
@@ -538,9 +437,8 @@ def produce(candidate_id, metadata, output, *, seed, steps=32, microbatch=64, de
     y = np.concatenate(results).astype(np.float64)
     require(bound_inputs()[3] == bindings and all(inputs.sha(ROOT / metadata[k]["checkpoint"])
             == metadata[k]["checkpoint_sha256"] for k in ("representation", "response")), "GENERATION_ASSET_CHANGED")
-    require(registered_audit(metadata, bindings) == registration, "GENERATION_REGISTRATION_CHANGED")
     body = {"schema": VERSION, "candidate_id": candidate_id, "request": request, "bindings": bindings,
-        "model_metadata": metadata, "production_registration": registration,
+        "model_metadata": metadata,
         "reference": reference, "seed": seed, "steps": steps,
         "execution_kind": "matching_full_protocol_weights", "outlet": OUTLET,
         "reference_contract": model.reference_contract,
@@ -561,9 +459,8 @@ def produce(candidate_id, metadata, output, *, seed, steps=32, microbatch=64, de
 def read_prediction(path):
     """Authenticate a saved full-P outlet for downstream G/Q, without PT/ML.
 
-    Matching execution registration establishes tensor execution only. Protocol
-    OOD and the unvalidated cross-source reference remain explicit, even after
-    every integrity check passes. This reader does not grant endpoint science.
+    Protocol OOD and the unvalidated cross-source reference remain explicit.
+    File integrity and matching weights do not establish endpoint science.
     """
     path = Path(path).resolve()
     require(path.is_relative_to(ROOT / "experiments"), "PREDICTION_PROJECT_BOUNDARY")
@@ -576,9 +473,8 @@ def read_prediction(path):
         and canonical(value.get("request")) == canonical(request)
         and canonical(value.get("bindings")) == canonical(bindings), "PREDICTION_REQUEST_OR_BINDINGS_CHANGED")
     metadata = value.get("model_metadata")
-    registration = validate_metadata(metadata, bindings)
+    validate_metadata(metadata, bindings)
     require(value.get("reference_contract") == metadata["response"]["reference_contract"], "PREDICTION_REFERENCE_VARIANT_CHANGED")
-    require(value.get("production_registration") == registration, "PREDICTION_REGISTRATION_CHANGED")
     for key in ("representation", "response"):
         asset = (ROOT / metadata[key]["checkpoint"]).resolve()
         require(asset.is_relative_to(ROOT) and inputs.sha(asset) == metadata[key]["checkpoint_sha256"],

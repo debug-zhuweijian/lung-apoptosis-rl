@@ -153,6 +153,10 @@ def test_mock_generation_and_cache_tamper(monkeypatch, bridge, tmp_path):
         mapping_path=root / "experiments/20261011-data-alignment-round14/producer_context_map.json",
         data_config_path=root / "configs/data_joint_sciplex_v1.json", pipeline=pipeline,
         config={"synthetic": False, "seed": 1, "history_support": "single_exposure_only"}, output=output)
+    m = p.read(output / "manifest.json")
+    assert "producer_sources" not in m and "feature_generator" not in m["feature_dependencies"]["assets"]
+    m["producer_sources"] = [{"path": "deleted-producer.py", "sha256": "0" * 64}]
+    p.atomic_json(output / "manifest.json", m)
     loaded = p.load_standard_cache(output / "manifest.json", bridge)
     assert len(loaded) == 14 and len(called) == 1
     table = p.read(output / "features.json")

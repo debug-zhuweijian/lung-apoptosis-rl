@@ -8,7 +8,7 @@ import pytest
 from lung.data.martin_state_function import BACKGROUND_ORDER, DOMAIN_IDS, SCALE, MartinStateFunctionInputs
 from lung.data.multistate_role_plan import MultiStateRolePlan, build_role_plan, digest, write_new
 from lung.engine import multistate_endpoint_model as model
-from lung.engine.multistate_endpoint_learning import NonnegativeRidge, fit_g, load_g, ridge_parameters, terminal_q_preflight
+from lung.engine.multistate_endpoint_learning import NonnegativeRidge, fit_g, load_g, ridge_parameters
 from lung.engine.native_response_producer import VerifiedNativeDescriptor
 
 
@@ -206,13 +206,6 @@ def test_checkpoint_content_tamper_rejected(lane, monkeypatch):
     path.write_text(json.dumps(cp))
     with pytest.raises(ValueError, match='CONTENT_CHANGED'):
         load_g(path, source=source, plan=plan, fold_id=fold, head_id=head, native_cache_index=index)
-
-
-def test_q_stays_pending_with_new_or_old_roles():
-    q = terminal_q_preflight()
-    assert q['reward_qualified'] is False and q['Q_fit_implemented'] is False
-    assert q['old_LOBO_no_selection_role_eligible'] is False
-    assert 'single_terminal' in q['target']
 
 
 @pytest.mark.parametrize('change', ('scorer_kind', 'normalization_role', 'output_policy', 'training_domain'))

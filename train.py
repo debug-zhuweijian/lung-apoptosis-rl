@@ -1,4 +1,4 @@
-"""PyCharm entry point: the registered research suite, with resumable child runs."""
+"""PyCharm entry point for the current modular training workflow."""
 
 from pathlib import Path
 import sys
@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from lung.engine.train import main
+from lung.engine.modular_research import main
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ PARTITION_ROLES = {"T": "fit", "V": "selection", "C": "calibration", "E": "final
 FEATURE_KEYS = ("representation", "response", "pool", "state", "backward",
                 "correction", "correction_gate")
 REQUIRED_ASSETS = {"gene_axis", "preprocessing", "chemical_identity",
-                   "feature_generator", "condition_inputs", "initial_state"}
+                   "condition_inputs", "initial_state"}
 INDEX_FIELDS = ("role", "experimental_condition_id", "endpoint_sample_id",
                 "observation_ids", "experiment_id", "source_id", "group_id",
                 "chemical_group_id", "protocol_id", "label_type", "label_kind",
@@ -54,6 +54,13 @@ def endpoint_unit_index(row):
     return {key: row[key] for key in INDEX_FIELDS if key in row}
 
 
+def data_feature_dependencies(dependencies):
+    """Ignore old generator source records without changing recorded feature IDs."""
+    return {**dependencies, "assets": {
+        key: [item for item in records if Path(str(item.get("path", ""))).suffix.lower() != ".py"]
+        for key, records in dependencies["assets"].items() if key != "feature_generator"}}
+
+
 def feature_dependencies_v2(pipeline, feature_assets, *, base):
     """Bind every present feature-producing stage and actual asset bytes."""
     if any(not pipeline.get(key) for key in ("response", "pool", "state")):
@@ -73,7 +80,13 @@ def feature_dependencies_v2(pipeline, feature_assets, *, base):
         raise StageUnavailable("ENDPOINT_FEATURE_ASSETS_REQUIRED")
     assets = {}
     for key, records in feature_assets.items():
+        if key == "feature_generator":
+            continue
         if not isinstance(records, list) or not records:
+            raise StageUnavailable("ENDPOINT_FEATURE_ASSETS_REQUIRED: " + key)
+        records = [item for item in records if not isinstance(item, dict)
+                   or Path(str(item.get("path", ""))).suffix.lower() != ".py"]
+        if not records:
             raise StageUnavailable("ENDPOINT_FEATURE_ASSETS_REQUIRED: " + key)
         assets[key] = [{"path": str(_source(base, item)), "sha256": item["sha256"]}
                        for item in records]
@@ -176,7 +189,7 @@ def validate_manifest_v2(path, manifest, data_identity, pipeline):
         raise StageUnavailable("ENDPOINT_SCHEMA2_MANIFEST_UNVERIFIED")
     recorded = manifest.get("feature_dependencies", {})
     current = feature_dependencies_v2(pipeline, recorded.get("assets"), base=path.parent)
-    if recorded != current or manifest.get("frozen_feature_identity") != _feature_identity(manifest):
+    if data_feature_dependencies(recorded) != current or manifest.get("frozen_feature_identity") != _feature_identity(manifest):
         raise StageUnavailable("ENDPOINT_FROZEN_FEATURE_IDENTITY_MISMATCH")
     for key in recorded["pipeline"]:
         if key == "correction_gate":
@@ -287,11 +300,11 @@ def load_units_v2(path, manifest, role, shape):
 def dependency_files_v2(path, manifest):
     """Files whose bytes must stay frozen when loading/calibrating G."""
     files = {path.resolve()}
-    for records in manifest["feature_dependencies"]["assets"].values():
+    for records in data_feature_dependencies(manifest["feature_dependencies"])["assets"].values():
         files.update((path.parent / record["path"]).resolve() for record in records)
     for entry in manifest["partitions"].values():
         files.add((path.parent / entry["path"]).resolve())
         for row in entry["unit_index"]:
             records = row["measurement_provenance"] + row["initial_state"].get("source_files", [])
             files.update((path.parent / record["path"]).resolve() for record in records)
-    return sorted(files)
+    return sorted(path for path in files if path.suffix.lower() != ".py")

@@ -4,21 +4,20 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import merge
+from lung.engine.config import merge
 
 
 def smoke_config(config):
     return merge(config, {
         "synthetic": True, "epochs": 1, "early_stopping": False,
-        "device": "cpu", "dashboard": False,
-        "training_control": {"validation_every_epochs": 1, "validation_every_updates": 0,
-                             "checkpoint_every_updates": 1, "checkpoint_every_seconds": 0},
-        "open_browser": False, "population": 4, "scoring_repeats": 2,
+        "device": "cpu",
+        "training_control": {"validation_every_epochs": 1, "validation_every_updates": 0},
+        "population": 4, "scoring_repeats": 2,
         "state_batch": 6, "aux_batch": 2, "calibration_steps": 3,
         "potential_train_prefixes": 4, "potential_val_prefixes": 2,
         "potential_continuations": 2, "potential_batch": 2,
         "policy_seeds": [0], "decision_validation_repeats": 2,
-        "response": {"members": 2, "member_workers": 1, "conditions_per_update": 2, "ot_samples": 4,
+        "response": {"members": 2, "conditions_per_update": 2, "ot_samples": 4,
                      "condition_microbatch": 1,
                      "cfm_samples": 4, "mmd_samples": 3, "microbatch": 1,
                      "train_ode_steps": 2, "inference_ode_steps": 2,

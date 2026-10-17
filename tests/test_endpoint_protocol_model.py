@@ -8,7 +8,7 @@ import pytest
 from src.lung.engine.config import StageUnavailable
 from src.lung.engine.endpoint_protocol_features_v2 import EndpointProtocolFeatureInputsV2
 from src.lung.engine.endpoint_protocol_model import (
-    ProtocolConditionAdapter, RegisteredProtocolScorer, enumerate_with_g, rank_with_candidate_q,
+    ProtocolConditionAdapter, RegisteredProtocolScorer, enumerate_with_g,
 )
 
 
@@ -32,14 +32,14 @@ def mocked_cache(monkeypatch, bridge):
     monkeypatch.setattr(producer, 'load_standard_cache', lambda path, input_bridge: cache)
 
 
-def registration(packet, capture, algorithm='mock_G'):
+def registration(packet, capture):
     encoded = ProtocolConditionAdapter().encode(packet)
     def score(vectors):
         capture.append(vectors.copy())
         return np.full(len(vectors), 0.5)
-    return RegisteredProtocolScorer(score, 'pytest_only', algorithm, encoded.feature_names,
+    return RegisteredProtocolScorer(score, 'pytest_only', 'mock_G', encoded.feature_names,
         packet['candidate_record']['endpoint_definition'], 'terminal_Annexin_fraction', 'mock_not_trained',
-        'private_candidate_Q' if algorithm == 'mock_private_Q' else 'endpoint_G')
+        'endpoint_G')
 
 
 def test_real_defaults_do_not_predict(bridge):
@@ -49,18 +49,15 @@ def test_real_defaults_do_not_predict(bridge):
         bridge.require_response_features(bridge.candidate_ids[0])
 
 
-def test_mock_cache_and_both_actual_calls_keep_pulse_distinct(bridge, monkeypatch):
+def test_mock_cache_and_g_enumeration_keep_pulse_distinct(bridge, monkeypatch):
     mocked_cache(monkeypatch, bridge)
     ids = bridge.candidate_ids[:20]
     packet = bridge.require_response_features(ids[0], cache_manifest='mock')
-    seen_g, seen_q = [], []
+    seen_g = []
     g = enumerate_with_g(bridge, ids, scorer=registration(packet, seen_g), cache_manifest='mock')
-    q = rank_with_candidate_q(bridge, ids, scorer=registration(packet, seen_q, 'mock_private_Q'), cache_manifest='mock')
-    assert np.array_equal(seen_g[0], seen_q[0])
     assert np.unique(seen_g[0], axis=0).shape[0] == 20
     assert all(r['rank'] == 1 and r['tied'] for r in g['ranking'])
     assert [r['candidate_id'] for r in g['ranking']] == list(ids)
-    assert q['algorithm'] != g['algorithm']
     names = registration(packet, []).feature_names
     assert not any('history' in n or 'elapsed' in n or 'observation' in n or 'labels_seen' in n for n in names)
     assert seen_g[0][0, names.index('actual.exposure_duration_h[h]')] in (6, 24)
@@ -125,18 +122,13 @@ def test_invalid_feature_names_rejected(bridge, names):
         replace(registration(packet, []), feature_names=names)
 
 
-def test_scorer_kind_mismatch_and_noncallable_rejected(bridge):
+def test_noncallable_scorer_rejected(bridge):
     from dataclasses import replace
     packet = bridge.model_input(bridge.candidate_ids[0])
     packet['p_descriptor'] = descriptor(packet)
     g = registration(packet, [])
-    q = registration(packet, [], 'mock_private_Q')
     with pytest.raises(ValueError, match='CALLABLE_REQUIRED'):
         replace(g, scorer=None)
-    with pytest.raises(ValueError, match='KIND_ALGORITHM_MISMATCH'):
-        rank_with_candidate_q(bridge, bridge.candidate_ids[:20], scorer=g, cache_manifest='mock')
-    with pytest.raises(ValueError, match='KIND_ALGORITHM_MISMATCH'):
-        enumerate_with_g(bridge, bridge.candidate_ids[:20], scorer=q, cache_manifest='mock')
 
 
 def test_explicit_no_induction_differs_from_unreported_source(bridge, monkeypatch):

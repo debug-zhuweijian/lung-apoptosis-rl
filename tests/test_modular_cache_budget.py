@@ -14,7 +14,6 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from lung.engine.modular_budget import StagePaused
 from lung.engine.representation_cache import (
     _manifest_matches, build_representation_cache, encoder_identity,
     ensure_representation_cache, load_representation_cache,
@@ -66,31 +65,16 @@ def assets():
     return data, TinyEncoder()
 
 
-def test_budget_pause_commits_partial_chunk_and_resume_never_encodes_it_twice(tmp_path, assets):
+def test_cache_build_and_complete_reuse_preserve_cells_and_roles(tmp_path, assets):
     data, shared = assets
     requested = tmp_path / "cache"
     callbacks = []
-    with pytest.raises(StagePaused) as stopped:
-        ensure_representation_cache(data, shared, requested, "cpu", batch_size=2,
-                                    stop_check=lambda step, epoch: step >= 1)
-    pause = stopped.value
-    state_path = Path(pause.checkpoint_path)
-    directory = state_path.parent
-    assert pause.stage == "latent_cache" and pause.step == pause.cursor == 1 and pause.epoch == 0
-    assert shared.encoded_cells == 2 and len(data.reader.read_ids) == 2
-    assert not (directory / "manifest.json").exists()
-    with pytest.raises(ValueError, match="CACHE_MANIFEST_MISSING"):
-        load_representation_cache(directory, "cpu")
-    first_shard = directory / json.loads(state_path.read_text())["roles"]["fit"][0]["file"]
-    first_bytes = first_shard.read_bytes()
-    first_mtime = first_shard.stat().st_mtime_ns
-
-    resumed, status = ensure_representation_cache(data, shared, requested, "cpu", batch_size=2,
-                                                 progress=lambda *values: callbacks.append(values))
-    assert resumed == directory and status == "built"
-    assert shared.encoded_cells == 20
+    directory, status = ensure_representation_cache(
+        data, shared, requested, "cpu", batch_size=2,
+        progress=lambda *values: callbacks.append(values))
+    assert status == "built" and shared.encoded_cells == 20
     assert set(Counter(data.reader.read_ids).values()) == {1}
-    assert first_shard.read_bytes() == first_bytes and first_shard.stat().st_mtime_ns == first_mtime
+    assert not (directory / "build_state.json").exists()
     assert callbacks == [(role, index + 1, 2, condition)
                          for role in ("fit", "selection")
                          for index, condition in enumerate(data.reader.condition_ids(role, True))]
@@ -98,7 +82,6 @@ def test_budget_pause_commits_partial_chunk_and_resume_never_encodes_it_twice(tm
                                       expected_encoder=encoder_identity(shared, shared.config))
     assert cached.summary() == {role: {"cells": 10, "conditions": 2} for role in ("fit", "selection")}
     assert set(cached.cell_index["fit"]).isdisjoint(cached.cell_index["selection"])
-
     reference_data = SimpleNamespace(identity=data.identity, manifest=data.manifest, reader=TinyReader())
     uninterrupted = tmp_path / "uninterrupted"
     build_representation_cache(reference_data, deepcopy(shared), uninterrupted, "cpu", batch_size=2)
@@ -108,75 +91,6 @@ def test_budget_pause_commits_partial_chunk_and_resume_never_encodes_it_twice(tm
         assert cached.cell_index[role] == reference.cell_index[role]
     assert ensure_representation_cache(data, shared, requested, "cpu", batch_size=2) == (directory, "reused")
     assert shared.encoded_cells == 20
-
-
-def test_exhausted_before_first_chunk_creates_only_resumable_registration(tmp_path, assets):
-    data, shared = assets
-    with pytest.raises(StagePaused) as stopped:
-        build_representation_cache(data, shared, tmp_path, "cpu", stop_check=lambda step, epoch: True)
-    assert stopped.value.step == 0 and not list(tmp_path.glob("*.npz"))
-    assert not data.reader.read_ids and shared.encoded_cells == 0
-    build_representation_cache(data, shared, tmp_path, "cpu")
-    assert (tmp_path / "manifest.json").is_file() and shared.encoded_cells == 20
-
-
-def test_last_chunk_pause_finalizes_without_reencoding_on_resume(tmp_path, assets):
-    data, shared = assets
-    with pytest.raises(StagePaused):
-        build_representation_cache(data, shared, tmp_path, "cpu", batch_size=5,
-                                   stop_check=lambda step, epoch: step >= 4)
-    assert shared.encoded_cells == 20 and not (tmp_path / "manifest.json").exists()
-    build_representation_cache(data, shared, tmp_path, "cpu", batch_size=5)
-    assert shared.encoded_cells == 20 and (tmp_path / "manifest.json").is_file()
-
-
-def test_resume_accepts_actual_partial_directory_without_adding_version_suffix(tmp_path, assets):
-    data, shared = assets
-    with pytest.raises(StagePaused) as stopped:
-        ensure_representation_cache(data, shared, tmp_path / "cache", "cpu", batch_size=2,
-                                    stop_check=lambda step, epoch: step >= 1)
-    actual = Path(stopped.value.checkpoint_path).parent
-    directory, status = ensure_representation_cache(data, shared, actual, "cpu", batch_size=2)
-    assert directory == actual and status == "built"
-    assert shared.encoded_cells == 20 and set(Counter(data.reader.read_ids).values()) == {1}
-    assert list(tmp_path.iterdir()) == [actual]
-
-
-def test_corrupt_committed_chunk_rejects_resume_before_new_encoding(tmp_path, assets):
-    data, shared = assets
-    with pytest.raises(StagePaused):
-        build_representation_cache(data, shared, tmp_path, "cpu", batch_size=2,
-                                   stop_check=lambda step, epoch: step >= 1)
-    shard = next(tmp_path.glob("*.npz"))
-    shard.write_bytes(shard.read_bytes() + b"corrupted")
-    with pytest.raises(ValueError, match="CACHE_SHARD_MISMATCH"):
-        build_representation_cache(data, shared, tmp_path, "cpu", batch_size=2)
-    assert shared.encoded_cells == 2 and not (tmp_path / "manifest.json").exists()
-
-
-@pytest.mark.parametrize("change", ["data", "normalization", "batch", "roles", "rows", "checkpoint"])
-def test_resume_rejects_changed_registration_or_committed_rows(tmp_path, assets, change):
-    data, shared = assets
-    with pytest.raises(StagePaused):
-        build_representation_cache(data, shared, tmp_path, "cpu", batch_size=2,
-                                   stop_check=lambda step, epoch: step >= 1)
-    kwargs: dict = {"batch_size": 2}
-    if change == "data":
-        data.identity = "changed-data"
-    elif change == "normalization":
-        data.manifest = {"signature": "changed-normalization"}
-    elif change == "batch":
-        kwargs["batch_size"] = 3
-    elif change == "roles":
-        kwargs["roles"] = ("fit",)
-    elif change == "checkpoint":
-        shared.representation_hash = "b" * 64
-    else:
-        key = ("fit", "fit-treated")
-        data.reader.frames[key] = data.reader.frames[key].iloc[::-1].reset_index(drop=True)
-    with pytest.raises(ValueError, match="CACHE_RESUME_(IDENTITY|ROWS)_MISMATCH"):
-        build_representation_cache(data, shared, tmp_path, "cpu", **kwargs)
-    assert shared.encoded_cells == 2 and not (tmp_path / "manifest.json").exists()
 
 
 def test_changed_ae_file_with_identical_tensors_has_separate_cache(tmp_path, assets):

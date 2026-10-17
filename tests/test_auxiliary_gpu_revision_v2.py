@@ -1,4 +1,4 @@
-"""CPU equivalence, bounded compact data and restart tests for auxiliary execution."""
+"""CPU equivalence, bounded compact data and training tests for auxiliary execution."""
 
 import copy
 import hashlib
@@ -78,7 +78,7 @@ class Monitor:
         pass
 
 
-def test_fit_epochs_tail_and_resume(tmp_path):
+def test_fit_epochs_tail_matches_scalar_updates(tmp_path):
     torch.manual_seed(41)
     initial = StateClassifier(8)
     x, labels = torch.randn(11, 8), torch.arange(11) % 3
@@ -91,21 +91,15 @@ def test_fit_epochs_tail_and_resume(tmp_path):
         return state_loss(model(row[0]).reshape(1, 3), row[1].reshape(1), weights=weights)[0]
     def batch(model, selected):
         return state_batch_loss(model, selected, "cpu", objective, weights)
-    old, full, resumed = (copy.deepcopy(initial) for _ in range(3))
-    for name, model, epochs, batched, resume in [
-        ("serial", old, 2, None, False), ("full", full, 2, batch, False),
-        ("restart", resumed, 1, batch, False), ("restart", resumed, 2, batch, True),
-    ]:
-        fit_epochs("state", model, rows, scalar, data, {**config, "epochs": epochs},
-                   Monitor(tmp_path / name), "fixture-v2", {}, resume=resume,
-                   batch_size=4, batch_loss=batched)
+    old, full = (copy.deepcopy(initial) for _ in range(2))
+    for name, model, batched in [("serial", old, None), ("full", full, batch)]:
+        fit_epochs("state", model, rows, scalar, data, config,
+                   Monitor(tmp_path / name), "fixture-v2", {}, batch_size=4, batch_loss=batched)
     for name in full.state_dict():
         torch.testing.assert_close(old.state_dict()[name], full.state_dict()[name], atol=2e-6, rtol=2e-6)
-        torch.testing.assert_close(full.state_dict()[name], resumed.state_dict()[name], atol=0, rtol=0)
-    saved = load_checkpoint(tmp_path / "restart/state/last.pt")
+    saved = load_checkpoint(tmp_path / "full/state/final.pt")
     assert saved["counters"]["optimizer_step"] == 6
     assert saved["epoch"] == 2
-    print({"tail_units": 3, "optimizer_steps": 6, "resume_bitwise_equal": True})
 
 
 def prediction(genes=32461):
@@ -182,9 +176,9 @@ def test_prediction_generation_matches_legacy_and_rng(auxiliary_setup):
     from lung.engine.residuals import prediction_rows, residual_dependencies
     from lung.engine.response import load_response, tensor, condition_kwargs, projected
     data, config, monitor, pipeline = auxiliary_setup
-    pipeline = train_pool(data, config, monitor, pipeline)
-    # Two members exercise constructor RNG consumption between generated populations.
+    # Register both members before fitting their dependent population pool.
     pipeline = {**pipeline, "response": pipeline["response"] * 2}
+    pipeline = train_pool(data, config, monitor, pipeline)
     identity = pipeline_identity("residual_predictions", data, config, residual_dependencies(pipeline))
     torch.manual_seed(531)
     reference = load_response(pipeline["response"][0], data, "cpu")

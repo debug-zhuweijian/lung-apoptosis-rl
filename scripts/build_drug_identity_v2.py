@@ -157,7 +157,6 @@ def build(output: Path, offline: bool = False) -> dict:
         raise ValueError("Original inputs changed during build")
     write_json(output / "manifest.json", {"version": "identity-v2", "status": summary["status"],
                "created_utc": datetime.now(timezone.utc).isoformat(), "inputs_sha256": inputs,
-               "builder_sha256": sha256(Path(__file__)), "library_sha256": sha256(ROOT / "src/lung/data/drug_identity.py"),
                "outputs": artifacts, "raw_response_count": len(provenance)})
     return summary
 

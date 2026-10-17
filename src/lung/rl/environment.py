@@ -48,10 +48,8 @@ class SimulationAdapter:
             raise RLUnavailable("VERSION_MISMATCH", "Frozen protocol/candidate identities disagree")
         if not self.endpoint_available:
             raise RLUnavailable("ENDPOINT_UNAVAILABLE", f"No trained, supported endpoint for {self.task_id}")
-        if not self.population_resolution_passed:
-            raise RLUnavailable("POPULATION_RESOLUTION_UNRESOLVED", "Complete the preregistered V population diagnostic")
         if require_potential and self.potential_fn is None:
-            raise RLUnavailable("POTENTIAL_UNAVAILABLE", "DA-AC requires the frozen potential; no silent zero fallback")
+            raise RLUnavailable("POTENTIAL_UNAVAILABLE", "The requested shaping requires a fitted potential")
         if self.task_id not in {"PROXY-A549-V1", "ANNEXIN-A549-V1"}:
             if not (self.task_id.startswith("TEST-") and self.evidence.get("synthetic_test") is True):
                 raise RLUnavailable("UNSUPPORTED_TASK", self.task_id)
@@ -101,7 +99,9 @@ class SimulationAdapter:
 
     @torch.no_grad()
     def potential(self, state: DecisionState) -> float:
-        self.validate_ready(require_potential=True)
+        self.validate_ready()
+        if self.potential_fn is None:
+            return 0.0
         value = float(self.potential_fn(state))
         if not 0 <= value <= 1:
             raise RLUnavailable("INVALID_POTENTIAL", "A frozen potential must return a finite [0, 1] scalar")
@@ -113,7 +113,7 @@ class ModelRollout:
 
     def __init__(self, adapter: SimulationAdapter, root: RootContext, seed: int,
                  score_repeats: int = 32, episode_id: str | None = None):
-        adapter.validate_ready(require_potential=True)
+        adapter.validate_ready()
         if root.role != "T":
             raise ValueError("Training rollouts require T; evaluate V/E with fixed sequences")
         if score_repeats < 1:
@@ -166,22 +166,6 @@ class ModelRollout:
             raise
         self.prefix, self.state, self.phi, self.done = prefix, next_state, next_phi, done
         return transition
-
-    def state_dict(self) -> dict:
-        if self.incomplete:
-            raise RLUnavailable("INCOMPLETE_ROLLOUT", "Failed episodes are not recoverable training observations")
-        return {"versions": self.adapter.versions, "root": self.root, "prefix": self.prefix,
-                "state": self.state, "phi": self.phi, "done": self.done,
-                "planning_seed": self.planning_seed, "scoring_seeds": self.scoring_seeds,
-                "episode_id": self.episode_id, "task_id": self.adapter.task_id}
-
-    def load_state_dict(self, state: dict) -> None:
-        if state["versions"] != self.adapter.versions or state["task_id"] != self.adapter.task_id:
-            raise ValueError("Cannot restore a changed environment/reward/protocol")
-        for key in ("root", "prefix", "state", "phi", "done", "planning_seed", "scoring_seeds", "episode_id"):
-            setattr(self, key, state[key])
-        self.incomplete = False
-
 
 @torch.no_grad()
 def generate_fixed_sequences(actor, adapter: SimulationAdapter, root: RootContext,

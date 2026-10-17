@@ -25,6 +25,11 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def data_file_bindings(bindings):
+    """Ignore historical Python provenance; only data files constrain reading."""
+    return {name: value for name, value in bindings.items() if Path(name).suffix.lower() != ".py"}
+
+
 def digest_json(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
@@ -109,13 +114,13 @@ def identity_dependencies(root: Path, config: dict):
     if not required.issubset(manifest.get("outputs", {})) or not manifest.get("inputs_sha256"):
         raise ValueError("Drug identity manifest lacks required dependencies")
     outputs, inputs, responses = {}, {}, {}
-    for name, record in manifest["outputs"].items():
+    for name, record in data_file_bindings(manifest["outputs"]).items():
         dependency = inside(path.parent, name)
         digest = sha256(dependency)
         if digest != record["sha256"] or dependency.stat().st_size != record["bytes"]:
             raise ValueError(f"Drug identity output hash mismatch: {name}")
         outputs[name] = digest
-    for name, expected in manifest["inputs_sha256"].items():
+    for name, expected in data_file_bindings(manifest["inputs_sha256"]).items():
         dependency = inside(root, name)
         digest = sha256(dependency)
         if digest != expected:
@@ -158,18 +163,18 @@ def response_source_dependencies(root: Path, config: dict):
     outputs = {}
     if chemical.get("input_path_base") != "project_root" or chemical.get("input_base") != ".":
         raise ValueError("sci-Plex chemical input path base must be explicit project_root")
-    for name, expected in chemical["outputs_sha256"].items():
+    for name, expected in data_file_bindings(chemical["outputs_sha256"]).items():
         file = inside(path.parent, name)
         digest = sha256(file)
         if digest != expected:
             raise ValueError(f"sci-Plex chemical output hash mismatch: {name}")
         outputs[name] = digest
     bindings["chemical_outputs"] = outputs
-    for name, expected in chemical.get("inputs_sha256", {}).items():
+    for name, expected in data_file_bindings(chemical.get("inputs_sha256", {})).items():
         if sha256(inside(root, name)) != expected:
             raise ValueError(f"sci-Plex chemical input hash mismatch: {name}")
     bindings["protocol_files"] = {}
-    for name, expected in source["protocol_files"].items():
+    for name, expected in data_file_bindings(source["protocol_files"]).items():
         path = inside(root, name)
         if sha256(path) != expected:
             raise ValueError(f"sci-Plex protocol dependency hash mismatch: {name}")
@@ -180,18 +185,32 @@ def response_source_dependencies(root: Path, config: dict):
     return bindings
 
 
+def _contract_signature(config, source_hash, identity, schema, source=None):
+    config = dict(config)
+    if "sciplex_source" in config:
+        config["sciplex_source"] = {**config["sciplex_source"],
+            "protocol_files": data_file_bindings(config["sciplex_source"]["protocol_files"])}
+    value = {"config": config, "source_manifest": source_hash, "training_schema": schema}
+    if identity is not None:
+        value["drug_identity"] = {**identity, "inputs": data_file_bindings(identity["inputs"])}
+    if source is not None:
+        value["sciplex_source"] = {**source, "protocol_files": data_file_bindings(source["protocol_files"])}
+    return digest_json(value)
+
+
+def training_manifest_signature(manifest):
+    """Compare stored data bindings without requiring historical source code."""
+    return _contract_signature(manifest["config"], manifest["source_manifest_sha256"],
+        manifest.get("drug_identity"), manifest["schema_version"], manifest.get("sciplex_source"))
+
+
 def training_contract(root: Path, config: dict):
-    """Preserve the exact schema-1 signature unless a reviewed identity is requested."""
     source_hash = sha256(inside(root, config["bundle"]) / "manifest.json")
     identity = identity_dependencies(root, config)
     source = response_source_dependencies(root, config)
     schema = 3 if source is not None else 2 if identity is not None else 1
-    value = {"config": config, "source_manifest": source_hash, "training_schema": schema}
-    if identity is not None:
-        value["drug_identity"] = identity
-    if source is not None:
-        value["sciplex_source"] = source
-    return digest_json(value), source_hash, identity, schema
+    signature = _contract_signature(config, source_hash, identity, schema, source)
+    return signature, source_hash, identity, schema
 
 
 def source_shard_registry(prepared):

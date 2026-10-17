@@ -1,4 +1,4 @@
-"""Versioned multi-state, per-assay ridge G; Q qualification remains pending.
+"""Versioned multi-state, per-assay ridge G.
 
 Explicit fit entry validates native source eligibility before opening any Y.
 No training, weight loading or inference occurs on module import or preflight.
@@ -127,16 +127,3 @@ def load_g(path, *, source, plan, fold_id, head_id, native_cache_index):
     if len(scorer.mean) != len(names):
         raise ValueError('G_FEATURE_SCHEMA_DIMENSION_CHANGED')
     return scorer, m, checkpoint['content_identity']
-
-
-def terminal_q_preflight():
-    return {'status': 'pending_qualification', 'scorer_kind': 'private_candidate_Q',
-            'target': 'single_terminal_reward_no_bootstrap_no_cost',
-            'pending': ['eligible_native_bulk72_state_protocol_backend_and_cache',
-                        'actual_frozen_multistate_per_measurement_head_G',
-                        'predeclared_caspase_scale_selection_rule',
-                        'controlled_frozen_selection_predictions_and_independent_measured_validation',
-                        'strict_generated_terminal_decision_artifact_bound_to_qualified_G'],
-            'old_LOBO_no_selection_role_eligible': False,
-            'Q_fit_implemented': False, 'reward_qualified': False,
-            'actual_model_execution': False, 'RL_superiority_guaranteed': False}

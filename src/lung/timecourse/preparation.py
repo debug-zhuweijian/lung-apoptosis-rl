@@ -60,18 +60,6 @@ def fingerprints(source, drugs):
 
 def prepare_time_data(root, config, progress=None):
     source, assets = source_paths(root, config)
-    if config.get("synthetic", False):
-        from .data import synthetic_data
-        data = synthetic_data(config)
-        # Synthetic runs must explicitly choose their own output, never the real asset path.
-        destination = settings(config).get("synthetic_assets")
-        if destination is None:
-            raise ValueError("SYNTHETIC_ASSET_DIRECTORY_REQUIRED")
-        path = Path(root) / destination / "manifest.json"
-        atomic_json(path, {"status": "complete", "synthetic": True, "identity": data.identity,
-            "coordinate_identity": data.coordinate_identity, "n_genes": data.n_genes,
-            "drug_groups": data.drug_groups, "factory": "synthetic_data", "config": config})
-        return path.resolve()
     cfg = settings(config)
     names = ["a549_cells.parquet", "common_genes.parquet", "extraction_status.json"]
     hashes = {name: file_hash(source / name) for name in names}
@@ -91,18 +79,22 @@ def prepare_time_data(root, config, progress=None):
     drugs = [drug for group in GROUPS.values() for drug in group] + [VEHICLE]
     fp, fp_path = fingerprints(source, drugs)
     hashes["chemical_metadata"] = file_hash(fp_path)
-    identity = config_hash({"sources": hashes, "rules": RULES, "config": cfg,
-                            "code": {p.name: file_hash(p) for p in Path(__file__).parent.glob("*.py")}})
+    identity = config_hash({"sources": hashes, "rules": RULES, "neighbors": cfg.get("neighbors", 32)})
     manifest_path = assets / "manifest.json"
     if manifest_path.exists():
         previous = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if previous["identity"] != identity:
-            raise ValueError("TIME_ASSET_IDENTITY_CHANGED: use a new assets directory")
         if previous["status"] == "complete":
+            if previous["sources"] != hashes or previous["rules"] != RULES:
+                raise ValueError("TIME_ASSET_IDENTITY_CHANGED: use a new assets directory")
+            with np.load(assets / "preprocessing.npz", allow_pickle=False) as saved:
+                if saved["neighbors"].shape[1] != cfg.get("neighbors", 32):
+                    raise ValueError("TIME_ASSET_NEIGHBORS_CHANGED: use a new assets directory")
             for name, digest in previous["files"].items():
                 if file_hash(assets / name) != digest:
                     raise ValueError("TIME_ASSET_HASH_MISMATCH")
             return manifest_path
+        if previous["identity"] != identity:
+            raise ValueError("TIME_ASSET_IDENTITY_CHANGED: use a new assets directory")
     assets.mkdir(parents=True, exist_ok=True)
     atomic_json(manifest_path, {"status": "preparing", "identity": identity})
     selected = metadata.loc[metadata.catalog_number.isin(drugs) & metadata.time_point.isin([24, 72])].copy()

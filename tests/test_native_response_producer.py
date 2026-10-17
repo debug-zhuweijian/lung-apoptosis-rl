@@ -1,4 +1,4 @@
-"""Native-P orchestration tests use typed audit adapters, never real weights."""
+"""Native-P numerical, metadata and role checks on isolated fixtures."""
 import copy
 import json
 from pathlib import Path
@@ -17,14 +17,14 @@ def fixture_values():
     vocab = {'source_id': ['s'], 'background_id': ['b'], 'protocol_id': ['sciplex_author_reported_endpoint_v1']}
     bindings = {'data_identity': 'data', 'gene_axis_sha256': 'gene',
         'ordered_gene_ids_sha256': p.digest(genes), 'normalization_sha256': 'norm',
-        'context_vocabulary': vocab, 'producer_sha256': p.sha(p.__file__),
+        'context_vocabulary': vocab,
         'base_transform': p.BASE, 'units': p.UNIT}
     stages = {name: {'stage': stage, 'optimizer_step': 2, 'data_identity': 'data',
         'gene_axis_sha256': 'gene', 'normalization_sha256': 'norm', 'context_vocabulary': vocab,
-        'base_transform': p.BASE, 'units': p.UNIT, 'synthetic': False, 'checkpoint_sha256': letter * 64}
+        'base_transform': p.BASE, 'units': p.UNIT, 'synthetic': False, 'checkpoint': name + '.pt', 'checkpoint_sha256': letter * 64}
         for name, stage, letter in (('representation', 'latent_ae', 'a'), ('response', 'latent_cfm', 'b'))}
     stages['response']['representation_checkpoint_sha256'] = 'a' * 64
-    metadata = {'bindings': bindings, **stages, 'qualification': 'static_inspection_only'}
+    metadata = {'bindings': bindings, **stages}
     req = {'request_id': 'native:c', 'condition_id': 'c', 'role': 'fit', 'measurement_level': 'single_cell',
         'source_id': 's', 'background_id': 'b', 'protocol_id': vocab['protocol_id'][0],
         'chemical_id': 'chem', 'dose_uM': 1.0, 'actual_protocol': {'duration_h': 72, 'source_time_h': 72,
@@ -61,6 +61,21 @@ class Units:
             'target_expression_used': False, 'units': p.UNIT, 'selection': 'full_reference'}
 
 
+def generation_fixture(tmp_path, monkeypatch):
+    from lung.data import native_response_units
+    request, coordinates, metadata = fixture_values()
+    for name in ('representation', 'response'):
+        path = tmp_path / metadata[name]['checkpoint']
+        path.write_bytes(b'numerical-pipeline-fixture')
+        metadata[name]['checkpoint_sha256'] = p.sha(path)
+    metadata['response']['representation_checkpoint_sha256'] = metadata['representation']['checkpoint_sha256']
+    units = Units()
+    units.root, units.asset = tmp_path, tmp_path
+    monkeypatch.setattr(native_response_units, 'NativeResponseUnits', lambda *a, **k: units)
+    monkeypatch.setattr(p.NativeMetadata, 'from_joint', lambda *a: coordinates)
+    return request, coordinates, metadata, units
+
+
 class Adapter:
     def __init__(self):
         self.references, self.conditions, self.noises = [], [], []
@@ -79,19 +94,19 @@ class Adapter:
         return reference.square() / 10 + noise * .001
 
 
-def test_full_reference_and_same_reference_mean(tmp_path):
-    req, coords, metadata = fixture_values()
+def test_full_reference_and_same_reference_mean(tmp_path, monkeypatch):
+    req, coords, metadata, units = generation_fixture(tmp_path, monkeypatch)
     adapters = [Adapter(), Adapter()]
     outputs = []
     for ablation, adapter in zip(('full_reference', 'same_reference_mean'), adapters):
-        units = Units()
-        outputs.append(p.produce_audit_mock(units, coords, req, p.AuditMockBackend(adapter, metadata),
+        units.calls.clear()
+        outputs.append(p._produce(units, coords, req, adapter, metadata,
             tmp_path / ablation, role='fit', seed=19, microbatch=2, ablation=ablation))
         assert units.calls == [('native:c', {'role': 'fit', 'expected_gene_ids': ('g1', 'g2'), 'max_rows': None})]
         assert all(torch.all(c['duration'] == 72) and torch.all(c['horizon'] == 72)
             and torch.all(c['elapsed'] == 0) and c['fingerprint'].shape[-1] == 2048
             for c in adapter.conditions)
-        assert outputs[-1].execution_kind == 'audit_mock'
+        assert outputs[-1].execution_kind == 'native'
         assert not outputs[-1].vector.flags.writeable
     x = torch.cat(adapters[0].references)
     mean = torch.as_tensor(np.array([.25, .25, .5]) @ x.numpy(), dtype=x.dtype)
@@ -99,8 +114,7 @@ def test_full_reference_and_same_reference_mean(tmp_path):
     assert torch.equal(torch.cat(adapters[0].noises), torch.cat(adapters[1].noises))
     assert not np.allclose(outputs[0].vector, outputs[1].vector)
     path = next((tmp_path / 'full_reference').glob('*.json'))
-    with pytest.raises(ValueError, match='NATIVE_EXECUTION_REQUIRED'):
-        p.load_native_descriptor(path, coords.bindings)
+    assert p.load_native_descriptor(path, coords.bindings).cache_identity == outputs[0].cache_identity
 
 
 @pytest.mark.parametrize('mutation', ['stage', 'counter', 'data', 'gene', 'norm', 'context', 'representation'])
@@ -116,13 +130,11 @@ def test_metadata_guards(mutation):
         p.validate_metadata(m, coords.bindings)
 
 
-def test_preflight_and_static_backend_never_open_weights(monkeypatch, tmp_path):
+def test_preflight_accepts_matching_metadata_without_loading_weights(monkeypatch, tmp_path):
     req, coords, metadata = fixture_values()
     monkeypatch.setattr(torch, 'load', lambda *a, **k: pytest.fail('PT opened'))
     result = p.preflight([req], coords.bindings, metadata)
-    assert not result['forward_called'] and not result['execution_qualified']
-    with pytest.raises(ValueError, match='STATIC_INSPECTION'):
-        p._qualified_adapter(tmp_path, metadata, coords)
+    assert not result['forward_called'] and result['matching_metadata_valid']
 
 
 @pytest.mark.parametrize('field,value', [('measurement_level', 'bulk'), ('protocol_id', 'pulse6_recovery18')])
@@ -132,49 +144,27 @@ def test_unsupported_domain_protocol_before_reference(tmp_path, field, value):
     units = Units()
     units.request = lambda *a, **k: req
     with pytest.raises(ValueError, match='PROTOCOL_OR_DECODER_PENDING'):
-        p.produce_audit_mock(units, coords, req, p.AuditMockBackend(Adapter(), metadata), tmp_path, role='fit', seed=0)
+        p._produce(units, coords, req, Adapter(), metadata, tmp_path, role='fit', seed=0)
     assert units.calls == []
 
 
-def test_cache_tamper_and_source_binding(tmp_path):
-    req, coords, metadata = fixture_values()
-    p.produce_audit_mock(Units(), coords, req, p.AuditMockBackend(Adapter(), metadata), tmp_path, role='fit', seed=1)
+def test_cache_tamper_and_source_binding(tmp_path, monkeypatch):
+    req, coords, metadata, units = generation_fixture(tmp_path, monkeypatch)
+    p._produce(units, coords, req, Adapter(), metadata, tmp_path, role='fit', seed=1)
     path = next(f for f in tmp_path.glob('*.json') if not f.name.endswith('.receipt.json'))
     with pytest.raises(ValueError, match='BINDINGS'):
-        p.load_native_descriptor(path, {**coords.bindings, 'data_identity': 'changed'}, allow_audit_mock=True)
+        p.load_native_descriptor(path, {**coords.bindings, 'data_identity': 'changed'})
     body = json.loads(path.read_text())
     body['vector'][0] += 1
     path.write_text(json.dumps(body))
-    with pytest.raises(ValueError, match='CACHE_BYTES'):
-        p.load_native_descriptor(path, coords.bindings, allow_audit_mock=True)
+    with pytest.raises(ValueError, match='CACHE_IDENTITY'):
+        p.load_native_descriptor(path, coords.bindings)
 
 
 def test_arbitrary_caller_backend_rejected(tmp_path):
     req, coords, _ = fixture_values()
     with pytest.raises(ValueError, match='SOURCE_BOUND_NATIVE_INPUTS'):
         p.produce(Units(), coords, req, object(), tmp_path, role='fit', seed=0)
-
-
-def test_native_constructor_bypass_removed_and_mock_not_promoted(tmp_path, monkeypatch):
-    req, coords, metadata = fixture_values()
-    metadata['qualification'] = 'safe_tensor_execution_audited'
-    assert not hasattr(p, '_NativeBackend')
-    with pytest.raises(TypeError, match='FACTORY_ONLY'):
-        p._QualifiedAdapter(Adapter(), metadata)
-    mock = p.AuditMockBackend(Adapter(), metadata)
-    monkeypatch.setattr(torch, 'load', lambda *a, **k: pytest.fail('weights read'))
-    with pytest.raises(ValueError, match='SOURCE_BOUND_NATIVE_INPUTS'):
-        p.produce(Units(), coords, req, mock, tmp_path / 'native', role='fit', seed=8)
-    from lung.data.native_response_units import NativeResponseUnits
-    # Even a native source object cannot make a supplied adapter into metadata.
-    source = object.__new__(NativeResponseUnits)
-    with pytest.raises(ValueError, match='MODEL_METADATA_REQUIRED'):
-        p.produce(source, coords, req, mock, tmp_path / 'native', role='fit', seed=8)
-    assert not (tmp_path / 'native').exists()
-    p.produce_audit_mock(Units(), coords, req, mock, tmp_path / 'mock', role='fit', seed=8)
-    path = next(f for f in (tmp_path / 'mock').glob('*.json') if not f.name.endswith('.receipt.json'))
-    with pytest.raises(ValueError, match='NATIVE_EXECUTION_REQUIRED'):
-        p.load_native_descriptor(path, coords.bindings)
 
 
 def test_bindings_cannot_change_during_generation(tmp_path):
@@ -185,7 +175,7 @@ def test_bindings_cannot_change_during_generation(tmp_path):
             coords.bindings['data_identity'] = 'changed'
             return result
     with pytest.raises(ValueError, match='GENERATION_BINDINGS_CHANGED'):
-        p.produce_audit_mock(Units(), coords, req, p.AuditMockBackend(MutationAdapter(), metadata),
+        p._produce(Units(), coords, req, MutationAdapter(), metadata,
             tmp_path, role='fit', seed=0)
     assert list(tmp_path.iterdir()) == []
 
@@ -196,7 +186,7 @@ def test_production_does_not_upgrade_fit_reader_to_final_test(tmp_path, monkeypa
     req['role'] = 'final_test'
     units = object.__new__(NativeResponseUnits)
     units.allowed_roles = frozenset(('fit',))
-    monkeypatch.setattr(p, '_qualified_adapter', lambda *a, **k: pytest.fail('qualifier called'))
+    monkeypatch.setattr(p, 'load_adapter', lambda *a, **k: pytest.fail('model loader called'))
     with pytest.raises(ValueError, match='READER_ROLE_NOT_AUTHORIZED'):
         p.produce(units, coords, req, metadata, tmp_path, role='final_test', seed=0)
     assert list(tmp_path.iterdir()) == []

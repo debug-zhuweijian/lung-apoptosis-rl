@@ -11,11 +11,11 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.models import ModelConfig
-from lung.engine.auxiliary import calibration_audit_binding, verify_auxiliary_dependencies
+from lung.engine.auxiliary import verify_auxiliary_dependencies
 from lung.engine.checkpoint import load_checkpoint, save_training
 from lung.engine.config import StageUnavailable, file_hash
 from lung.engine.endpoint_contract import (
-    REQUIRED_ASSETS, endpoint_unit_index, feature_dependencies_v2,
+    REQUIRED_ASSETS, dependency_files_v2, endpoint_unit_index, feature_dependencies_v2,
     frozen_feature_identity_v2, make_manifest_v2,
 )
 from lung.engine.endpoints import (
@@ -49,7 +49,7 @@ def case(tmp_path):
     pipeline = {}
     for key in ("representation", "response", "pool", "state", "backward", "correction"):
         checkpoint = tmp_path / f"{key}.pt"
-        save_training(checkpoint, torch.nn.Linear(2, 2), None, epoch=1,
+        save_training(checkpoint, torch.nn.Linear(2, 2), epoch=1,
                       identity="synthetic-" + key,
                       metadata={"data_identity": data.identity, "model_config": vars(shape),
                                 "synthetic": True}, counters={"optimizer_step": 1})
@@ -102,7 +102,7 @@ def case(tmp_path):
     path = tmp_path / "manifest.json"
     write_json(path, manifest)
     config = {"endpoint_manifest": str(path), "device": "cpu", "epochs": 1,
-              "aux_batch": 2, "aux_lr": .001, "early_stopping": False, "save_period": 1,
+              "aux_batch": 2, "aux_lr": .001, "early_stopping": False,
               "calibration_steps": 2, "population": 2, "seed": 17, "synthetic": True,
               "response": {"inference_ode_steps": 1}, "history_support": "single_exposure_only"}
     yield SimpleNamespace(root=tmp_path, shape=shape, data=data, pipeline=pipeline,
@@ -143,15 +143,8 @@ def test_schema2_fits_predicted_measured_without_observed_ids_or_rg(case, monkey
     assert torch.isfinite(load_endpoint(pipeline["endpoint"], case.data, "cpu")(case.rows["T"][0]))
 
 
-def test_schema2_calibration_retains_audit_gate_and_e_is_unopened(case, monkeypatch):
+def test_schema2_calibration_preserves_roles_and_e_is_unopened(case, monkeypatch):
     pipeline = train_endpoint(case.data, case.config, case.monitor, case.pipeline)
-    with pytest.raises(StageUnavailable, match="NUMERICAL_AUDIT_REQUIRED"):
-        finalize_calibration(case.data, case.config, case.monitor, pipeline)
-    audit = case.root / "numerical-audit.json"
-    write_json(audit, {"passed": True, "synthetic_test_only": True,
-                      "biological_identity": "synthetic-audit",
-                      "calibration_binding": calibration_audit_binding(case.data, case.config, pipeline)})
-    pipeline = {**pipeline, "numerical_audit": str(audit), "precalibration_identity": "synthetic-audit"}
     original = Path.read_text
     opened = []
 
@@ -190,6 +183,21 @@ def test_feature_assets_are_content_checked(case, asset):
     Path(case.assets[asset][0]["path"]).write_text("changed-content", encoding="utf-8")
     with pytest.raises(StageUnavailable, match="ASSET_HASH_MISMATCH"):
         read_manifest(case.data, case.config, case.pipeline)
+
+
+def test_old_generator_source_records_do_not_constrain_feature_loading(case):
+    stale = {"path": str(case.root / "old-generator.py"), "sha256": "0" * 64}
+    dependencies = case.manifest["feature_dependencies"]
+    dependencies["assets"]["feature_generator"] = [stale]
+    dependencies["assets"]["condition_inputs"].append(stale)
+    identity = frozen_feature_identity_v2(case.data.identity, dependencies, case.manifest["feature_generation"])
+    case.manifest["frozen_feature_identity"] = identity
+    for role, rows in case.rows.items():
+        rewrite_partition(case, role, [{**row, "frozen_feature_identity": identity} for row in rows])
+    path, manifest = read_manifest(case.data, case.config, case.pipeline)
+    assert len(load_units(path, manifest, "T", case.shape)) == 2
+    assert all(p.suffix != ".py" for p in dependency_files_v2(path, manifest))
+    assert "feature_generator" not in feature_dependencies_v2(case.pipeline, dependencies["assets"], base=case.root)["assets"]
 
 
 def test_missing_or_untrained_checkpoints_do_not_become_ready(case):

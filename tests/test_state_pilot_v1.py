@@ -12,7 +12,7 @@ import torch.nn.functional as F
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from lung.engine import auxiliary
 from lung.engine.checkpoint import load_checkpoint
-from lung.engine.config import load_config, state_objective, validate_config, StageUnavailable
+from lung.engine.config import load_config, state_objective, validate_config
 from lung.models import StateClassifier
 from lung.models.state_objectives import aggregate_nll, state_loss
 
@@ -106,16 +106,6 @@ def test_invalid_objective_config_rejected(objective, weight):
         validate_config({**config, "state_loss": objective, "state_aggregate_lambda": weight})
 
 
-@pytest.mark.parametrize("name, objective, weight", [("weighted", "weighted_ce", 0.), ("ce", "ce", 0.), ("aggregate", "ce_aggregate", 1.)])
-def test_pilot_config_contract(name, objective, weight):
-    config = load_config(f"configs/pilot_state_{name}.yaml")
-    assert config["stage"] == "state" and config["epochs"] == 1000
-    assert config["progress"] and config["dashboard"] and not config["auto_prepare"]
-    assert config["response"]["model"]["n_genes"] == 32461
-    assert config["pipeline"] is None
-    assert state_objective(config) == {"state_loss": objective, "state_aggregate_lambda": weight}
-    with pytest.raises(StageUnavailable, match="TRAINED_REPRESENTATION_OR_RESPONSE_REQUIRED"):
-        auxiliary.train_auxiliary("state", None, config, None, {})
 
 
 class TinyStateData:
@@ -148,13 +138,14 @@ def tiny_state(tmp_path, monkeypatch):
     monkeypatch.setattr(auxiliary, "load_response", lambda *args: reference)
     upstream = tmp_path / "frozen-response-placeholder.bin"
     upstream.write_bytes(b"synthetic-frozen-representation-fixture")
-    config = {**load_config("configs/pilot_state_aggregate.yaml"), "device": "cpu", "epochs": 1,
+    config = {**load_config(), "device": "cpu", "epochs": 1,
+              "state_loss": "ce_aggregate", "state_aggregate_lambda": 1.,
               "synthetic": True, "state_batch": 3, "calibration_steps": 2}
     return TinyStateData(), config, TinyMonitor(tmp_path), {"response": [str(upstream)]}
 
 
 @pytest.mark.parametrize("objective, weight", [("weighted_ce", 0.), ("ce", 0.), ("ce_aggregate", 1.)])
-def test_synthetic_state_fit_roles_metadata_and_resume(tiny_state, objective, weight):
+def test_synthetic_state_fit_roles_metadata_and_cache_reuse(tiny_state, objective, weight):
     data, base, monitor, pipeline = tiny_state
     config = {**base, "state_loss": objective, "state_aggregate_lambda": weight}
     completed = auxiliary.train_state(data, config, monitor, pipeline)
@@ -169,11 +160,8 @@ def test_synthetic_state_fit_roles_metadata_and_resume(tiny_state, objective, we
     assert auxiliary.verify_auxiliary_dependencies(completed["state"], completed)
     assert any("val/aggregate_nll" in row[2] for row in monitor.values)
     assert monitor.values[-1][0] == "state_calibration"
-    auxiliary.train_state(data, config, monitor, pipeline, resume=True)
+    auxiliary.train_state(data, config, monitor, pipeline)
     assert data.roles == ["fit", "selection", "calibration"]  # cache reuse
-    changed = {**config, "state_loss": "ce_aggregate", "state_aggregate_lambda": 2.}
-    with pytest.raises(ValueError, match="CHECKPOINT_IDENTITY_MISMATCH"):
-        auxiliary.train_state(data, changed, monitor, pipeline, resume=True)
 
 
 def test_state_identity_binds_objective_lambda_upstream_and_fold(tiny_state):
@@ -193,4 +181,4 @@ def test_role_cache_swap_is_rejected(tiny_state):
     calibration = next((monitor.experiment / "cache").glob("state-calibration-*.pt"))
     fitting.write_bytes(calibration.read_bytes())
     with pytest.raises(ValueError, match="AUX_FEATURE_CACHE_IDENTITY_MISMATCH"):
-        auxiliary.train_state(data, config, monitor, pipeline, resume=True)
+        auxiliary.train_state(data, config, monitor, pipeline)

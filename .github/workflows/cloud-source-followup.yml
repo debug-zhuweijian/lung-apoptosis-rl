@@ -83,10 +83,6 @@ jobs:
                   for u in links:
                       if u.endswith(('.xlsx','.pdf')): get(u, 'papers/'+u.rsplit('/',1)[-1])
           PY
-      - name: Fetch offline test dependencies
-        run: |
-          mkdir -p followup/wheels
-          python -m pip download --only-binary=:all: tensorboard==2.20.0 -d followup/wheels
       - uses: actions/upload-artifact@v4
         if: always()
         with:

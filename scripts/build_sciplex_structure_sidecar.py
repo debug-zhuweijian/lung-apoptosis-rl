@@ -77,8 +77,7 @@ def build_records(metadata, reference, conditions):
 def main():
     if OUTPUT.exists():
         raise FileExistsError("Keep published versions; choose a new output for changes")
-    inputs = [SOURCE, V3 / "chemicals.parquet", V3 / "conditions.parquet", V3 / "manifest.json",
-              ROOT / "src/lung/data/drug_identity.py", Path(__file__)]
+    inputs = [SOURCE, V3 / "chemicals.parquet", V3 / "conditions.parquet", V3 / "manifest.json"]
     before = {p.relative_to(ROOT).as_posix(): digest(p) for p in inputs}
     metadata = pd.read_csv(SOURCE, sep="\t")
     frame, fingerprints, matches = build_records(metadata, pd.read_parquet(V3 / "chemicals.parquet"), pd.read_parquet(V3 / "conditions.parquet"))

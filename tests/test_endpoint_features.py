@@ -22,7 +22,7 @@ from lung.engine.endpoint_features import (load_condition_inputs, condition_revi
     propose_reference_inputs, validate_reference)
 from lung.engine.endpoints import MatchedEndpointModel
 from lung.engine.response import condition_kwargs, tensor
-from lung.engine.synthetic import SyntheticData
+from synthetic_data import SyntheticData
 
 
 class Monitor:
@@ -54,7 +54,7 @@ def fixture(tmp_path):
     shape = ModelConfig(n_genes=8, d_model=8, n_heads=2, encoder_layers=1,
                         pad_layers=1, query_chunk=4, context_dim=2)
     config = {"device": "cpu", "epochs": 1, "seed": 19, "population": 2,
-        "aux_batch": 2, "state_batch": 6, "aux_lr": .001, "save_period": 1,
+        "aux_batch": 2, "state_batch": 6, "aux_lr": .001,
         "calibration_steps": 2, "state_fold": "1_to_8", "synthetic": True,
         "task": "PROXY-A549-V1", "history_support": "single_exposure_only",
         "response": {"model": vars(shape), "inference_ode_steps": 1, "inference_microbatch": 2}}
@@ -66,7 +66,7 @@ def fixture(tmp_path):
     model.cfm_loss(tensor(sample["control"], "cpu"), tensor(sample["target"], "cpu"), ca).backward()
     optimizer.step()
     path = tmp_path / "response.pt"
-    save_training(path, model, optimizer, epoch=1, identity="synthetic-fixture",
+    save_training(path, model, epoch=1, identity="synthetic-fixture",
         metadata={"stage": "response", "data_identity": data.identity, "model_config": vars(shape), "synthetic": True},
         counters={"optimizer_step": 1})
     pipeline = {"response": [str(path)]}
@@ -145,7 +145,7 @@ def test_actual_frozen_generation_matches_world_g_forward_and_records_extrapolat
     f = fixture
     report = generate_to_directory(f.root, f.data, f.config, f.pipeline, f.bundle, f.reference, f.mappings,
         f.root / "generated", reference_path=f.reference_path, mapping_path=f.mapping_path,
-        data_config_path=f.data_config, script_path=Path(__file__))
+        data_config_path=f.data_config)
     assert report["generated_conditions"] == 1 and report["formal_training_ready"] is False
     assert report["measured_endpoint_values_read"] is False
     row = json.loads(Path(report["features"]["path"]).read_text())[0]
@@ -226,7 +226,7 @@ def test_generation_objects_cannot_diverge_from_descriptor_evidence_files(fixtur
     with pytest.raises(StageUnavailable, match="FEATURE_DESCRIPTOR_CONTENT_MISMATCH"):
         generate_to_directory(f.root, f.data, f.config, f.pipeline, f.bundle, reference, mappings,
             f.root / "divergent", reference_path=f.reference_path, mapping_path=f.mapping_path,
-            data_config_path=f.data_config, script_path=Path(__file__))
+            data_config_path=f.data_config)
     assert not (f.root / "divergent").exists()
 
 
@@ -246,7 +246,7 @@ def test_descriptor_changed_during_generation_cannot_be_published(fixture, monke
     with pytest.raises(StageUnavailable, match="FEATURE_SOURCE_MISSING_OR_CHANGED"):
         generate_to_directory(f.root, f.data, f.config, f.pipeline, f.bundle, f.reference, f.mappings,
             f.root / "changed-during-generation", reference_path=f.reference_path, mapping_path=f.mapping_path,
-            data_config_path=f.data_config, script_path=Path(__file__))
+            data_config_path=f.data_config)
     assert not (f.root / "changed-during-generation" / "manifest.json").exists()
     assert not (f.root / "changed-during-generation" / "features.json").exists()
 
@@ -281,7 +281,7 @@ def test_reference_observed_claim_or_wrong_data_identity_is_rejected(fixture):
     with pytest.raises(StageUnavailable, match="EXPLICIT_FIT_REFERENCE_IDENTITY_REQUIRED"):
         generate_to_directory(f.root, f.data, f.config, f.pipeline, f.bundle, reference, f.mappings,
             f.root / "bad", reference_path=f.reference_path, mapping_path=f.mapping_path,
-            data_config_path=f.data_config, script_path=Path(__file__))
+            data_config_path=f.data_config)
     assert not (f.root / "bad").exists()
 
 
@@ -290,7 +290,7 @@ def test_generator_never_constructs_missing_models_or_zero_feature_fallback(fixt
     with pytest.raises(StageUnavailable, match="PIPELINE_INCOMPLETE"):
         generate_to_directory(f.root, f.data, f.config, {}, f.bundle, f.reference, f.mappings,
             f.root / "no-models", reference_path=f.reference_path, mapping_path=f.mapping_path,
-            data_config_path=f.data_config, script_path=Path(__file__))
+            data_config_path=f.data_config)
     assert not (f.root / "no-models").exists()
 
 

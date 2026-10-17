@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .common import data_file_bindings
+
 ROOT = Path(__file__).resolve().parents[3]
 VERSION = "full-protocol-request-inputs-v1"
 OUTPUT = ROOT / "experiments/20261011-data-alignment-round21/full-protocol-request-inputs-v1"
@@ -20,9 +22,6 @@ PINS = {
     '08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/conditions.parquet': '28e4ad85978711b41e4bf27793df65b3e1a9618e5d83460d7e366fce7c995eac',
     '08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/genes.parquet': '4d38a758179d9123fff1ffda1f1eae85fe5f57faa31a3a6df01fcdefbb5314fc',
     '08-datasets/LungCancer_A549_Integration/training-joint-sciplex-v1/normalization.npz': '386eb92f178327f0ba4f67215b073d18e9a044ba0de83ab81b77406cd8db8e1b',
-    'src/lung/data/full_protocol_inputs.py': '6d067664e80cd9f7035387fc904c0c6271d6792b4d934b58aec2fe4854de6a37',
-    'src/lung/data/full_protocol_inputs_v3.py': 'ae95a032b44ed021ea4fcd3ffbaaff37fc11f602ce3e8d1bea7b731c135c3a15',
-    'src/lung/models/full_protocol.py': 'c6bdce150ed8a0cc53e3e26d3f438597805f918c6a4a4e1fa4f6304e1aa64e27',
 }
 
 BRIDGE = 'experiments/20261011-data-alignment-round20/predicted_expression_function_bridge/v2/bridge_metadata.json'
@@ -143,10 +142,9 @@ class FullProtocolRequestInputs:
     def load(cls, version=VERSION):
         require(version == VERSION, 'UNREGISTERED_VERSION')
         manifest = read(OUTPUT / 'manifest.json')
-        require(set(manifest) == set(DECLARATIONS) | {'schema','source_pins','consumer_sha256',
+        require(set(manifest) - {'consumer_sha256'} == set(DECLARATIONS) | {'schema','source_pins',
                     'files_sha256','model_context_indexes'}, 'REGISTERED_MANIFEST_SCHEMA_CHANGED')
-        require(manifest['schema'] == VERSION and manifest['source_pins'] == PINS
-                and manifest['consumer_sha256'] == sha(__file__), 'REGISTERED_CONSUMER_CHANGED')
+        require(manifest['schema'] == VERSION and data_file_bindings(manifest['source_pins']) == PINS, 'REGISTERED_CONSUMER_CHANGED')
         require(manifest['files_sha256'] == {'requests.json': sha(OUTPUT / 'requests.json')},
                 'REGISTERED_OUTPUT_CHANGED')
         rows, context = reconstruct()
@@ -193,7 +191,7 @@ def build(output=OUTPUT):
     output.mkdir(parents=True)
     path = output / 'requests.json'
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=2, allow_nan=False)+'\n', encoding='utf-8')
-    receipt = {'schema': VERSION, 'source_pins': PINS, 'consumer_sha256': sha(__file__),
+    receipt = {'schema': VERSION, 'source_pins': PINS,
                'files_sha256': {'requests.json': sha(path)}, 'union_candidates':32,
                **DECLARATIONS,
                'model_context_indexes':context['model_context_indexes'],

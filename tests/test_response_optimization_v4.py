@@ -3,7 +3,7 @@ import copy
 from dataclasses import replace
 from pathlib import Path
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 import pytest
 import torch
 
@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from lung.models import build_response_model
 from lung.engine.response_training import mmd_backward, resolve_mmd_mode, one_step_loss
 from test_models_v1 import tiny_config, neighbors, conditions
+
+
 
 
 @pytest.fixture(autouse=True)
@@ -98,7 +100,7 @@ def test_latent_one_step_rejected():
 
 def test_one_step_independent_32_cell_draw_does_not_advance_cfm_rng():
     from lung.engine.config import load_config
-    from lung.engine.synthetic import smoke_config, SyntheticData
+    from synthetic_data import smoke_config, SyntheticData
     from lung.engine.response import train_condition, response_rngs
     config = smoke_config(load_config())
     cfg = {**config['response'], 'coupling': 'random_product_control', 'mmd_samples': 32}
@@ -144,82 +146,16 @@ def test_latent_all_gene_reconstruction_generation_decode_once_and_reload():
         model.sample(x, condition, noise=torch.randn_like(x))
 
 
-@pytest.mark.parametrize('backbone,mode', [('compact_full_gene', 'cfm_then_full'),
-    ('compact_full_gene', 'one_step_then_full'), ('latent_flow', 'full')])
-def test_training_schedule_and_checkpoint_reload(tmp_path, backbone, mode):
-    from lung.engine.config import load_config
-    from lung.engine.synthetic import smoke_config, SyntheticData
-    from lung.engine.response import train_response, load_response
-    config = smoke_config(load_config())
-    config.update(epochs=2, progress=False, early_stopping=False)
-    config['response'].update(members=1, mmd_backward='auto', coupling='random_product_control',
-        training_schedule={'mode': mode, 'warmup_epochs': 1})
-    config['response']['model'].update(backbone=backbone, latent_dim=3)
-    data = SyntheticData(config)
-    monitor = Mock(weights=tmp_path/'weights', logdir=tmp_path/'logs', config=config)
-    monitor.progress.side_effect = lambda iterable=None, **kw: iterable if iterable is not None else Mock()
-    paths = train_response(data, config, monitor)
-    saved = torch.load(paths[0], weights_only=False)
-    assert saved['extra']['training_control']['stage'] == 'full'
-    assert saved['extra']['training_control']['full_updates'] > 0
-    assert saved['extra']['training_control']['full_validations'] > 0
-    assert load_response(paths[0], data, 'cpu').config.backbone == backbone
-    assert train_response(data, config, monitor, resume=True) == paths
 
 
-def test_update_validation_plateau_stop_and_interrupted_resume_exact(tmp_path):
-    from lung.engine.config import load_config
-    from lung.engine.synthetic import smoke_config
-    from lung.engine.response import train_response
-    from lung.engine.checkpoint import load_checkpoint
-    from test_response_resume_v3 import Data, Monitor, equal, checkpoint
-    config = smoke_config(load_config())
-    config.update(epochs=4, early_stopping={'enabled': True, 'patience': 1},
-                  training_control={'validation_every_updates': 1})
-    config['response'].update(members=1, coupling='random_product_control',
-        training_schedule={'mode': 'full'}, train_ode_steps=2)
-    base, interrupted = Monitor(tmp_path/'base'), Monitor(tmp_path/'resume', ('optimizer_step', 1))
-    with patch('lung.engine.response.evaluate_response', return_value=({'loss': 1.}, [])):
-        train_response(Data(config), config, base)
-        with pytest.raises(KeyboardInterrupt):
-            train_response(Data(config), config, interrupted)
-        interrupted.stop = None
-        train_response(Data(config), config, interrupted, resume=True)
-    a, b = load_checkpoint(checkpoint(base)), load_checkpoint(checkpoint(interrupted))
-    for name, value in a['model'].items():
-        other = b['model'][name]
-        if value.is_sparse:
-            value, other = value.to_dense(), other.to_dense()
-        torch.testing.assert_close(value, other, rtol=0, atol=0)
-    for key in ('optimizer', 'rng', 'counters', 'extra', 'epoch'):
-        equal(a[key], b[key])
-    assert a['extra']['training_control']['reason'] == 'validation_plateau'
-    assert a['counters']['optimizer_step'] == 2
 
 
-def test_plateau_stage_switch_selects_only_full_updates(tmp_path):
-    from lung.engine.config import load_config
-    from lung.engine.synthetic import smoke_config, SyntheticData
-    from lung.engine.response import train_response
-    from test_response_resume_v3 import Monitor
-    config = smoke_config(load_config())
-    config.update(epochs=4, early_stopping=False)
-    config['response'].update(members=1, coupling='random_product_control', train_ode_steps=2,
-        training_schedule={'mode': 'one_step_then_full', 'transition': 'validation_plateau',
-                           'warmup_epochs': 1, 'patience': 1, 'max_warmup_epochs': 3})
-    with patch('lung.engine.response.evaluate_response', return_value=({'loss': 1.}, [])):
-        paths = train_response(SyntheticData(config), config, Monitor(tmp_path))
-    selected = torch.load(paths[0], weights_only=False)
-    state = selected['extra']['training_control']
-    assert state['transition_reason'] == 'validation_plateau'
-    assert state['full_updates'] > 0 and state['full_validations'] > 0
-    assert selected['epoch'] >= 3
 
 
 @pytest.mark.parametrize('count,micro,mmd_micro', [(8,128,32), (3,31,7)])
 def test_two_condition_batch_full_32_steps_all_gradients_update_and_rng(count, micro, mmd_micro):
     from lung.engine.config import load_config
-    from lung.engine.synthetic import smoke_config, SyntheticData
+    from synthetic_data import smoke_config, SyntheticData
     from lung.engine.response import response_rngs
     from lung.engine.response_training import train_conditions
     from lung.models import ModelConfig
@@ -283,31 +219,3 @@ def test_cfm_stage_and_condition_only_grouping_enabled():
                                          reference_mode='condition_only'), neighbors())
     assert condition_batch_mode(other, {'condition_microbatch': 3, '_training_stage': 'full',
                                        'mmd_backward': 'auto'}) == (3, 'grouped_compact_condition_only_full_direct')
-
-
-def test_grouped_update_checkpoint_resume_exact(tmp_path):
-    from lung.engine.config import load_config
-    from lung.engine.synthetic import smoke_config
-    from lung.engine.response import train_response
-    from lung.engine.checkpoint import load_checkpoint
-    from test_response_resume_v3 import Data, Monitor, checkpoint, equal
-    cfg = smoke_config(load_config())
-    cfg.update(epochs=2)
-    cfg['response'].update(condition_microbatch=2, members=1, conditions_per_update=8,
-        coupling='random_product_control', cfm_samples=4, mmd_samples=4,
-        microbatch=3, mmd_microbatch=3, train_ode_steps=2)
-    base, resumed = Monitor(tmp_path/'base'), Monitor(tmp_path/'resume', ('optimizer_step',1))
-    train_response(Data(cfg), cfg, base)
-    with pytest.raises(KeyboardInterrupt):
-        train_response(Data(cfg), cfg, resumed)
-    resumed.stop = None
-    train_response(Data(cfg), cfg, resumed, resume=True)
-    a,b = load_checkpoint(checkpoint(base)), load_checkpoint(checkpoint(resumed))
-    for name,value in a['model'].items():
-        other = b['model'][name]
-        if value.is_sparse:
-            value,other = value.to_dense(),other.to_dense()
-        torch.testing.assert_close(value,other,rtol=0,atol=0)
-    for key in ('optimizer','rng','counters','extra','epoch'):
-        equal(a[key],b[key])
-    assert a['metadata']['condition_batching'] == 'grouped_compact_observed_full_direct'

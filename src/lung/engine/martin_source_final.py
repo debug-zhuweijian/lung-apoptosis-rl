@@ -273,8 +273,8 @@ def completed_run(directory, context):
         'FINAL_COMPLETED_FROZEN_SOURCE_RUN_REQUIRED')
     for role in ('fit', 'selection'):
         require(result[role + '_counts'] == manifest[role + '_counts'] == context.counts[role], 'FINAL_SOURCE_TRAINING_COUNTS_CHANGED')
-    for name, file in (('selected_checkpoint', 'best.pt'), ('last_checkpoint', 'last.pt')):
-        require(result[name] == {'file': file, 'sha256': sha(directory / file)}, 'FINAL_SELECTED_OR_LAST_BYTES_CHANGED')
+    for name, file in (('selected_checkpoint', 'best.pt'), ('final_checkpoint', 'final.pt')):
+        require(result[name] == {'file': file, 'sha256': sha(directory / file)}, 'FINAL_SELECTED_OR_FINAL_BYTES_CHANGED')
     return manifest, result
 
 
@@ -292,22 +292,13 @@ def final_preflight(root=ROOT, *, fold_id, trained_run=None):
 
 def load_frozen_model(directory, context, device):
     manifest, result = completed_run(directory, context)
-    last = load_checkpoint(Path(directory) / 'last.pt', manifest['identity'])
-    state = last['extra']['early_stop']
-    require(all(type(state[k]) is int and state[k] >= 0 for k in ('bad', 'updates', 'steps'))
-        and type(state['best']) is float and np.isfinite(state['best'])
-        and state['updates'] == result['epochs_completed'] and type(last['extra']['cursor']) is int,
-        'FINAL_ACTUAL_COMPLETED_STOP_STATE')
-    stop = learning._EarlyStop({'early_stopping': manifest['settings']['early_stopping']})
-    stop.load_state_dict(state)
-    require(last['metadata']['stage'] == learning.SCHEMA and last['metadata']['synthetic'] is False
-        and last['metadata']['objective'] == learning.OBJECTIVE and last['metadata']['training_role'] == 'fit'
-        and last['metadata']['final_RNA_used'] is False and last['metadata']['scientific_qualified'] is False
-        and type(last['epoch']) is int and last['epoch'] == result['epochs_completed']
-        and type(last['counters']['optimizer_step']) is int and last['counters']['optimizer_step'] == result['optimizer_steps'] == stop.steps
-        and last['extra']['cursor'] == 0 and last['extra']['order'] is None and last['extra']['history'] == result['history']
-        and (stop.stopped if result['reason'] == 'selection_plateau' else last['epoch'] == manifest['settings']['epochs']),
-        'FINAL_ACTUAL_COMPLETED_LAST_CHECKPOINT')
+    final = load_checkpoint(Path(directory) / 'final.pt', manifest['identity'])
+    require(final['metadata']['stage'] == learning.SCHEMA and final['metadata']['synthetic'] is False
+        and final['metadata']['objective'] == learning.OBJECTIVE and final['metadata']['training_role'] == 'fit'
+        and final['metadata']['final_RNA_used'] is False and final['metadata']['scientific_qualified'] is False
+        and type(final['epoch']) is int and final['epoch'] == result['epochs_completed']
+        and type(final['counters']['optimizer_step']) is int and final['counters']['optimizer_step'] == result['optimizer_steps'],
+        'FINAL_ACTUAL_COMPLETED_CHECKPOINT')
     saved = load_checkpoint(Path(directory) / 'best.pt', manifest['identity'])
     metadata = saved['metadata']
     require(metadata['stage'] == learning.SCHEMA and metadata['synthetic'] is False
@@ -315,16 +306,11 @@ def load_frozen_model(directory, context, device):
         and metadata['final_RNA_used'] is False and metadata['scientific_qualified'] is False
         and type(saved['counters']['optimizer_step']) is int and 0 < saved['counters']['optimizer_step'] <= result['optimizer_steps']
         and type(saved['epoch']) is int and 0 < saved['epoch'] <= result['epochs_completed'], 'FINAL_ACTUAL_SELECTED_CHECKPOINT')
-    selected_stop = saved['extra']['early_stop']
-    require(type(saved['extra']['cursor']) is int and saved['extra']['cursor'] == 0 and saved['extra']['order'] is None
-        and saved['extra']['history'] == result['history'][:saved['epoch']]
-        and saved['counters']['optimizer_step'] == result['history'][saved['epoch'] - 1]['optimizer_step']
-        and type(selected_stop['steps']) is int and selected_stop['steps'] == saved['counters']['optimizer_step']
-        and type(selected_stop['updates']) is int and selected_stop['updates'] == saved['epoch'],
+    require(saved['counters']['optimizer_step'] == result['history'][saved['epoch'] - 1]['optimizer_step'],
         'FINAL_ACTUAL_SELECTED_HISTORY_AND_COUNTER')
     require(all(isinstance(v, torch.Tensor) and bool(torch.isfinite(v).all()) for v in saved['model'].values()), 'FINAL_FINITE_FROZEN_SOURCE_PARAMETERS')
     model = MartinSourceModel(context.gene_ids, context.contract, width=manifest['settings']['width']).to(device)
-    model.validate_checkpoint_metadata(last['metadata'])
+    model.validate_checkpoint_metadata(final['metadata'])
     model.load_registered_state(saved['model'], metadata)
     return model.eval().requires_grad_(False), result
 
@@ -334,7 +320,7 @@ def evaluate_final(root, *, fold_id, trained_run, output, device='cpu'):
     output = Path(output).resolve()
     require(output.is_relative_to(context.root / 'experiments') and not output.exists(), 'NEW_FINAL_EVALUATION_OUTPUT_REQUIRED')
     model, result = load_frozen_model(trained_run, context, device)
-    before = {name: sha(Path(trained_run) / name) for name in ('best.pt', 'last.pt', 'result.json', 'run_manifest.json')}
+    before = {name: sha(Path(trained_run) / name) for name in ('best.pt', 'final.pt', 'result.json', 'run_manifest.json')}
     records, seen = [], {d: {} for d in DOMAINS}
     try:
         with torch.no_grad():

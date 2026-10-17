@@ -96,11 +96,6 @@ def condition_batch_mode(model, cfg):
     return requested, f"grouped_compact_condition_only_{stage}_direct"
 
 
-def prefetch_enabled(model, cfg):
-    for key in ("prefetch_group", "pin_memory"):
-        if type(cfg.get(key, False)) is not bool:
-            raise ValueError(f"{key} must be boolean")
-    return cfg.get("prefetch_group", False) and condition_batch_mode(model, cfg)[0] > 1
 
 
 def batch_tensor(value, device, pin_memory=False):

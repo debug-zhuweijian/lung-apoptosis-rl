@@ -68,10 +68,6 @@ def test_both_world_paths_pass_explicit_protocol(world_factory):
         world.score_one(root, sequence, 45, n=world.n_pop + 1)
     with pytest.raises(StageUnavailable, match="RESOLUTION_OUTSIDE"):
         world.score(root, sequence, (45,), ode_steps=world.steps + 1)
-    with pytest.raises(StageUnavailable, match="REQUIRES_V"):
-        world.score_diagnostic(root, sequence, (45,), n=world.n_pop + 1)
     v_root = world.roots("V")[0]
-    assert world.score_diagnostic(v_root, sequence, (46,), n=world.n_pop + 1,
-        ode_steps=world.steps + 1).tolist() == [.25]
     with pytest.raises(StageUnavailable, match="RESOLUTION_OUTSIDE"):
         world.score(v_root, sequence, (46,), n=world.n_pop + 1, ode_steps=world.steps + 1)

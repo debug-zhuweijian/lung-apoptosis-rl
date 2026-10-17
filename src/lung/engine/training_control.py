@@ -1,13 +1,10 @@
-"""Serializable convergence and checkpoint policy; wall time is never a stop budget."""
+"""Convergence and completion metadata for a fresh training run."""
 import copy
 import math
-import time
-import hashlib
-import json
 
 
 class TrainingControl:
-    def __init__(self, config, target_epochs, state=None):
+    def __init__(self, config, target_epochs):
         self.target_epochs = int(target_epochs)
         if self.target_epochs < 1:
             raise ValueError("POSITIVE_TARGET_EPOCHS_REQUIRED")
@@ -26,36 +23,22 @@ class TrainingControl:
         if 'min_delta' in self.schedule and (not math.isfinite(float(self.schedule['min_delta'])) or float(self.schedule['min_delta']) < 0):
             raise ValueError('INVALID_SCHEDULE_min_delta')
         for key, default, minimum in [('patience', 10, 1), ('min_updates', 0, 0),
-                ('validation_every_epochs', 1, 1), ('validation_every_updates', 0, 0),
-                ('checkpoint_every_updates', 1, 0)]:
+                ('validation_every_epochs', 1, 1), ('validation_every_updates', 0, 0)]:
             value = self.policy.get(key, default)
             if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
                 raise ValueError('INVALID_TRAINING_CONTROL_' + key)
             self.policy[key] = value
-        for key, default in [('min_delta', 0.), ('checkpoint_every_seconds', 0.)]:
+        for key, default in [('min_delta', 0.)]:
             value = float(self.policy.get(key, default))
             if not math.isfinite(value) or value < 0:
                 raise ValueError('INVALID_TRAINING_CONTROL_' + key)
             self.policy[key] = value
-        if not self.policy['checkpoint_every_updates'] and not self.policy['checkpoint_every_seconds']:
-            raise ValueError('CHECKPOINT_TRIGGER_REQUIRED')
         if mode != 'full' and (not isinstance(self.schedule.get('warmup_epochs', 1), int)
                 or not 0 < self.schedule.get('warmup_epochs', 1) < self.target_epochs):
             raise ValueError('SCHEDULE_REQUIRES_POSITIVE_WARMUP_AND_FULL_STAGE')
-        policy_identity = hashlib.sha256(json.dumps({"policy": self.policy, "schedule": self.schedule, "enabled": self.enabled}, sort_keys=True).encode()).hexdigest()
-        self.state = dict(schema_version=1, target_epochs=self.target_epochs, policy_identity=policy_identity, epoch=0, updates=0, stage='full' if mode == 'full' else mode.split('_then')[0],
+        self.state = dict(schema_version=1, target_epochs=self.target_epochs, epoch=0, updates=0, stage='full' if mode == 'full' else mode.split('_then')[0],
                           best=None, bad_validations=0, full_updates=0, full_validations=0, requires_validation=self.enabled or mode != 'full', last_validation_epoch=0, last_validation_update=0,
-                          last_checkpoint_update=0, reason=None, status='running')
-        if state is not None:
-            if state.get('schema_version') != 1:
-                raise ValueError('TRAINING_CONTROL_STATE_VERSION')
-            if state.get("policy_identity", policy_identity) != policy_identity:
-                raise ValueError("TRAINING_CONTROL_POLICY_CHANGED")
-            self.state.update(copy.deepcopy(state))
-            self.state["target_epochs"] = self.target_epochs
-            if self.state["reason"] == "max_epochs" and self.state["epoch"] < self.target_epochs:
-                self.state.update(status="running", reason=None)
-        self._saved_at = time.monotonic()
+                          reason=None, status='running')
 
     @property
     def stage(self):
@@ -100,14 +83,6 @@ class TrainingControl:
             s.update(status='complete', reason='validation_plateau')
         return improved
 
-    def checkpoint_due(self, force=False):
-        p, s = self.policy, self.state
-        return force or self.stopped or (p['checkpoint_every_updates'] > 0 and s['updates'] - s['last_checkpoint_update'] >= p['checkpoint_every_updates']) or (p['checkpoint_every_seconds'] > 0 and time.monotonic() - self._saved_at >= p['checkpoint_every_seconds'])
-
-    def checkpoint_saved(self):
-        self.state['last_checkpoint_update'] = self.state['updates']
-        self._saved_at = time.monotonic()
-
     def state_dict(self):
         return copy.deepcopy(self.state)
 
@@ -117,22 +92,23 @@ class TrainingControl:
 
 
 def checkpoint_completion(saved, target_epochs):
-    """Never infer success merely from a returned path or an interrupted update."""
-    control = saved.get('extra', {}).get('training_control')
-    if control is not None:
-        if control.get('status') != 'complete' or control.get('reason') not in ('max_epochs', 'validation_plateau'):
-            raise ValueError('TRAINING_NOT_COMPLETE')
-        if control.get('reason') == 'max_epochs' and saved['epoch'] < target_epochs:
-            raise ValueError('TRAINING_NOT_COMPLETE')
-        if control.get('reason') == 'validation_plateau' and control.get('target_epochs') != target_epochs:
-            raise ValueError('TRAINING_COMPLETION_TARGET_CHANGED')
-        if control.get('requires_validation') and (control.get('full_updates', 0) < 1 or control.get('full_validations', 0) < 1):
-            raise ValueError('FULL_STAGE_VALIDATION_REQUIRED')
-        if control['epoch'] != saved['epoch'] or control['updates'] != saved['counters'].get('optimizer_step', control['updates']):
-            raise ValueError('COMPLETION_COUNTER_MISMATCH')
-        return dict(status='complete', target_epochs=target_epochs, actual_epochs=control['epoch'],
-                    actual_updates=control['updates'], reason=control['reason'])
-    if saved.get('extra', {}).get('update_resume') is not None or saved['epoch'] < target_epochs:
+    """Validate completion of this run, independently of the selected best epoch."""
+    completion = saved.get('extra', {}).get('training_completion', {})
+    if completion.get('status') != 'complete':
         raise ValueError('TRAINING_NOT_COMPLETE')
-    return dict(status='complete', target_epochs=target_epochs, actual_epochs=saved['epoch'],
-                actual_updates=saved.get('counters', {}).get('optimizer_step'), reason='max_epochs')
+    if completion.get('target_epochs') != target_epochs:
+        raise ValueError('TRAINING_COMPLETION_TARGET_CHANGED')
+    reason = completion.get('reason')
+    if reason not in ('max_epochs', 'validation_plateau'):
+        raise ValueError('TRAINING_NOT_COMPLETE')
+    epochs, updates = completion.get('actual_epochs'), completion.get('actual_updates')
+    if type(epochs) is not int or not 0 <= epochs <= target_epochs or type(updates) is not int or updates < 1:
+        raise ValueError('COMPLETION_COUNTER_MISMATCH')
+    selected_epoch = saved.get('epoch')
+    selected_updates = saved.get('counters', {}).get('optimizer_step')
+    if (type(selected_epoch) is not int or not 0 <= selected_epoch <= epochs
+            or type(selected_updates) is not int or not 0 < selected_updates <= updates):
+        raise ValueError('COMPLETION_COUNTER_MISMATCH')
+    if reason == 'max_epochs' and epochs != target_epochs:
+        raise ValueError('TRAINING_NOT_COMPLETE')
+    return dict(completion)
